@@ -1,0 +1,17 @@
+upstreams:
+  - name: anthropics-skills
+    repo: https://github.com/anthropics/skills
+    branch: main
+    mappings:
+      - src: skills/skill-creator     # 上游路径（相对于仓库根）
+        dst: skills/skill-creator     # 本地目标路径（相对于此文件所在目录）
+      - src: skills/frontend-design
+        dst: skills/frontend-design
+
+  # 示例：添加更多上游
+  # - name: my-other-upstream
+  #   repo: https://github.com/user/repo
+  #   branch: main
+  #   mappings:
+  #     - src: path/in/upstream
+  #       dst: skills/local-name
