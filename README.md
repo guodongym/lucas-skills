@@ -28,13 +28,7 @@ lucas-skills/
 - `vendor.py sync` 执行 sparse clone/fetch（只拉取映射的路径），将变更覆写到本地，更新 lock 文件
 - 删除策略：上游删除的文件**不会自动删除**本地文件，只打印 `[WARN]` 提示，由你手动决定
 
-### 为什么不用 vendir / git subtree？
-
-| 方案 | 问题 |
-|------|------|
-| git subtree | 只能整目录映射，不支持跨仓库多路径，历史混入主仓库 |
-| vendir | 需要安装额外工具，引入外部依赖 |
-| **本方案** | 只依赖 Python 3 + pyyaml + git，配置即文档，lock 文件可 git 追踪 |
+方案选型对比详见 [DESIGN.md](DESIGN.md#为什么不用现有工具)。
 
 ## 快速开始
 
