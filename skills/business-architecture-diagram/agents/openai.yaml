@@ -1,0 +1,4 @@
+interface:
+  display_name: "业务架构图"
+  short_description: "生成并优化汇报风 SVG 业务架构图"
+  default_prompt: "Use $business-architecture-diagram to turn business architecture ideas or 中文业务架构图需求 into an executive-style SVG diagram and refine wording, layout, arrows, and line breaks."
