@@ -8,6 +8,15 @@ upstreams:
       - src: skills/frontend-design
         dst: skills/frontend-design
 
+  - name: khazix-skills
+    repo: https://github.com/KKKKhazix/khazix-skills
+    branch: main
+    mappings:
+      - src: hv-analysis
+        dst: skills/hv-analysis
+      - src: khazix-writer
+        dst: skills/khazix-writer
+
   # 示例：添加更多上游
   # - name: my-other-upstream
   #   repo: https://github.com/user/repo
