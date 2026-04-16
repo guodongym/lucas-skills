@@ -1,4 +1,4 @@
-# 此文件由 sync.py 自动生成，请勿手动编辑
+# 此文件由 vendor.py 自动生成，请勿手动编辑
 # 建议提交到 git，记录上次同步状态
 anthropics-skills:
   commit: 12ab35c2eb5668c95810e6a6066f40f4218adc39

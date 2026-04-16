@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""sync.py - 追踪并同步来自多个上游 git 仓库的部分文件。
+"""vendor.py - 追踪并同步来自多个上游 git 仓库的部分文件。
 
-用法: python sync.py <命令> [选项]
-运行 'python sync.py help' 查看完整说明。
+用法: python vendor.py <命令> [选项]
+运行 'python vendor.py help' 查看完整说明。
 """
 
 import shutil
@@ -52,7 +52,7 @@ def load_lock():
 
 
 def save_lock(lock):
-    header = "# 此文件由 sync.py 自动生成，请勿手动编辑\n# 建议提交到 git，记录上次同步状态\n"
+    header = "# 此文件由 vendor.py 自动生成，请勿手动编辑\n# 建议提交到 git，记录上次同步状态\n"
     with open(LOCK_FILE, "w") as f:
         f.write(header)
         yaml.dump(lock, f, default_flow_style=False, allow_unicode=True)
@@ -102,7 +102,7 @@ def collect_files(directory):
 # ---------------------------------------------------------------------------
 
 def print_help():
-    print("""用法: python sync.py <命令> [选项]
+    print("""用法: python vendor.py <命令> [选项]
 
 命令:
   help                          显示此帮助信息
@@ -111,10 +111,10 @@ def print_help():
   sync [--upstream <name>]      执行同步，可通过 --upstream 指定只同步某个上游
 
 示例:
-  python sync.py check
-  python sync.py diff
-  python sync.py sync
-  python sync.py sync --upstream anthropics-skills
+  python vendor.py check
+  python vendor.py diff
+  python vendor.py sync
+  python vendor.py sync --upstream anthropics-skills
 
 文件说明:
   upstream.yml       上游配置（手动维护）
@@ -147,7 +147,7 @@ def cmd_check():
             print(f"[UPDATE] {name}: 有更新  {old} -> {remote[:8]}")
 
     if has_updates:
-        print("\n运行 'python sync.py diff' 查看详情，或 'python sync.py sync' 执行同步。")
+        print("\n运行 'python vendor.py diff' 查看详情，或 'python vendor.py sync' 执行同步。")
     else:
         print("\n所有上游均为最新。")
 
