@@ -239,7 +239,7 @@ def cmd_sync(upstream_filter=None):
             print(f"[ERROR] clone 失败: {e}")
             continue
 
-        deletions = []
+        all_deletions = []
         for mapping in mappings:
             src, dst = mapping["src"], mapping["dst"]
             up_path = clone_dir / src
@@ -253,19 +253,38 @@ def cmd_sync(upstream_filter=None):
             lo_files = collect_files(lo_path)
             lo_path.mkdir(parents=True, exist_ok=True)
 
+            added_count = 0
+            updated_count = 0
+            unchanged_count = 0
+
             for rel, src_file in up_files.items():
                 dst_file = lo_path / rel
                 dst_file.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src_file, dst_file)
 
-            for rel in sorted(set(lo_files) - set(up_files)):
-                deletions.append(f"{dst}/{rel}")
+                if dst_file.exists():
+                    if dst_file.read_bytes() != src_file.read_bytes():
+                        shutil.copy2(src_file, dst_file)
+                        updated_count += 1
+                    else:
+                        unchanged_count += 1
+                else:
+                    shutil.copy2(src_file, dst_file)
+                    added_count += 1
 
-            print(f"  {src} -> {dst}: 已同步 {len(up_files)} 个文件")
+            deletions = sorted(set(lo_files) - set(up_files))
+            all_deletions.extend([f"{dst}/{rel}" for rel in deletions])
 
-        if deletions:
+            parts = []
+            if added_count: parts.append(f"新增 {added_count}")
+            if updated_count: parts.append(f"更新 {updated_count}")
+            if unchanged_count: parts.append(f"未变 {unchanged_count}")
+            
+            summary = ", ".join(parts) if parts else "无文件"
+            print(f"  {src} -> {dst}: {summary}")
+
+        if all_deletions:
             print("\n  [WARN] 上游已删除以下文件，本地未自动删除，请手动确认：")
-            for f in deletions:
+            for f in all_deletions:
                 print(f"    - {f}")
 
         lock[name] = {
