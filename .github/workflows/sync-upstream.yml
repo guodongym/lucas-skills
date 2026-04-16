@@ -27,7 +27,10 @@ jobs:
         run: |
           output=$(python vendor.py check)
           echo "$output"
-          if echo "$output" | grep -q '\[UPDATE\]'; then
+          # 提取所有显示 [UPDATE] 的行中的仓库名
+          updated_names=$(echo "$output" | grep '\[UPDATE\]' | awk '{print $2}' | sed 's/://' | tr '\n' ',' | sed 's/,$//')
+          echo "updated_names=$updated_names" >> $GITHUB_OUTPUT
+          if [ -n "$updated_names" ]; then
             echo "has_updates=true" >> $GITHUB_OUTPUT
           else
             echo "has_updates=false" >> $GITHUB_OUTPUT
@@ -41,12 +44,22 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          BRANCH="upstream-sync/$(date +%Y-%m-%d)"
+          DATE=$(date +%Y-%m-%d)
+          BRANCH="upstream-sync/$DATE"
           git checkout -b "$BRANCH"
 
           # 执行同步，保留输出作为 PR body 内容
           SYNC_OUTPUT=$(python vendor.py sync)
           echo "$SYNC_OUTPUT"
+
+          # 提取真正有变动的技能文件夹名 (仅包含“新增”或“更新”的行)
+          # 逻辑：找包含“新增|更新”的行 -> 取 "-> " 之后的内容 -> 取 ":" 之前的内容 -> 仅取文件夹名 (basename)
+          CHANGED_SKILLS=$(echo "$SYNC_OUTPUT" | grep -E "新增|更新" | awk -F' -> ' '{print $2}' | awk -F: '{print $1}' | xargs -I {} basename {} | sort -u | tr '\n' ',' | sed 's/,$//')
+          
+          # 如果没有任何技能文件变动（可能只是 lock 更新了），则回退到使用仓库名
+          if [ -z "$CHANGED_SKILLS" ]; then
+            CHANGED_SKILLS="${{ steps.check.outputs.updated_names }}"
+          fi
 
           git add -A
           if git diff --cached --quiet; then
@@ -54,26 +67,29 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore: sync upstream skills $(date +%Y-%m-%d)"
-          git push origin "$BRANCH"
+          # 构造符合规范的 Commit Message
+          COMMIT_MSG="chore(skills): sync $CHANGED_SKILLS"
+          git commit -m "$COMMIT_MSG" -m "Upstream repositories: ${{ steps.check.outputs.updated_names }}" -m "Synced at $DATE"
+          git push origin "$BRANCH" --force
 
           # 写入 PR body 文件，避免变量展开和特殊字符问题
           cat > /tmp/pr-body.md << EOF
-          ## 上游技能同步
+          ## 🤖 上游技能自动同步 ($DATE)
 
-          GitHub Actions 检测到上游仓库有更新，已自动同步。请 review 变更后合并。
+          检测到以下技能有更新：\`$CHANGED_SKILLS\`
 
-          ### 同步详情
+          ### 📦 详细同步日志
 
-          \`\`\`
+          \`\`\`text
           ${SYNC_OUTPUT}
           \`\`\`
 
-          > 如上游删除了某些文件，vendor.py 不会自动删除本地文件，请留意 \`[WARN]\` 提示。
+          ---
+          > **提示**: 此 PR 由 GitHub Actions 自动生成。如果日志中出现 \`[WARN]\`，表示上游删除了文件，请手动检查是否需要同步删除本地文件。
           EOF
 
           gh pr create \
-            --title "chore: sync upstream skills $(date +%Y-%m-%d)" \
+            --title "$COMMIT_MSG ($DATE)" \
             --body-file /tmp/pr-body.md \
             --base main \
             --head "$BRANCH"
