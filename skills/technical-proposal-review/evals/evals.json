@@ -1,0 +1,62 @@
+{
+  "skill_name": "technical-proposal-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "请初审外部评测准备好的 API Key 认证架构合并 masked input。该输入已去除已有 `评审意见`，请只基于 masked input 输出初审意见和回流表单。",
+      "expected_output": "The review should identify open source or community plugin source modification risk, explain upstream-sync and fork-maintenance concerns, ask for extension/composition/upstream-compatible alternatives, and include migration/rollback and security findings without relying on the existing human comments.",
+      "files": [],
+      "expectations": [
+        "Mentions community fork or upstream divergence risk from modifying plugin/source code.",
+        "Requires checking whether the affected component is open source.",
+        "Requires an upstream-compatible maintenance strategy or explains how to stay compatible with upstream.",
+        "Includes actionable migration or rollback requirements.",
+        "States the reviewed input scope and that existing `评审意见` was excluded or masked.",
+        "Includes a feedback block for missed issues, false positives, severity adjustments, and output preferences."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "请初审外部评测准备好的知识库多租户隔离 masked input。该输入已去除已有 `评审意见`，请只基于 masked input 输出初审意见和回流表单。",
+      "expected_output": "The review should require a spec-to-control matrix for tenant package promises, call out multi-layer queue consistency risk, prefer decoupled HPA/backpressure over cross-layer scaling rules, and evaluate model read/write isolation.",
+      "files": [],
+      "expectations": [
+        "Requires a matrix like spec item -> control point -> metric source -> over-limit behavior -> capacity prerequisite -> alert.",
+        "Flags multi-layer queue state consistency and idempotency risk.",
+        "Recommends decoupled component scaling with backpressure or HTTP 429 instead of tightly coupled cross-layer scaling.",
+        "Checks read/write traffic isolation for model or embedding resources.",
+        "States the reviewed input scope and that existing `评审意见` was excluded or masked.",
+        "Includes human review focus and a feedback block."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "请初审外部评测准备好的基础平台操作审计 masked input。该输入已去除已有 `评审意见`，请只基于 masked input 输出初审意见和回流表单。",
+      "expected_output": "The review should ask for current-state proof, existing async mechanism reuse boundary, MVP-first rollout, button/API/route coverage matrix, and concrete audit delivery semantics.",
+      "files": [],
+      "expectations": [
+        "Requires current-state proof before new architecture.",
+        "Checks whether existing async/event mechanisms can be reused or extended.",
+        "Calls out MVP-first rollout before broad platform optimization.",
+        "Asks for button/API/route coverage matrix with owner, current status, priority, and acceptance case.",
+        "Includes concrete delivery semantics such as idempotency, retry, queue full behavior, or recovery.",
+        "Includes a structured feedback block with fields for missed issues, false positives, severity adjustments, and reviewer notes."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "请初审一个认证/网关方案：方案里使用网关 JWT 插件，认证失败、密钥拉取失败、配置缺失或插件异常时允许请求继续通过，并计划把 user_id/client_type 通过 header 透传给后端。请输出初审意见和回流表单。",
+      "expected_output": "The review should explain the business consequence of allowing requests to pass after authentication failure before using fail-open/fail-closed terms, require allowed scenarios/time window/alerting/owner/recovery path, and check trusted header injection boundaries.",
+      "files": [],
+      "expectations": [
+        "Explains in plain language that allowing requests after auth failure can make authentication ineffective.",
+        "Requires allowed scenarios, time window, alerting, owner, and recovery path if pass-through is allowed.",
+        "Checks whether identity headers can be forged or must be cleared and re-injected by a trusted gateway.",
+        "Distinguishes user authentication failures from infrastructure failures such as key pull failure, config missing, and plugin exception.",
+        "Avoids only using abstract fail-open/fail-closed terminology without business consequence.",
+        "Includes severity and proposal evidence for each major finding.",
+        "Includes requested remediation, human review focus, and a structured feedback block."
+      ]
+    }
+  ]
+}

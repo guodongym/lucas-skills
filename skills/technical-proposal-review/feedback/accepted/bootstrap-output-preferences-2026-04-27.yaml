@@ -1,0 +1,39 @@
+case_id: bootstrap-2026-04-26
+accepted_at: 2026-04-27
+accepted_by: human_reviewer
+skill_review_version: draft-local-2026-04-26
+summary: { accepted_output_preference_items: 6, pending_items: 0, status: folded_into_output_preferences }
+output_preference_feedback:
+  liked_comments:
+    - case_id: CASE-002
+      skill_comment_id: P0-01
+      reason: "Authentication failure handling should be explained in concrete business terms before using fail-open/fail-closed terminology."
+      fold_into: "references/output-preferences.md"
+      reviewer_note: "Approved after rewrite."
+    - case_id: CASE-006
+      skill_comment_id: P0-01
+      reason: "Spec-to-control matrix requirement matches the desired review style for external capacity promises."
+      fold_into: "references/output-preferences.md"
+      reviewer_note: "Liked."
+    - case_id: CASE-004
+      skill_comment_id: P1-04
+      reason: "Button/API/route coverage matrix is actionable for platform capability reviews."
+      fold_into: "references/output-preferences.md"
+      reviewer_note: "Liked."
+  disliked_comments:
+    - case_id: CASE-001
+      skill_comment_id: P1-05
+      reason: "Coverage and rollout comment bundles too many artifacts."
+      fold_into: "references/output-preferences.md"
+      reviewer_note: "Liked the anti-pattern: avoid bundled comments."
+  wording_preferences:
+    - before: "是否应该采用 OAuth2/OIDC"
+      after: "先确认对方是否能提供 OAuth2/OIDC 或等价标准协议；不能提供时再补齐当前 token bridge 的安全契约。"
+      fold_into: "references/output-preferences.md"
+      reviewer_note: "Approved."
+    - before: "补充覆盖矩阵"
+      after: "补 button/API/route 级覆盖矩阵，包含 owner、当前状态、优先级、验收用例。"
+      fold_into: "references/output-preferences.md"
+      reviewer_note: "Approved."
+  not_accepted_yet:
+    []

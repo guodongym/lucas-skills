@@ -1,0 +1,37 @@
+case_id: bootstrap-2026-04-26
+accepted_at: 2026-04-27
+accepted_by: human_reviewer
+skill_review_version: draft-local-2026-04-26
+summary: { cases_reviewed: 6, accepted_review_quality_items: 5, status: folded_into_skill_references }
+review_quality_feedback:
+  missed_issues:
+    - case_id: CASE-003
+      issue: "Community fork and upgrade-maintenance risk from modifying open source plugin source was missed."
+      accepted_severity_rule: "P1 by default; P0 when the source change affects authentication, authorization, routing, security defaults, or migration-critical behavior without governance."
+      matched_rule: RP-004
+      fold_into: "references/risk-patterns.md"
+      reviewer_note: "The skill should identify whether the affected component is open source. For open source components, maintenance strategy should stay close to upstream, avoid hard-to-merge community divergence, and prefer a more elegant extension or composition approach."
+    - case_id: CASE-004
+      issue: "MVP-first decision path for broad platform audit rollout was not called out explicitly."
+      accepted_severity: P1
+      matched_rule: RP-003
+      fold_into: "references/risk-patterns.md"
+      reviewer_note: "Approved."
+    - case_id: CASE-005
+      issue: "Representative Java, Python, and Go end-to-end rollout was only partially covered by a generic coverage matrix comment."
+      accepted_severity: P1
+      matched_rule: "review-rubric rollout-and-validation"
+      fold_into: "references/review-rubric.md and references/risk-patterns.md"
+      reviewer_note: "Approved."
+  severity_adjustments:
+    - case_id: CASE-001
+      skill_comment_id: P0-02
+      accepted_rule: "External resource creation inside a DB transaction should not default to P0. Use P0 only when synchronous external creation has no idempotency, compensation, failure state, or repair path; otherwise use P1 or Q."
+      fold_into: "references/risk-patterns.md"
+      reviewer_note: "Approved."
+  review_focus_only:
+    - case_id: CASE-005
+      skill_comment_id: "human-review-focus-field-path"
+      accepted_rule: "Filebeat label field-path concerns need actual event samples. Keep as human review focus or Q, not as a hard rule."
+      fold_into: "references/risk-patterns.md"
+      reviewer_note: "Approved."

@@ -4,3 +4,9 @@
 
 .idea
 
+# Local OS metadata
+.DS_Store
+**/.DS_Store
+
+# Local/private source materials for technical proposal review
+skills/technical-proposal-review/materials/private/
