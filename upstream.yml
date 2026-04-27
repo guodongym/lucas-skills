@@ -7,6 +7,12 @@ upstreams:
         dst: skills/skill-creator     # 本地目标路径（相对于此文件所在目录）
       - src: skills/frontend-design
         dst: skills/frontend-design
+      - src: skills/pdf
+        dst: skills/pdf
+      - src: skills/docx
+        dst: skills/docx
+      - src: skills/xlsx
+        dst: skills/xlsx
 
   - name: khazix-skills
     repo: https://github.com/KKKKhazix/khazix-skills
