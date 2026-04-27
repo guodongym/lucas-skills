@@ -1,0 +1,98 @@
+case_id: 2026-04-27-operation-audit-v3
+accepted_at: 2026-04-27
+accepted_by: human_reviewer
+proposal_path: inline (third review pass, same proposal with iterative human feedback)
+skill_review_version: local-2026-04-27
+skill_result: revise
+human_final_result: pending
+summary:
+  session: third review pass with iterative human feedback loop
+  false_positives_closed: 4
+  confirmed_findings: 3
+  status: folded_into_skill_references
+
+review_quality_feedback:
+  missed_issues: []
+  false_positives:
+    - skill_comment_id: P1-01 (SDK/API contract external link)
+      reason: not_relevant
+      note: >
+        External links should not be flagged as P1. Reviewer should offer to read the link
+        or ask the author to paste content. Treating "content lives in an external link"
+        as a proposal defect is wrong — it is a process gap the reviewer can close.
+    - skill_comment_id: P1-02 (button matrix external link)
+      reason: not_relevant
+      note: Same rule as above. External link != proposal defect.
+    - skill_comment_id: P1-03 (HTTP auth undefined)
+      reason: wrong_context
+      note: >
+        Intra-cluster HTTP calls are acceptable without explicit auth when network isolation
+        is the trust boundary. Reviewer escalated to P1 without asking about deployment
+        scope. Should ask "intra-cluster or public-facing?" before flagging HTTP auth as missing.
+    - skill_comment_id: P1-04 (DDL migration plan absent)
+      reason: too_strict
+      note: >
+        DDL migration feasibility is a team operational concern. Without specific evidence
+        of risk (e.g., unknown table size, no DBA, no tooling), should raise as P2 or Q
+        rather than P1. Trust team expertise.
+    - skill_comment_id: Human review point — Go/Python SDK transition period
+      reason: not_relevant
+      note: >
+        Batched service-by-service onboarding is a natural and sufficient transition strategy.
+        Not worth flagging as a concern without evidence of coordination failure risk.
+
+  severity_adjustments:
+    - skill_comment_id: trace_Id idempotency (was P2-01)
+      from: P2
+      to: P1
+      reason: Human reviewer confirmed this is a real design decision requiring resolution before implementation.
+    - skill_comment_id: scheduled task operator fallback (was P2-02)
+      from: P2
+      to: P1
+      reason: Human reviewer confirmed this is a real issue; vague "business service补全" is not executable.
+
+output_preference_feedback:
+  liked_comments:
+    - skill_comment_id: trace_Id idempotency finding
+      reason: accurate | important | actionable
+    - skill_comment_id: scheduled task operator fallback finding
+      reason: actionable | matches_my_style
+    - skill_comment_id: field truncation vs TEXT recommendation
+      reason: accurate | important
+  disliked_comments:
+    - skill_comment_id: P1-01 (SDK/API contract external link)
+      reason: not_actionable | wrong_context
+    - skill_comment_id: P1-03 (HTTP auth)
+      reason: wrong_context
+    - skill_comment_id: P1-04 (DDL migration)
+      reason: too_strict
+  wording_preferences:
+    - before: Flag external links as P1 when contract or coverage cannot be verified inline.
+      after: >
+        When an evidence gap is an external link, offer to read the link or ask the author
+        to share the content. Do not treat "content is in an external link" as a proposal
+        defect or P1 finding.
+      fold_into: references/output-preferences.md
+    - before: Flag missing HTTP auth as P1 for any new HTTP endpoint.
+      after: >
+        For HTTP endpoints in microservice architectures, ask about deployment scope
+        (intra-cluster vs public-facing) before flagging auth as missing. Intra-cluster
+        calls with network isolation are acceptable without explicit auth.
+      fold_into: references/output-preferences.md
+    - before: Flag DDL migration plan absence as P1 for any schema change.
+      after: >
+        For schema changes, raise DDL migration concern as P2 or Q unless there is specific
+        evidence of risk (unknown table size, no DBA support, no online DDL tooling).
+        Trust team operational expertise by default.
+      fold_into: references/output-preferences.md
+  reviewer_notes: >
+    Third review pass. Core learning: four P1 findings were false positives caused by
+    assuming worst-case deployment/operational context without asking first. The pattern —
+    ask about context before escalating to P1 for operational or deployment concerns.
+    Human confirmed trace_Id idempotency and scheduled task operator fallback as genuine
+    P1 issues. Field truncation vs TEXT recommendation (audit logs need bounded fields,
+    not unlimited TEXT) was accepted as a good domain-specific insight.
+  folded_into:
+    - references/output-preferences.md: external link handling
+    - references/output-preferences.md: HTTP auth deployment context rule
+    - references/output-preferences.md: DDL migration default severity

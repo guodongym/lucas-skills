@@ -28,6 +28,9 @@ Use these preferences when wording review findings.
 - Over-weighting a low-impact wording issue.
 - Calling an issue `P0` unless it blocks final human review readiness.
 - Bundling validation, observability, rollout, rollback, audit, alerting, and effort estimate into one broad finding when only one or two artifacts are material.
+- Flagging "content is in an external link" as a P1 finding. When an evidence gap is an external link, offer to read the link or ask the author to share the content instead.
+- Flagging missing HTTP auth as P1 without first asking whether the endpoint is intra-cluster or public-facing. Intra-cluster calls with network isolation are acceptable without explicit auth.
+- Flagging DDL migration plan absence as P1 by default. Raise as P2 or Q unless there is specific evidence of risk such as unknown table size, no DBA support, or no online DDL tooling. Trust team operational expertise.
 
 ## Feedback Signals
 
