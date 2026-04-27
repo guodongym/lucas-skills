@@ -237,3 +237,54 @@ Expected review:
 Historical source:
 
 - Operation audit review: require button-level list and completion state.
+
+## RP-016 Cross-Service Contract Missing
+
+Trigger:
+
+- Proposal adds or standardizes a platform capability across services, languages, SDKs, gateways, or protocols.
+- Architecture shows SDK/API/RPC/HTTP integration points but the request contract, response semantics, authentication boundary, timeout/retry behavior, idempotency, or required fields are not specified.
+
+Expected review:
+
+- Treat missing SDK/API contract as high priority when it affects implementation ownership or cross-service consistency.
+- Require concrete request/response schema, required metadata, actor and tenant source, error codes, timeout and retry rules, idempotency key, and compatibility expectations.
+- Prefer this finding before generic reliability comments when the proposal already has a high-level architecture but lacks an executable integration contract.
+
+Historical source:
+
+- Operation audit review feedback: SDK/API contract gap was the most actionable review point for a cross-language audit capability.
+
+## RP-017 Architecture Text Boundary Mismatch
+
+Trigger:
+
+- Architecture diagram shows components, SDKs, protocols, or capabilities that the proposal text describes as missing, future, or unsupported.
+- The proposal does not say whether a component in the diagram is current state, target state, or illustrative design.
+
+Expected review:
+
+- Require the author to mark each diagram component and path as current, this-phase target, future target, or out of scope.
+- Ask for an explicit delta between current behavior and proposed behavior before reviewing implementation details.
+- Raise as `P1` when the mismatch changes development scope, ownership, or review readiness.
+
+Historical source:
+
+- Operation audit review feedback: text said heterogeneous services lacked audit capability while the architecture diagram already showed Go/Python SDK HTTP paths.
+
+## RP-018 Phase Scope Mixed With Future Optimization
+
+Trigger:
+
+- Proposal presents current architecture and future optimization architecture together without a phase boundary.
+- A future optimization such as batching, queueing, fallback, or new storage appears next to the current MVP path without trigger conditions.
+
+Expected review:
+
+- Require a clear this-phase scope, future-phase scope, trigger metrics, and decision gates.
+- Ask whether the MVP reuses existing mechanisms first, and defer optimization until representative rollout exposes measured pressure or failure modes.
+- Treat as high priority when mixed scope could expand implementation or confuse acceptance criteria.
+
+Historical source:
+
+- Operation audit review feedback: event plus batch write was acceptable as a future QPS optimization, but needed explicit boundary and trigger conditions separate from the current SDK access path.

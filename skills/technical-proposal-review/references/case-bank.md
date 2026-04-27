@@ -206,3 +206,40 @@ Reusable rules:
 Expected supplement:
 
 - Spec-to-control mapping, current bottleneck baselines, queue and model metrics, 429 semantics, retry guidance, and authoritative package config sync design.
+
+## CASE-007 Operation Audit V2 With Author Responses
+
+Source:
+
+- Private source key `CASE-007`
+
+Domain tags:
+
+- `audit`
+- `sdk`
+- `cross-service`
+- `maintainability`
+
+Scenario:
+
+- Operation audit proposal extends existing Java/System audit write path to heterogeneous services.
+- The document includes prior reviewer questions and author answers, plus a current architecture and a future event/batch-write optimization path.
+- A linked button/project matrix exists, but the proposal still needs a clear acceptance baseline.
+
+Human review concerns:
+
+- Treat prior reviewer questions as reviewer context, and treat author answers as proposal evidence.
+- When a diagram shows Go/Python SDK HTTP paths but text says heterogeneous services lack audit capability, require current/target boundary clarification.
+- SDK/API contract gaps can be more actionable than generic reliability comments when architecture already exists.
+- Event plus batch write is acceptable as a future optimization only if this-phase scope and trigger conditions are explicit.
+
+Reusable rules:
+
+- For cross-service platform capabilities, prioritize executable SDK/API contracts: required fields, actor and tenant source, timeout, retry, error codes, idempotency, and compatibility.
+- Require each diagram path to be labeled current, this-phase target, future target, or out of scope when text and diagram appear inconsistent.
+- Separate current MVP/reuse path from future optimization path, with trigger metrics and decision gates.
+- For platform audit coverage, a linked matrix should be reviewable as an acceptance baseline, not just a scope inventory.
+
+Expected supplement:
+
+- SDK/API schema, current-vs-target boundary, this-phase scope, future batch-write trigger conditions, audit failure semantics, field-overflow strategy, and acceptance matrix.

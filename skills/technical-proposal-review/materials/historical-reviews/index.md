@@ -12,6 +12,7 @@ This public index describes historical proposal and review material used to cali
 | CASE-004 | `CASE-004` | `audit`, `observability`, `maintainability` | Operation audit coverage, reuse boundary, and MVP-first rollout |
 | CASE-005 | `CASE-005` | `logging-observability`, `operations`, `capacity` | Service log collection, index lifecycle, and rollout |
 | CASE-006 | `CASE-006` | `multi-tenant-capacity`, `reliability`, `operations`, `cost` | Tenant fairness, capacity promises, queue consistency, and HPA design |
+| CASE-007 | `CASE-007` | `audit`, `sdk`, `cross-service`, `maintainability` | Operation audit v2 snapshot with author responses, architecture/current-state ambiguity, SDK/API contract gaps, and phase-boundary feedback |
 
 ## Loading Guidance
 

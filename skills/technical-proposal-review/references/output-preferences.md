@@ -11,11 +11,13 @@ Use these preferences when wording review findings.
 - Use severity only when evidence supports it.
 - Use historical cases when they sharpen judgment.
 - Preserve human final authority by listing review focus instead of pretending to approve final design.
+- For platform audit or cross-service capability proposals, prioritize SDK/API contract gaps, architecture/text boundary mismatches, and this-phase vs future-optimization scope confusion before broader generic reliability comments when evidence supports them.
 - For external capacity promises, prefer a matrix: `spec item -> control point -> metric source -> over-limit behavior -> capacity prerequisite -> alert`.
 - For platform capability coverage, ask for a concrete coverage matrix with owner, current status, priority, and acceptance case.
 - When standard identity protocols are relevant, first ask whether the other side can provide OAuth2/OIDC or an equivalent standard protocol; if not, require the current token bridge security contract.
 - For authentication, gateway, or permission failure behavior, explain the business consequence before using terms such as `fail-open` or `fail-closed`.
 - When a proposal allows requests to pass after authentication failure, require the allowed scenarios, time window, alerting, owner, and recovery path.
+- When prior review questions and author answers are mixed into the proposal, treat questions as reviewer context and answers as proposal evidence; do not treat the questions themselves as current defects.
 
 ## Avoid
 

@@ -1,0 +1,52 @@
+case_id: 2026-04-27-operation-audit
+accepted_at: 2026-04-27
+accepted_by: human_reviewer
+proposal_path: https://365.kdocs.cn/l/coJSAjiYmp95?from=koa
+skill_review_version: local-2026-04-27
+skill_result: revise
+human_final_result: pending
+summary:
+  accepted_findings: 9
+  top_ranked_findings: [P1-04, P1-03, P1-02]
+  status: folded_into_skill_references
+
+review_quality_feedback:
+  missed_issues: []
+  false_positives: []
+  severity_adjustments: []
+
+output_preference_feedback:
+  liked_comments:
+    - skill_comment_id: P1-04
+      reason: important | actionable | matches_my_style
+    - skill_comment_id: P1-03
+      reason: important | actionable | matches_my_style
+    - skill_comment_id: P1-02
+      reason: important | actionable | matches_my_style
+    - skill_comment_id: P1-01
+      reason: accurate | important
+    - skill_comment_id: P1-05
+      reason: actionable
+    - skill_comment_id: P1-06
+      reason: actionable
+    - skill_comment_id: P2-01
+      reason: accurate
+    - skill_comment_id: P2-02
+      reason: actionable
+    - skill_comment_id: P2-03
+      reason: accurate
+  disliked_comments: []
+  wording_preferences:
+    - before: Prioritize generic reliability and capacity comments first.
+      after: For platform audit proposals, prioritize SDK/API contract, architecture/text boundary consistency, and this-phase versus future-optimization scope clarity when evidence supports them.
+      fold_into: references/output-preferences.md
+  reviewer_notes: >
+    User accepted all nine P1/P2 findings. The top three were P1-04 SDK/API contract,
+    P1-03 architecture diagram versus text boundary mismatch, and P1-02 current phase
+    versus future optimization boundary. Future similar reviews should surface these
+    boundary and executability issues before broader reliability or capacity comments.
+  folded_into:
+    - references/risk-patterns.md: RP-016 Cross-Service Contract Missing
+    - references/risk-patterns.md: RP-017 Architecture Text Boundary Mismatch
+    - references/risk-patterns.md: RP-018 Phase Scope Mixed With Future Optimization
+    - references/output-preferences.md: platform audit sorting preference and prior-review answer handling
