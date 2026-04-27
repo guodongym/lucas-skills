@@ -2,7 +2,17 @@
 
 Use these patterns to identify issues that recur in the user's historical reviews. Match patterns against concrete proposal evidence. If evidence is weak, output a `Q`追问 instead of overstating the issue.
 
+## 通用前置检查
+
+Before firing any pattern, check whether the proposal has already addressed the concern that would trigger it. If the proposal provides a reasonable contextual explanation — such as confirming a fork is the only viable path, stating that metering precision is not required, or noting that a field is technically unavailable — downgrade the finding to a `Q` or close it rather than outputting a P1 or P2.
+
+This pre-check does not remove pattern-specific requirements. It only prevents firing a finding when the proposal has already resolved the trigger condition.
+
+---
+
 ## RP-001 New Mechanism Without Reuse Boundary
+
+Scope: global
 
 Trigger:
 
@@ -25,6 +35,8 @@ Historical source:
 
 ## RP-002 Solution Before Current-State Proof
 
+Scope: global
+
 Trigger:
 
 - Proposal describes final architecture before explaining existing behavior and concrete problems.
@@ -39,6 +51,8 @@ Historical source:
 - Operation audit review: "先把现有方案说清楚，再说新的方案改变了哪里".
 
 ## RP-003 Optimization Before MVP
+
+Scope: global
 
 Trigger:
 
@@ -56,6 +70,8 @@ Historical source:
 
 ## RP-004 Community Fork Or Source Patch Without Governance
 
+Scope: gateway
+
 Trigger:
 
 - Proposal modifies community or third-party plugin source.
@@ -64,10 +80,9 @@ Trigger:
 
 Expected review:
 
-- Require alternatives such as extension point, configuration, composition, sidecar, upstream contribution, or minimal patch.
-- Require upgrade ownership, test matrix, rollback, and patch rebase path.
+- Require upgrade ownership, patch rebase path, trigger conditions for tracking upstream releases, and a plan for merging back if the community eventually supports the capability.
 - Identify whether the affected component is open source. For open source components, the maintenance strategy should stay close to upstream and avoid hard-to-merge divergence from community code.
-- Prefer an upstream-compatible, extension-based, or composition-based approach before source modification.
+- If the proposal has not yet established whether non-fork alternatives are feasible, also require evaluation of extension points, configuration, composition, sidecar, or upstream contribution before accepting source modification.
 - Treat as at least `P1`; use `P0` when the source patch changes authentication, authorization, routing, security defaults, or migration-critical behavior and no governance is provided.
 - Do not let route-level or configuration-level findings hide the fork and upgrade-maintenance risk.
 
@@ -76,6 +91,8 @@ Historical source:
 - API Key plugin merge review: source modification creates community fork risk.
 
 ## RP-005 Migration And Rollback Under-Specified
+
+Scope: migration
 
 Trigger:
 
@@ -94,6 +111,8 @@ Historical source:
 
 ## RP-006 Future Architecture Collision
 
+Scope: global
+
 Trigger:
 
 - Proposal works for current state but may conflict with known migration or consolidation plans.
@@ -107,6 +126,8 @@ Historical source:
 - Inner authentication review: consider future business API gateway migration into model gateway.
 
 ## RP-007 Identity Without Human Accountability
+
+Scope: auth
 
 Trigger:
 
@@ -123,6 +144,8 @@ Historical source:
 
 ## RP-008 Login State Or Identity Source Ambiguity
 
+Scope: auth
+
 Trigger:
 
 - SSO or third-party login proposal has multiple identity states or local sessions.
@@ -136,6 +159,8 @@ Historical source:
 - Cloud SSO review: ask for OAuth2/OIDC or equivalent standard protocol support and whether the external login state can be authoritative.
 
 ## RP-009 External Spec Promise Without Control Points
+
+Scope: multi-tenant-capacity
 
 Trigger:
 
@@ -152,6 +177,8 @@ Historical source:
 
 ## RP-010 Multi-Layer Queue Stack With State Risk
 
+Scope: multi-tenant-capacity
+
 Trigger:
 
 - Proposal adds multiple queues, dispatchers, retry layers, or cross-queue coordination.
@@ -167,6 +194,8 @@ Historical source:
 
 ## RP-011 Tightly Coupled Cross-Layer Scaling
 
+Scope: multi-tenant-capacity
+
 Trigger:
 
 - Proposal requires upper and lower layers to scale in a strict sequence or coordinate through complex rules.
@@ -180,6 +209,8 @@ Historical source:
 - Knowledge base multi-tenant review: keep component HPA decoupled.
 
 ## RP-012 Read And Write Traffic Not Separated
+
+Scope: multi-tenant-capacity
 
 Trigger:
 
@@ -195,6 +226,8 @@ Historical source:
 
 ## RP-013 Log Or Index Naming Driven By Historical Component Names
 
+Scope: logging-observability
+
 Trigger:
 
 - Log index names are based on historical component names rather than query, lifecycle, or business dimensions.
@@ -209,6 +242,8 @@ Historical source:
 
 ## RP-014 Mandatory Metadata Not Enforced
 
+Scope: logging-observability
+
 Trigger:
 
 - Labels, fields, headers, or config are required by routing, parsing, querying, or operations but marked optional.
@@ -222,6 +257,8 @@ Historical source:
 - Service logging review: `app.kubernetes.io/logFramework` should be required if framework-specific parsing is expected.
 
 ## RP-015 Coverage Matrix Missing For Platform Capability
+
+Scope: audit
 
 Trigger:
 
@@ -240,6 +277,8 @@ Historical source:
 
 ## RP-016 Cross-Service Contract Missing
 
+Scope: audit
+
 Trigger:
 
 - Proposal adds or standardizes a platform capability across services, languages, SDKs, gateways, or protocols.
@@ -257,6 +296,8 @@ Historical source:
 
 ## RP-017 Architecture Text Boundary Mismatch
 
+Scope: global
+
 Trigger:
 
 - Architecture diagram shows components, SDKs, protocols, or capabilities that the proposal text describes as missing, future, or unsupported.
@@ -273,6 +314,8 @@ Historical source:
 - Operation audit review feedback: text said heterogeneous services lacked audit capability while the architecture diagram already showed Go/Python SDK HTTP paths.
 
 ## RP-018 Phase Scope Mixed With Future Optimization
+
+Scope: global
 
 Trigger:
 

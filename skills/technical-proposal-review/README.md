@@ -129,6 +129,38 @@ technical-proposal-review/
 - 租户名、内部域名、凭证、客户敏感信息
 - `materials/private/` 下的任何文件
 
+## 规则维护节奏
+
+每 **5 次评审**（即 `feedback/accepted/` 新增 5 个文件后）做一次小整理，不需要重写，只做归并和标注。
+
+### 需要检查的三件事
+
+**1. `references/output-preferences.md` — Avoid 列表归并**
+
+如果出现 3 条以上可以抽象为同一原则的具体条目，将它们合并为一条通用规则加括号示例，避免 Avoid 列表无限增长。
+
+判断标准：这几条条目是否都在说"先检查 X 再决定是否输出"，只是 X 不同？如果是，归并。
+
+**2. `references/risk-patterns.md` — 给新增模式补 Scope 标注**
+
+每条新增模式在 `Trigger:` 前加一行：
+
+```markdown
+Scope: global | gateway | auth | logging-observability | multi-tenant-capacity | audit | migration
+```
+
+`global` 表示对所有方案适用；其他值表示只在对应领域标签匹配时激活。
+
+**3. `references/risk-patterns.md` — 检查是否有分支逻辑可以外移**
+
+若某条模式的 `Expected review` 出现了"若 A 则要求 X，若 B 则要求 Y"的条件分支，判断这个分支是否已被顶部的"通用前置检查"覆盖。若是，简化该模式，保留核心要求即可。
+
+### 不需要在每次整理时做的事
+
+- 不需要重写 `references/review-rubric.md`，它的 13 个维度基本稳定。
+- 不需要清理 `feedback/accepted/`，历史归档保留用于追溯。
+- 不需要更新 `references/case-bank.md`，案例追加即可，不用归并。
+
 ## 维护检查
 
 更新后提交前建议运行：

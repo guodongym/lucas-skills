@@ -31,6 +31,7 @@ Use these preferences when wording review findings.
 - Flagging "content is in an external link" as a P1 finding. When an evidence gap is an external link, offer to read the link or ask the author to share the content instead.
 - Flagging missing HTTP auth as P1 without first asking whether the endpoint is intra-cluster or public-facing. Intra-cluster calls with network isolation are acceptable without explicit auth.
 - Flagging DDL migration plan absence as P1 by default. Raise as P2 or Q unless there is specific evidence of risk such as unknown table size, no DBA support, or no online DDL tooling. Trust team operational expertise.
+- Firing a finding when the proposal has already provided a reasonable contextual explanation for the trigger condition. Before outputting a finding, check whether the proposal has already addressed the concern — if addressed, downgrade to Q or close. Common examples: soft-limit precision (proposal states metering accuracy is not required for the use case); rollback path (proposal has already established that the upstream version is insufficient, making rollback framing inapplicable); parameter dimension asymmetry (proposal states a field is technically unavailable in that traffic type).
 
 ## Feedback Signals
 

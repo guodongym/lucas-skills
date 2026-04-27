@@ -1,0 +1,93 @@
+case_id: 2026-04-27-higress-ai-token-ratelimit
+accepted_at: 2026-04-27
+accepted_by: human_reviewer
+proposal_path: https://www.yuque.com/lucas-035st/pbqdup/rr2ikdft4gp2imc2
+skill_review_version: local-2026-04-27
+skill_result: revise
+human_final_result: pending
+summary:
+  session: first review pass with human feedback loop
+  false_positives_closed: 3
+  confirmed_findings: 4
+  status: folded_into_skill_references
+
+review_quality_feedback:
+  missed_issues: []
+  false_positives:
+    - skill_comment_id: P2-01 (soft limit overshoot not quantified)
+      reason: wrong_context
+      note: >
+        Business scenario does not require strict token metering. Soft limit overshoot
+        is an acceptable trade-off for lower latency in this SaaS subscription model.
+        Reviewer should ask about metering accuracy requirements before raising this as a defect.
+    - skill_comment_id: P2-02 (no rollback plan)
+      reason: wrong_context
+      note: >
+        Community version does not support the business requirements and has been explicitly
+        ruled out. Suggesting "rollback to community version" is not an actionable option
+        when the community version is already confirmed as insufficient.
+    - skill_comment_id: Q-02 (external traffic missing user_id dimension)
+      reason: already_covered
+      note: >
+        External traffic can only provide apikey — user_id is technically unavailable
+        in that flow. The dimension asymmetry between internal and external traffic tables
+        is intentional design, not a gap.
+  severity_adjustments:
+    - skill_comment_id: P1-01 (community fork without governance)
+      from: P1 — require evaluation of non-fork alternatives
+      to: P1 — fork confirmed as only viable path; require governance for the chosen fork
+      reason: >
+        Community is unwilling to develop the required functionality. Fork is the only
+        viable path. Reviewer should not re-question the fork decision; focus should
+        shift entirely to fork governance (owner, rebase cadence, upstream tracking).
+
+output_preference_feedback:
+  liked_comments: []
+  disliked_comments:
+    - skill_comment_id: P2-01 (soft limit overshoot)
+      reason: wrong_context
+    - skill_comment_id: P2-02 (rollback to community version)
+      reason: not_actionable | wrong_context
+    - skill_comment_id: Q-02 (external traffic user_id)
+      reason: not_relevant
+  wording_preferences:
+    - before: >
+        Flag rate limiting soft-limit overshoot as a defect when the proposal does not
+        quantify maximum excess.
+      after: >
+        Ask whether the business scenario requires strict metering before raising soft-limit
+        overshoot as a defect. Many SaaS subscription models deliberately tolerate moderate
+        overshoot in exchange for lower Redis write latency.
+      fold_into: references/output-preferences.md
+    - before: >
+        Flag absence of rollback plan as P2 when a new plugin or component replaces an existing one.
+      after: >
+        Do not suggest rollback to community/upstream version when the proposal has already
+        explicitly established that the community version does not satisfy requirements.
+        If community reuse is ruled out, that rollback framing is not actionable.
+      fold_into: references/output-preferences.md
+    - before: >
+        Question dimension differences between internal and external traffic parameter tables.
+      after: >
+        Do not raise dimension asymmetry between internal and external traffic tables on
+        symmetry grounds alone. If a field is technically unavailable for one traffic type,
+        the asymmetry is intentional design.
+      fold_into: references/output-preferences.md
+    - before: >
+        RP-004: Always require alternatives before accepting source fork.
+      after: >
+        RP-004: First check whether fork has been confirmed as the only viable path.
+        If confirmed, skip the "require alternatives" step and focus on fork governance.
+        If unclear, require alternatives first.
+      fold_into: references/risk-patterns.md
+  reviewer_notes: >
+    Key learning from this case: three P2/Q findings were false positives caused by
+    applying general rules without checking context first — metering precision assumption,
+    rollback framing when community version is ruled out, and traffic dimension symmetry
+    assumption. RP-004 fork governance path also needed a context branch: fork already
+    confirmed vs fork necessity unclear.
+  folded_into:
+    - references/output-preferences.md: soft limit overshoot metering context rule
+    - references/output-preferences.md: rollback-to-community inapplicability rule
+    - references/output-preferences.md: traffic dimension asymmetry rule
+    - references/risk-patterns.md: RP-004 fork-confirmed vs fork-unclear branch
