@@ -13,6 +13,7 @@ This public index describes historical proposal and review material used to cali
 | CASE-005 | `CASE-005` | `logging-observability`, `operations`, `capacity` | Service log collection, index lifecycle, and rollout |
 | CASE-006 | `CASE-006` | `multi-tenant-capacity`, `reliability`, `operations`, `cost` | Tenant fairness, capacity promises, queue consistency, and HPA design |
 | CASE-007 | `CASE-007` | `audit`, `sdk`, `cross-service`, `maintainability` | Operation audit v2 snapshot with author responses, architecture/current-state ambiguity, SDK/API contract gaps, and phase-boundary feedback |
+| CASE-008 | `CASE-008` | `gateway`, `multi-tenant-capacity`, `security`, `maintainability` | Higress custom token rate-limit plugin with multi-dimensional parallel limiting and fine-grained CRUD API; includes author responses confirming fail-open, intra-cluster auth, and deferred observability |
 
 ## Loading Guidance
 
