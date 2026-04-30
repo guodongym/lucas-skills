@@ -22,6 +22,8 @@ upstreams:
         dst: skills/hv-analysis
       - src: khazix-writer
         dst: skills/khazix-writer
+      - src: neat-freak
+        dst: skills/neat-freak
 
   # 示例：添加更多上游
   # - name: my-other-upstream
