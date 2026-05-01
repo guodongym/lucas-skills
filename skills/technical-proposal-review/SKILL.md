@@ -1,6 +1,6 @@
 ---
 name: technical-proposal-review
-description: Use when the user asks to review, 初审, 复审, 校准, or improve technical方案/architecture proposals or评审意见, especially auth, gateways, logging, audit, multi-tenant capacity, migration, reliability, security, rollout, or maintainability. Use even for casual prompts like “帮我看看方案” or “给点评审意见”; returns first-pass findings and feedback fields, not final approval.
+description: Use when the user provides a concrete technical proposal document (技术方案) — as a file path, pasted content, or explicit reference to a 方案/PRD/RFC — and asks for 初审, 复审, 校准, or structured review. SKIP: general code review, debugging, architecture discussion without a document, casual “帮我看看这段代码” without a proposal artifact, or any request that does not involve a formal proposal document as input.
 ---
 
 # Technical Proposal Review
