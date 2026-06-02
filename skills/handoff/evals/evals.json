@@ -1,0 +1,80 @@
+{
+  "skill_name": "handoff",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "$handoff review 这个 DESIGN.md，帮我生成给另一个 agent 的审查交接包，只审方案别实现，尽量简短但要包含 worktree",
+      "expected_output": "A concise review-spec-plan handoff package that keeps the receiving agent read-only, references DESIGN.md, includes repo/cwd/worktree/branch, asks the receiver to verify current repo state, and returns findings with evidence.",
+      "files": [],
+      "expectations": [
+        "The output routes the task as review-spec-plan.",
+        "The output is concise by default and does not expand into a long audit trail.",
+        "The output includes repo/cwd/worktree/branch or explicitly marks worktree as not verified.",
+        "The output explicitly keeps the receiving agent read-only and says not to implement unless separately requested.",
+        "The output references the provided plan path and tells the receiving agent to verify the current repo state.",
+        "The output includes the receiving agent protocol or equivalent workflow guardrails.",
+        "The output defines a findings-oriented return format with evidence, severity, and verdict."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "$handoff 执行 这个 plan 已经过审了，交给另一个 agent 按计划实现，注意范围别扩大",
+      "expected_output": "An execute-from-plan handoff package with target, scope, acceptance criteria, validation suggestions, stop conditions for scope-changing work, and a structured return format.",
+      "files": [],
+      "expectations": [
+        "The output routes the task as execute-from-plan.",
+        "The output is concise by default and does not expand into a long audit trail.",
+        "The output includes repo/cwd/worktree/branch or explicitly marks worktree as not verified.",
+        "The output includes both plan and corresponding spec/design document paths, or explicitly marks either path as not provided or needing localization.",
+        "The output tells the receiving agent to verify the plan against the current repo before implementing.",
+        "The output includes scope boundaries and stop conditions for new dependencies, schema changes, core API changes, or broad behavior changes.",
+        "The output includes acceptance criteria and validation suggestions.",
+        "The output defines a return format covering changes, files changed, verification, deviations from plan, and remaining risks."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "$handoff code review 当前 feature/tool-call-card-merge 分支，帮我写给另一个 agent 的深度 review prompt",
+      "expected_output": "A review-implementation handoff package that requires full current diff review, user-visible behavior checks, docs/spec drift checks, and findings-first output.",
+      "files": [],
+      "expectations": [
+        "The output routes the task as review-implementation.",
+        "The output is concise by default and does not expand into a long audit trail.",
+        "The output includes repo/cwd/worktree/branch or explicitly marks worktree as not verified.",
+        "The output instructs the receiving agent to review the full current diff, not only the last commit or summary.",
+        "The output asks for user-visible or end-to-end behavior checks.",
+        "The output includes docs/spec/plan drift as part of the review surface.",
+        "The output keeps the review read-only and requires findings first with file or line evidence when available."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "$handoff review+fix 让另一个 agent 先 review 再做最小修复，修完跑验证，不要顺手重构",
+      "expected_output": "A review-and-fix handoff package that requires initial findings before edits, scoped fixes, focused verification, and a summary of unchanged risks.",
+      "files": [],
+      "expectations": [
+        "The output routes the task as review-and-fix.",
+        "The output is concise by default and does not expand into a long audit trail.",
+        "The output includes repo/cwd/worktree/branch or explicitly marks worktree as not verified.",
+        "The output requires an initial review findings pass before any edits.",
+        "The output constrains fixes to confirmed issues inside the requested scope and forbids unrelated refactoring.",
+        "The output requires focused validation after fixes.",
+        "The output defines a return format covering initial findings, fixes applied, files changed, verification, remaining risks, and intentionally unchanged items."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "$handoff 接力 我做到一半了，帮我总结当前上下文状态，让另一个会话接着推进",
+      "expected_output": "A continue-from-context handoff package separating completed, in-progress, unfinished, blockers, commands run, confirmed facts, uncertainty, and next steps.",
+      "files": [],
+      "expectations": [
+        "The output routes the task as continue-from-context.",
+        "The output is concise by default and does not expand into a long audit trail.",
+        "The output separates completed, in-progress, unfinished, and blocker status.",
+        "The output includes repo/cwd/worktree/branch and relevant file or document context when available.",
+        "The output separates confirmed facts from items that still need verification.",
+        "The output provides concrete next steps and stop conditions for the receiving agent."
+      ]
+    }
+  ]
+}
