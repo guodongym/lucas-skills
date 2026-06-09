@@ -15,7 +15,7 @@ This skill should:
 2. Combine general architecture review with the user's historical review preferences.
 3. Produce actionable findings backed by proposal evidence.
 4. Preserve human review authority by clearly listing final review focus.
-5. Include feedback fields so future runs improve review accuracy and output style.
+5. Accept feedback via `references/feedback-loop.md` structure so future runs improve review accuracy and output style.
 
 This skill should not approve a proposal as final. It only decides whether the proposal is ready for human review and what the human reviewer should focus on.
 
@@ -31,7 +31,6 @@ This skill should not approve a proposal as final. It only decides whether the p
 8. Load `references/industry-frameworks.md` when checking broad architecture quality attributes.
 9. Load `references/output-preferences.md` before finalizing wording and priority.
 10. Output findings with IDs, severity, evidence, impact, and requested remediation.
-11. End with the feedback block defined in `references/feedback-loop.md`.
 
 ## Review Scope Rule
 
@@ -69,7 +68,7 @@ When a historical source includes both proposal content and prior review comment
 
 ## Feedback
 
-Always include a feedback block. The user can mark missed issues, false positives, severity changes, liked comments, disliked comments, and wording preferences. These signals are later folded into `references/risk-patterns.md`, `references/case-bank.md`, and `references/output-preferences.md`.
+Do not include the feedback YAML block in the review output. The feedback structure in `references/feedback-loop.md` is used only when the user explicitly provides feedback (missed issues, false positives, severity changes, liked/disliked comments). These signals are then folded into `references/risk-patterns.md`, `references/case-bank.md`, and `references/output-preferences.md`.
 
 ## Evaluation
 

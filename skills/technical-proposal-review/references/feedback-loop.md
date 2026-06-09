@@ -1,6 +1,6 @@
 # Feedback Loop
 
-Every review response should include a feedback block. The user can fill it in directly or provide short natural language feedback such as "P1-02 喜欢，P2-03 太泛，漏了迁移回滚".
+The review output does not include this feedback block. When the user wants to provide feedback, they can fill in this structure directly or provide short natural language feedback such as "P1-02 喜欢，P2-03 太泛，漏了迁移回滚".
 
 ## Feedback Block
 

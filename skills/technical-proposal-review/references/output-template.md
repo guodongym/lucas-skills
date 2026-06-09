@@ -59,7 +59,3 @@ List matched cases only when the analogy helps explain the issue:
 ## 人工复审重点
 
 List 2-5 items that require human judgment.
-
-## 回流表单
-
-Include the complete YAML block from `feedback-loop.md`. Do not replace it with a prose table.
