@@ -24,6 +24,8 @@ upstreams:
         dst: skills/khazix-writer
       - src: neat-freak
         dst: skills/neat-freak
+      - src: storage-analyzer
+        dst: skills/storage-analyzer
 
   # 示例：添加更多上游
   # - name: my-other-upstream
