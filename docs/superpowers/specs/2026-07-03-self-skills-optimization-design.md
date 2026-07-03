@@ -1,7 +1,7 @@
 # 自研 Skills 优化设计
 
 日期：2026-07-03
-状态：已与用户逐项讨论定案，待 review
+状态：已定案并实施完成（2026-07-03，含执行期修正，详见实施计划状态行）
 范围：4 个自研 skill（git-history-rewrite、handoff、technical-proposal-review、business-architecture-diagram）。wps365 为外部来源，明确排除。
 
 ## 背景
@@ -43,7 +43,7 @@ git diff --quiet backup/<ref> HEAD   # 退出码 0 = 重写前后内容逐字节
 ### 1.4 脚本守卫与测试
 
 - `inspect_history.py`：空仓库（无 HEAD）时优雅输出提示而非崩溃；detached HEAD 加入 risks 列表。
-- 测试从 1 例扩到 5 例：空仓库、detached HEAD、range 含 merge、落后 upstream、无 upstream。
+- 测试从 1 例扩到 6 例（新增 5 个场景）：空仓库、detached HEAD、range 含 merge、落后 upstream、无 upstream。
 - `evals/evals.json` 3 个用例补机器可验证断言（含 "force-with-lease"、不含 "git push --force"、含 backup ref 名等）。
 
 验证路径：`pytest tests/` 全绿；在临时仓库手动跑一次完整重写流程确认树一致性校验生效。
