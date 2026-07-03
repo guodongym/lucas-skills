@@ -1,0 +1,43 @@
+{
+  "skill_name": "business-architecture-diagram",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我画一张给老板汇报用的业务架构图：我们要把内部的任务平台和新引入的 AI 助手融合。管理层看到的是任务下发和结果审批，执行层是任务编排、AI 助手执行、人工审批与接管，底层是模型服务、消息队列和权限体系。要 PPT 风格，中文。",
+      "expected_output": "A 1600x900 executive-style SVG with 3 layers, business language (no raw tech jargon in layer 1), centralized <style> reusing the template classes, and a bottom value bar.",
+      "assertions": [
+        "xmllint --noout passes on the produced SVG",
+        "viewBox is 0 0 1600 900",
+        "a <style> block defines/reuses .card and .card-title classes",
+        "all labels are real <text> nodes, no path-outlined text",
+        "font-family includes PingFang SC with Microsoft YaHei fallback",
+        "scripts/check_text_overflow.py exits 0 on the produced SVG"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "画一张技术分解视角的架构图：网关层（认证、限流）、服务层（订单、库存、支付）、数据层（MySQL、Redis、Kafka）。允许出现技术组件名，给架构评审用。",
+      "expected_output": "Technical-working style diagram that still uses the template classes and layout rules; component names like Kafka/MySQL allowed.",
+      "assertions": [
+        "xmllint --noout passes on the produced SVG",
+        "uses .layer-band and .card classes from a centralized <style>",
+        "coordinates are multiples of 4",
+        "scripts/check_text_overflow.py exits 0 on the produced SVG"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "以 assets/svg-base.svg 为底，把执行层示例节点 B 的说明文字换成'基于消息触发机制的跨系统自动化任务编排调度与人工审批接管的完整机制说明'，文字会超宽，请正确处理换行后交付。",
+      "expected_output": "The long caption is wrapped with tspan line breaks (5-12 CJK chars per line) instead of overflowing the card; card height increased only if wrapping alone is insufficient.",
+      "assertions": [
+        "scripts/check_text_overflow.py exits 0 on the produced SVG",
+        "the long caption is split across multiple tspan elements",
+        "xmllint --noout passes on the produced SVG",
+        "the unwrapped single-line variant of the caption is reported as OVERFLOW by check_text_overflow.py (exit 1)"
+      ],
+      "files": []
+    }
+  ]
+}

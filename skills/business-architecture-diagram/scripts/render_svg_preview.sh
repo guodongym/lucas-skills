@@ -14,6 +14,9 @@ if [[ ! -f "$input_svg" ]]; then
   exit 1
 fi
 
+# file:// URL 需要绝对路径，否则浏览器分支对相对路径调用生成坏 URL
+input_svg="$(cd "$(dirname "$input_svg")" && pwd)/$(basename "$input_svg")"
+
 chrome_bin=""
 for candidate in \
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
@@ -26,7 +29,22 @@ do
 done
 
 if [[ -z "$chrome_bin" ]]; then
-  echo "No supported headless browser found. Install Google Chrome or Microsoft Edge." >&2
+  for candidate in google-chrome google-chrome-stable chromium chromium-browser microsoft-edge; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      chrome_bin="$(command -v "$candidate")"
+      break
+    fi
+  done
+fi
+
+if [[ -z "$chrome_bin" ]] && command -v rsvg-convert >/dev/null 2>&1; then
+  rsvg-convert -w 1600 -h 900 "$input_svg" -o "$output_png"
+  echo "$output_png"
+  exit 0
+fi
+
+if [[ -z "$chrome_bin" ]]; then
+  echo "No renderer found. Install Google Chrome/Chromium/Edge or librsvg (rsvg-convert)." >&2
   exit 1
 fi
 

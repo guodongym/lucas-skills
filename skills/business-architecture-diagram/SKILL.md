@@ -57,6 +57,14 @@ When the user says not to keep exporting PNG, continue editing only the SVG sour
 
 ### 3. Build the SVG directly
 
+Start from `assets/svg-base.svg` and edit it down, instead of writing SVG from scratch. The
+template fixes the canvas (1600x900), the class set (`.title`, `.subtitle`, `.layer-label`,
+`.layer-band`, `.card`, `.card-title`, `.caption`, `.arrow`, `.accent`, `.value-bar`,
+`.value-text`), a
+restrained executive palette, and the CJK font fallback chain
+(`PingFang SC -> Microsoft YaHei -> sans-serif`). Reuse its classes; avoid inventing per-element
+inline styles.
+
 Use a presentation-oriented canvas by default:
 
 - `1600 x 900` for slides
@@ -78,6 +86,16 @@ Keep the SVG editable:
 - use real text nodes, not outlines
 - keep styles centralized in `<style>`
 - reuse classes for card titles, captions, loop labels, and value statements
+
+Hard layout rules (they prevent the "AI-generated look" and most iteration churn):
+
+- Snap every coordinate, spacing, and size to multiples of 4.
+- One accent color per diagram, on at most 1-2 focal elements.
+- Source order: layer bands, then connector lines, then cards — cards sit on top of line endpoints, and bands never cover lines.
+- Keep vertical spacing between cards >= 40px; route cross-layer arrows through the corridors
+  between cards, never through a card.
+- Merge repeated same-direction cross-layer arrows into one trunk line.
+- Keep elements with filters or shadows >= 30px away from the viewBox edge to avoid clipping.
 
 ### 4. Iterate in this order
 
@@ -106,6 +124,15 @@ Always run XML validation after edits:
 xmllint --noout diagram.svg
 ```
 
+Then run the bundled heuristic pre-check (text overflow and dangling `url(#id)` references):
+
+```bash
+python3 scripts/check_text_overflow.py diagram.svg
+```
+
+Fix reported overflows by adding `tspan` line breaks first, then card height. The check is a
+heuristic; the PNG preview remains the final judge.
+
 If visual verification matters, render a temporary PNG preview and inspect:
 
 ```bash
@@ -119,6 +146,8 @@ Review the preview for:
 - arrows colliding with labels or cards
 - inconsistent card heights
 - overly strong accent colors drawing attention away from the main structure
+- labels colliding with lines: offset the label 6-8px first; add a background chip only if that fails
+- repeated parallel arrows that should merge into one trunk
 
 ## Working Patterns
 
@@ -156,6 +185,11 @@ Even in this mode, avoid unnecessary jargon if the same point can be made in cle
 ### scripts/
 
 - `scripts/render_svg_preview.sh`: render a temporary PNG preview from an SVG for visual review
+- `scripts/check_text_overflow.py`: heuristic text-overflow and dangling-reference pre-check
+
+### assets/
+
+- `assets/svg-base.svg`: canonical starting template (canvas, classes, palette, CJK font stack)
 
 ### references/
 

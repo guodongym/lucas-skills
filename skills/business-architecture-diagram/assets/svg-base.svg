@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+  <style>
+    .title       { font-size: 40px; font-weight: 600; fill: #16324F; }
+    .subtitle    { font-size: 20px; fill: #6B7A90; text-anchor: end; }
+    .layer-label { font-size: 24px; font-weight: 600; fill: #16324F; }
+    .layer-band  { fill: #EEF3F9; stroke: #D5DEEA; stroke-width: 1; }
+    .card        { fill: #FFFFFF; stroke: #C9D6E4; stroke-width: 1; }
+    .card-title  { font-size: 22px; font-weight: 600; fill: #1F3B57; text-anchor: middle; }
+    .caption     { font-size: 16px; fill: #5B6B7F; text-anchor: middle; }
+    .arrow       { stroke: #8CA3BC; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+    .accent      { fill: #E8833A; } /* 每图最多 1-2 个焦点元素使用 */
+    .value-bar   { fill: #16437E; }
+    .value-text  { font-size: 22px; font-weight: 600; fill: #FFFFFF; text-anchor: middle; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#8CA3BC"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="900" fill="#F7F9FC"/>
+
+  <text x="64" y="88" class="title">业务架构总览（示例标题）</text>
+  <text x="1536" y="88" class="subtitle">Business Architecture Overview</text>
+
+  <!-- z-order：层带 -> 连线 -> 卡片，卡片压住连线端点，层带不遮连线 -->
+  <!-- 1) 层带与层标签 -->
+  <rect x="64" y="136" width="1472" height="180" rx="12" class="layer-band"/>
+  <text x="88" y="176" class="layer-label">管理层</text>
+  <rect x="64" y="340" width="1472" height="180" rx="12" class="layer-band"/>
+  <text x="88" y="380" class="layer-label">执行层</text>
+  <rect x="64" y="544" width="1472" height="180" rx="12" class="layer-band"/>
+  <text x="88" y="584" class="layer-label">基础设施层</text>
+
+  <!-- 2) 层间连线：走卡片间走廊，不穿卡片 -->
+  <path d="M 308 288 L 308 392" class="arrow"/>
+  <path d="M 308 492 L 308 596" class="arrow"/>
+
+  <!-- 3) 卡片与文字 -->
+  <rect x="88" y="192" width="440" height="96" rx="12" class="card"/>
+  <text x="308" y="232" class="card-title">示例节点 A</text>
+  <text x="308" y="264" class="caption">一句话职责说明</text>
+
+  <rect x="88" y="396" width="440" height="96" rx="12" class="card"/>
+  <text x="308" y="436" class="card-title">示例节点 B</text>
+  <text x="308" y="468" class="caption">
+    <tspan x="308" dy="0">长说明使用 tspan 换行，</tspan>
+    <tspan x="308" dy="20">每行 5-12 个中文字符</tspan>
+  </text>
+
+  <rect x="88" y="600" width="440" height="96" rx="12" class="card"/>
+  <text x="308" y="640" class="card-title">示例节点 C</text>
+  <text x="308" y="672" class="caption">一句话职责说明</text>
+
+  <!-- 底部价值条 -->
+  <rect x="64" y="772" width="1472" height="64" rx="12" class="value-bar"/>
+  <text x="800" y="812" class="value-text">一句话价值主张：更快交付 · 更低成本 · 可持续演进</text>
+</svg>
