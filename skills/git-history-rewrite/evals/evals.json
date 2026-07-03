@@ -5,18 +5,36 @@
       "id": 1,
       "prompt": "这个功能做完了，push 之前帮我把本次任务的提交历史酌情合并一下。现在分支只在本地，有 6 个 commit：先加用户设置 UI，后面两个是 fix lint 和补漏导入，一个是补测试，一个是 README 说明，最后一个是修测试 snapshot。记得粒度适中，每个提交独立闭环，提交之间保持正常演进的时间线顺序。",
       "expected_output": "Uses the skill to inspect Git state, identifies local-only cleanup as eligible if the tree is clean, and proposes a target history with coherent feature/test/docs commits instead of blindly squashing everything.",
+      "assertions": [
+        "output includes a backup ref named backup/",
+        "proposed target history has 3-4 commits (feature/tests/docs), not a single squash",
+        "tree-identity check against the backup ref is run or planned",
+        "output never suggests git push --force (force-with-lease only)"
+      ],
       "files": []
     },
     {
       "id": 2,
       "prompt": "我的 PR 分支已经 push 到远端了，但 commits 有点乱，帮我 squash/rebase 一下然后推上去。",
       "expected_output": "Treats pushed history as a risk gate, uses the PR base or integration branch as the rewrite base rather than origin/<feature>, inspects upstream/ahead-behind state for remote risk, creates or proposes a backup ref, asks for explicit confirmation before rewriting remote history, and only mentions force-with-lease, never plain force.",
+      "assertions": [
+        "identifies pushed history as a risk gate and asks for explicit confirmation",
+        "rewrite base is the integration branch, not origin/<feature>",
+        "creates or proposes a backup ref before rewriting",
+        "push uses --force-with-lease and never plain --force"
+      ],
       "files": []
     },
     {
       "id": 3,
       "prompt": "把当前分支从 main 开始的提交整理一下，不过我现在还有一些没提交的改动，base 可能也不是 origin/main，你自己看着办。",
       "expected_output": "Stops before rewriting because the working tree is dirty and the base is ambiguous; reports the exact blockers and asks for the minimum needed clarification or cleanup.",
+      "assertions": [
+        "stops before rewriting",
+        "names dirty working tree as a blocker",
+        "names ambiguous base as a blocker",
+        "asks for the minimum clarification instead of guessing"
+      ],
       "files": []
     }
   ]

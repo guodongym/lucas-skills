@@ -113,6 +113,9 @@ def inspect(base_arg: str | None) -> dict[str, Any]:
     if not inside.ok or inside.stdout != "true":
         raise SystemExit("not inside a Git work tree")
 
+    if not git("rev-parse", "--verify", "--quiet", "HEAD").ok:
+        raise SystemExit("repository has no commits yet; nothing to rewrite")
+
     branch = must_git("branch", "--show-current") or "(detached HEAD)"
     head = must_git("rev-parse", "--short", "HEAD")
     upstream = detect_upstream()
@@ -131,6 +134,8 @@ def inspect(base_arg: str | None) -> dict[str, Any]:
         diff_stat = diff_stat_result.stdout if diff_stat_result.ok else ""
 
     risks: list[str] = []
+    if branch == "(detached HEAD)":
+        risks.append("detached HEAD; determine the intended branch and base explicitly before rewriting")
     if dirty:
         risks.append("working tree has uncommitted changes")
     if not base:

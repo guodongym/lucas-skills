@@ -122,13 +122,24 @@ git branch backup/<branch>-before-history-rewrite-YYYYMMDD-HHMMSS HEAD
 
 Tell the user the backup ref name in the final report.
 
+If the backup ref is ever lost, `git reflog` still records the pre-rewrite HEAD as a last resort.
+
 ### 5. Rewrite with the least surprising tool
 
-Use the simplest command that preserves intent:
+Interactive editors are unavailable in agent environments such as Claude Code and Codex, so
+plain `git rebase -i` is a human-terminal-only option. Prefer the non-interactive forms below,
+picking the simplest one that preserves intent:
 
 - `git commit --amend` for a single tip fixup.
-- `git rebase -i <base>` for reordering, squash/fixup, and message edits.
-- `git reset --soft <base>` followed by scoped commits only when the current stack is too messy for interactive rebase and the user has approved the rewrite.
+- `git reset --soft <base>` followed by scoped commits for reordering, squashing, or splitting.
+  This is the most general tool. It discards original author dates; say so in the plan when
+  that matters.
+- `git commit --fixup=<sha>` then `git rebase --autosquash <base>` to fold a fix into an earlier
+  commit without touching the rest. Git >= 2.44 runs `--autosquash` non-interactively; on older
+  Git use `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash <base>` as the equivalent.
+- A generated todo file with `GIT_SEQUENCE_EDITOR="cp <todo-file>" git rebase -i <base>` when
+  full reorder/reword control is needed without an interactive editor.
+- Plain `git rebase -i <base>` only when a human will run it in their own terminal.
 
 Keep chronological order. A later commit may depend on an earlier one; avoid moving commits ahead of their prerequisites just to group by file type.
 
@@ -143,6 +154,17 @@ git log --reverse --oneline <base>..HEAD
 git diff --stat <base>..HEAD
 git diff --check <base>..HEAD
 ```
+
+Then run the tree-identity check against the backup ref created in step 4:
+
+```bash
+git diff --quiet backup/<ref> HEAD && echo "tree identical" || echo "TREE DIFFERS"
+```
+
+A pure history rewrite (squash, reorder, reword) must leave the final tree byte-identical, so
+expect `tree identical`. If the tree differs, show `git diff --stat backup/<ref> HEAD`, explain
+every difference, and get the user's confirmation before treating the rewrite as verified. An
+unexplained difference means restore from the backup ref instead of proceeding.
 
 Also run the most relevant project tests, lint, typecheck, or build commands. If a full suite is too expensive or unavailable, run the closest targeted checks and say what was not run.
 
@@ -160,6 +182,13 @@ git push --force-with-lease
 
 If `--force-with-lease` rejects, stop. Do not retry with `--force`; fetch and re-evaluate.
 
+### 8. Backup cleanup
+
+Keep the backup ref by default; it is the recovery path if a problem surfaces after push. Include
+the cleanup command in the final report instead of deleting anything. When the user explicitly
+asks to clean up, list the matches first with
+`git branch --list 'backup/<branch>-before-history-rewrite-*'`, then delete with `git branch -D`.
+
 ## Output Format
 
 End with:
@@ -175,6 +204,7 @@ History rewritten.
   - <command>: <result>
 - Push:
   - <not pushed / pushed / needs user approval>
+- Backup cleanup: `git branch -D <backup-ref>` (run once you are confident)
 - Residual risk:
   - <none known or concise caveat>
 ```
