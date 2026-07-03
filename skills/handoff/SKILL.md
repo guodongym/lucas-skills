@@ -57,7 +57,7 @@ Do not add low-frequency cleanup or branch deletion workflows unless the user ex
 
 Before writing the handoff package, gather only the evidence needed for the route. Do not do a deep investigation unless the user asks for one; deep investigation belongs to the receiving agent.
 
-1. Check the current repo, cwd, worktree path, branch, and working-tree status when available.
+1. Check the current repo, cwd, worktree path, branch, HEAD short SHA, and `git status --short` output when available.
 2. Identify referenced files, docs, specs, plans, commits, diffs, commands, and validation results.
 3. Distinguish confirmed facts from memory-derived or user-stated claims.
 4. If a file/path is referenced but missing or not readable, say that in the package.
@@ -74,7 +74,7 @@ Include this section in every handoff package, adapted to the task:
 
 1. 先读取并遵循目标仓库的本地指令，例如 AGENTS.md / CLAUDE.md / GEMINI.md。
 2. 如果当前环境有 Superpowers 或同类 workflow skill，先调用匹配流程；否则按同等工程流程手动执行。
-3. 不要只相信本交接摘要；先重新确认 repo/cwd/worktree/branch/diff。
+3. 不要只相信本交接摘要；先重新确认 repo/cwd/worktree/branch/diff，并对照包内 HEAD 与工作区快照。发现不一致时视为交接包已过期：停下向发起方确认，不要基于过期快照继续。
 4. 按本包声明的任务边界执行：review 保持只读；review+fix 在编辑任何文件前先报 findings，再做最小修复，再验证。
 ```
 
@@ -94,6 +94,8 @@ Output one copy-ready Markdown package. Start with the route name and target. Us
 - cwd:
 - worktree:
 - branch:
+- HEAD: <短 SHA>
+- 工作区: <clean / git status --short 摘要>
 - target:
 
 ## 当前状态
@@ -154,18 +156,20 @@ Emphasize:
 
 - read the plan, then verify it still matches current repo state
 - include both the implementation plan path and its corresponding spec/design document path in the handoff
-- if the corresponding spec/design path is not provided or cannot be inferred confidently, mark it as "spec/design: 未提供，接手后先定位" instead of omitting it
+- to infer the spec/design path, check in order: (1) links or "see also" references in the plan file header, (2) DESIGN/SPEC/ARCHITECTURE documents in the plan's own directory, (3) a docs/ search by feature name; if all three miss, mark it as "spec/design: 未提供，接手后向发起方确认" instead of omitting it
 - implement only the requested scope
 - keep changes surgical
 - run route-specific validation
-- stop if the plan requires new dependencies, schema changes, core API signature changes, or broad behavior changes not approved by the user
+- stop on any externally visible behavior change the plan does not spell out: new dependencies, schema changes, API additions or signature changes, permission or auth boundary changes, and default-behavior changes. Implementation choices inside the plan's stated scope (log wording, local code structure) do not require a stop
 - keep the handoff short; if the plan or spec/design path is missing, make "locate the plan/spec pair" the first task rather than expanding into speculative steps
 
 For this route, the `定位` section should include:
 
 ```markdown
 - plan:
+- plan 最后改动: <git log -1 --oneline -- <plan path>>
 - spec/design:
+- spec/design 最后改动: <同上；未提供则省略>
 ```
 
 Add this route-specific return format:
@@ -255,6 +259,8 @@ Add this route-specific structure:
 - cwd:
 - worktree:
 - branch:
+- HEAD: <短 SHA>
+- 工作区: <clean / 脏文件列表>
 
 ## 当前状态
 - 已完成:
