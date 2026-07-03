@@ -80,7 +80,7 @@ execute-from-plan 补 3 步搜索顺序：① plan 文件头的链接/引用 →
 
 ### 3.2 卫生
 
-- `references/output-preferences.md`：3 条"外链处理"重复规则合并为 1 条（Avoid 列表 11 → 9 条）。
+- ~~合并 output-preferences 重复外链规则~~ 实施前核实：Avoid 列表仅 1 条外链规则（e6b2e37 已完成合并，分析时引用了旧版），无需改动。
 - `materials/private/historical-reviews/` 下 2 个含 U+2049（`⁚`）的文件名改为正常字符，同步更新 `index.local.md`（纯本地文件，git 无感知）。
 
 ### 3.3 明确不做

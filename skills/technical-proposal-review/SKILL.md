@@ -68,7 +68,15 @@ When a historical source includes both proposal content and prior review comment
 
 ## Feedback
 
-Do not include the feedback YAML block in the review output. The feedback structure in `references/feedback-loop.md` is used only when the user explicitly provides feedback (missed issues, false positives, severity changes, liked/disliked comments). These signals are then folded into `references/risk-patterns.md`, `references/case-bank.md`, and `references/output-preferences.md`.
+Do not include the feedback YAML block in the review output. End every review with the single
+calibration line defined in `references/output-template.md`.
+
+Treat any in-session user verdict on findings as a feedback signal — for example "这条不成立",
+"这个提得好", "以后别把外链当 P1", or short corrections like "P1-02 误报". When such a signal
+appears, draft a feedback entry following `references/feedback-loop.md` and write it to
+`feedback/pending/<YYYY-MM-DD>-<short-name>.yaml`, then tell the user it awaits their
+confirmation. Only human-approved feedback moves to `feedback/accepted/` and gets folded into
+`references/risk-patterns.md`, `references/case-bank.md`, and `references/output-preferences.md`.
 
 ## Evaluation
 

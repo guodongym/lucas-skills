@@ -59,3 +59,9 @@ List matched cases only when the analogy helps explain the issue:
 ## 人工复审重点
 
 List 2-5 items that require human judgment.
+
+## 校准
+
+在报告最末固定输出这一行（不输出 YAML 反馈块）：
+
+> 校准：对以上 findings 有误报/漏判/措辞不满，直接回一句（如 "P1-02 误报"、"漏了迁移回滚"）即可，我会记录到 feedback/pending/。
