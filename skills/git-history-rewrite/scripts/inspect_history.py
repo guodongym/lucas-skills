@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Read-only Git history inspection for git-history-rewrite.
 
-This script only runs Git read commands. It does not create refs, edit files,
-rewrite commits, fetch, pull, push, or change the index.
+This script only runs Git read commands with optional Git locks disabled. It does not create refs,
+edit files, rewrite commits, fetch, pull, push, or intentionally refresh the index.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -23,12 +24,15 @@ class GitResult:
 
 
 def git(*args: str) -> GitResult:
+    env = os.environ.copy()
+    env["GIT_OPTIONAL_LOCKS"] = "0"
     proc = subprocess.run(
         ["git", *args],
         check=False,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        env=env,
     )
     return GitResult(proc.returncode == 0, proc.stdout.strip(), proc.stderr.strip())
 
@@ -50,16 +54,47 @@ def detect_upstream() -> str | None:
     return result.stdout if result.ok and result.stdout else None
 
 
-def detect_base(explicit_base: str | None, upstream: str | None) -> tuple[str | None, str]:
+def ref_exists(ref: str) -> bool:
+    return git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").ok
+
+
+def upstream_branch_name(upstream: str | None) -> str | None:
+    if not upstream or "/" not in upstream:
+        return upstream
+    return upstream.rsplit("/", 1)[1]
+
+
+def detect_base(explicit_base: str | None, branch: str, upstream: str | None) -> tuple[str | None, str]:
     if explicit_base:
         return explicit_base, "explicit"
-    if upstream:
+
+    # A feature branch commonly tracks origin/<feature>. That remote-tracking
+    # branch proves the branch is pushed, but it is not the rewrite base. The
+    # rewrite base is the integration branch the feature branched from.
+    if branch in {"main", "master"} and upstream:
         result = git("merge-base", "HEAD", upstream)
         if result.ok and result.stdout:
             return result.stdout, f"merge-base with {upstream}"
-    result = git("merge-base", "HEAD", "origin/main")
-    if result.ok and result.stdout:
-        return result.stdout, "merge-base with origin/main"
+
+    candidates: list[str] = []
+    if upstream:
+        upstream_leaf = upstream_branch_name(upstream)
+        if upstream_leaf and upstream_leaf != branch:
+            candidates.append(upstream)
+
+    candidates.extend(["origin/main", "origin/master", "upstream/main", "upstream/master", "main", "master"])
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if not ref_exists(candidate):
+            continue
+        result = git("merge-base", "HEAD", candidate)
+        if result.ok and result.stdout:
+            return result.stdout, f"merge-base with {candidate}"
+
     return None, "unresolved"
 
 
@@ -81,7 +116,7 @@ def inspect(base_arg: str | None) -> dict[str, Any]:
     branch = must_git("branch", "--show-current") or "(detached HEAD)"
     head = must_git("rev-parse", "--short", "HEAD")
     upstream = detect_upstream()
-    base, base_source = detect_base(base_arg, upstream)
+    base, base_source = detect_base(base_arg, branch, upstream)
     status = split_lines(must_git("status", "--short"))
     dirty = bool(status)
     ahead_behind = count_ahead_behind(upstream)
@@ -106,6 +141,8 @@ def inspect(base_arg: str | None) -> dict[str, Any]:
         risks.append("branch is behind its upstream")
     if upstream and ahead_behind.get("ahead"):
         risks.append("branch has commits not in upstream; remote rewrite may need force-with-lease if already pushed")
+    if upstream and upstream_branch_name(upstream) == branch and commits:
+        risks.append("branch tracks a same-named upstream; rewriting pushed history will need explicit approval and force-with-lease")
     if not upstream:
         risks.append("branch has no upstream; confirm target branch/base manually")
 

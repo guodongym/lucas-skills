@@ -36,15 +36,16 @@ Use `--force-with-lease`, never plain `--force`, when pushing rewritten remote h
 If available, run the bundled read-only inspector first:
 
 ```bash
-python3 skills/git-history-rewrite/scripts/inspect_history.py
+python3 <skill-dir>/scripts/inspect_history.py
 ```
 
 Use `--base <rev>` when the intended base is known:
 
 ```bash
-python3 skills/git-history-rewrite/scripts/inspect_history.py --base origin/main
+python3 <skill-dir>/scripts/inspect_history.py --base origin/main
 ```
 
+Replace `<skill-dir>` with the directory that contains this `SKILL.md`.
 The inspector only reads Git state. It must not be used as permission to rewrite; it is a factual preflight report.
 
 ## Workflow
@@ -64,9 +65,13 @@ git diff --stat <base>..HEAD
 
 Choose `<base>` conservatively:
 
-- Prefer the branch's upstream merge-base when the branch tracks a remote.
-- Otherwise use `origin/main` or the target branch named by the user.
+- Prefer the target integration branch or PR base, such as `origin/main`, `origin/master`, `upstream/main`, `upstream/master`, or the branch named by the user.
+- If the branch has an open PR, use the PR base branch when it can be checked with the available GitHub tooling.
+- Do not use a same-named tracking branch such as `origin/<feature>` as the rewrite base. It is evidence that the branch was pushed; use it for remote-risk checks instead.
+- Use the branch's upstream as the rewrite base only when it is clearly the integration branch, not the same feature branch.
 - If multiple bases are plausible, ask before rewriting.
+
+For pushed or PR branches, refresh remote state before trusting ahead/behind data. If network access or GitHub access is unavailable, mark the remote state as unverified and stop before rewriting.
 
 ### 2. Classify commits
 
@@ -99,6 +104,7 @@ Target commits:
 
 Risk gates:
 - pushed: yes/no
+- remote state refreshed: yes/no
 - dirty worktree: yes/no
 - merge commits in range: yes/no
 - needs force-with-lease: yes/no
