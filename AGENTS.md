@@ -43,6 +43,7 @@
 - **Scope**: 受影响的目录名、模块名或子系统名。
 - **Body**: 所有提交都必须包含 body；body 补充 "为什么改" 和关键验证结果，不要仅复述 diff。
 - **AI 协作署名**: 若提交由 AI Agent 实质参与生成、修改或整理，commit footer 必须追加标准 Git trailer：`Co-authored-by: <Agent Name> <agent-noreply-email>`。各 Agent 使用能明确辨认自身来源的名称和邮箱，不冒用未确认的官方身份；Codex 默认使用 `Co-authored-by: OpenAI Codex <noreply@openai.com>`。
+- **提交历史重写**: 当用户要求整理、合并或重写提交历史时，使用 `git-history-rewrite` skill；默认先做只读预检和风险确认。
 - **Breaking Change**: 涉及破坏性变更时显式标注 `BREAKING CHANGE:`。
 - **分支**: `feature/<kebab-case>`，切换前确保工作区干净。
 
