@@ -25,6 +25,7 @@
         "Flags multi-layer queue state consistency and idempotency risk.",
         "Recommends decoupled component scaling with backpressure or HTTP 429 instead of tightly coupled cross-layer scaling.",
         "Checks read/write traffic isolation for model or embedding resources.",
+        "Includes human review focus items for the human reviewer.",
         "States the reviewed input scope and that existing `评审意见` was excluded via external masking, not model self-hiding.",
         "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
       ]
