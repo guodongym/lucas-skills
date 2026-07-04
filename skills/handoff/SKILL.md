@@ -23,7 +23,7 @@ A good handoff is not a transcript. It is a compact launch brief that tells the 
 - what output the user expects back
 - where they must stop and ask before changing scope
 
-Keep the default package brief: aim for one screen, usually 300-700 words. Add detail only when it prevents a likely mistake. Prefer pointers to exact files, commits, commands, and worktrees over long prose or copied logs.
+Keep the default package brief: aim for one screen, usually 300-700 words; the fixed 接手工作协议 block and the git snapshot fields do not count toward this budget. Add detail only when it prevents a likely mistake. Prefer pointers to exact files, commits, commands, and worktrees over long prose or copied logs.
 
 ## Human Quick Start
 
@@ -58,10 +58,11 @@ Do not add low-frequency cleanup or branch deletion workflows unless the user ex
 Before writing the handoff package, gather only the evidence needed for the route. Do not do a deep investigation unless the user asks for one; deep investigation belongs to the receiving agent.
 
 1. Check the current repo, cwd, worktree path, branch, HEAD short SHA, and `git status --short` output when available.
-2. Identify referenced files, docs, specs, plans, commits, diffs, commands, and validation results.
-3. Distinguish confirmed facts from memory-derived or user-stated claims.
-4. If a file/path is referenced but missing or not readable, say that in the package.
-5. If the user wants a package for another thread, include exact paths and checkout locations.
+2. For plan-execution handoffs, capture the last change of the plan and spec/design files with `git log -1 --oneline -- <path>`.
+3. Identify referenced files, docs, specs, plans, commits, diffs, commands, and validation results.
+4. Distinguish confirmed facts from memory-derived or user-stated claims.
+5. If a file/path is referenced but missing or not readable, say that in the package.
+6. If the user wants a package for another thread, include exact paths and checkout locations.
 
 Never tell the receiving agent to trust this handoff blindly. The package should instruct them to re-check the live repo state. Avoid exhaustive search logs; write "not verified" or "path not found in current checkout" when that is enough.
 
@@ -163,7 +164,7 @@ Emphasize:
 - stop on any externally visible behavior change the plan does not spell out: new dependencies, schema changes, API additions or signature changes, permission or auth boundary changes, and default-behavior changes. Implementation choices inside the plan's stated scope (log wording, local code structure) do not require a stop
 - keep the handoff short; if the plan or spec/design path is missing, make "locate the plan/spec pair" the first task rather than expanding into speculative steps
 
-For this route, the `定位` section should include:
+For this route, extend the default `定位` fields (repo/cwd/worktree/branch/HEAD/工作区) with:
 
 ```markdown
 - plan:
