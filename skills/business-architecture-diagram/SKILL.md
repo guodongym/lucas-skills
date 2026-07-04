@@ -1,6 +1,6 @@
 ---
 name: business-architecture-diagram
-description: Create and iteratively refine executive-style business architecture diagrams as editable SVG assets, with optional PNG previews for review. Use when Codex needs to turn business notes, platform integration ideas, operating models, layered responsibilities, or management-facing architecture summaries into a clean diagram, or when the user asks in Chinese for 业务架构图, 架构图, 分层架构图, 汇报架构图, 平台融合图, SVG 架构图, 生成图片, 优化图片, 调整布局, 调整换行, 调整箭头, 润色文案, or 优化现有 SVG/PNG 架构图.
+description: Create and iteratively refine executive-style business architecture diagrams as editable SVG assets, with optional PNG previews for review. Use when turning business notes, platform integration ideas, operating models, layered responsibilities, or management-facing architecture summaries into a clean diagram, or when the user asks in Chinese for 业务架构图, 架构图, 分层架构图, 汇报架构图, 平台融合图, SVG 架构图, 生成图片, 优化图片, 调整布局, 调整换行, 调整箭头, 润色文案, or 优化现有 SVG/PNG 架构图.
 ---
 
 # Business Architecture Diagram
@@ -60,8 +60,7 @@ When the user says not to keep exporting PNG, continue editing only the SVG sour
 Start from `assets/svg-base.svg` and edit it down, instead of writing SVG from scratch. The
 template fixes the canvas (1600x900), the class set (`.title`, `.subtitle`, `.layer-label`,
 `.layer-band`, `.card`, `.card-title`, `.caption`, `.arrow`, `.accent`, `.value-bar`,
-`.value-text`), a
-restrained executive palette, and the CJK font fallback chain
+`.value-text`), a restrained executive palette, and the CJK font fallback chain
 (`PingFang SC -> Microsoft YaHei -> sans-serif`). Reuse its classes; avoid inventing per-element
 inline styles.
 
@@ -115,6 +114,8 @@ Specific rules:
 - keep the right-side loop visually lighter than the main architecture
 - make bottom value statements short and conclusion-oriented
 - right-align subtitles in title bars if they visually compete with the main title
+- during passes 4-5, re-check the step 3 hard layout rules (4px grid, source order, corridor
+  routing, trunk merging); the step 5 preview list is their visual re-check, not a new rule set
 
 ### 5. Validate both structure and visuals
 
@@ -171,6 +172,8 @@ Recommended naming patterns:
 ### Technical-working style
 
 Use this mode when the user wants architecture review, implementation discussion, technical decomposition, or a more engineering-heavy diagram.
+
+Still start from `assets/svg-base.svg`; this mode changes wording density and allowed jargon, not the base template.
 
 Allow:
 

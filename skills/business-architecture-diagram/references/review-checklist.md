@@ -1,6 +1,13 @@
 # Business Architecture Diagram Review Checklist
 
-Use this checklist after each substantial edit.
+Use this checklist after each substantial edit. It mirrors the SKILL.md workflow: template
+start, hard layout rules, mechanical pre-checks, then visual review.
+
+## 0. Template and mechanical pre-checks
+
+- Did the diagram start from `assets/svg-base.svg` and reuse its classes (no per-element inline styles)?
+- `xmllint --noout diagram.svg` passes?
+- `python3 scripts/check_text_overflow.py diagram.svg` reports OK (no overflow, no dangling `url(#id)`)?
 
 ## 1. Content
 
@@ -22,15 +29,17 @@ Better executive wording examples:
 
 ## 3. Layout
 
+- Hard rules hold: coordinates/spacing on the 4px grid; one accent color on at most 1-2 focal elements; vertical card spacing >= 40px; filtered elements >= 30px from the viewBox edge.
 - Is every long label explicitly wrapped with `tspan` where needed?
 - Are title bars, section captions, and bottom value statements visually separated?
 - Is the side loop lighter than the main architecture body?
 
 ## 4. Arrows
 
-- Do arrows show direction without crossing text?
+- Source order is bands -> lines -> cards, so cards sit on top of line endpoints?
+- Do arrows route through the corridors between cards, showing direction without crossing text or entering cards?
+- Are repeated same-direction cross-layer arrows merged into one trunk line?
 - Are explicit triangles cleaner than marker arrows in this file?
-- Do arrows stop outside cards rather than entering them?
 
 ## 5. Versioning
 
