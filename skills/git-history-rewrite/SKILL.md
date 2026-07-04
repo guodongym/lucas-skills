@@ -141,6 +141,14 @@ picking the simplest one that preserves intent:
   full reorder/reword control is needed without an interactive editor.
 - Plain `git rebase -i <base>` only when a human will run it in their own terminal.
 
+Prefer the todo-file rebase over a hand-rolled `reset` + `cherry-pick` replay chain for
+reordering or folding: a failed rebase aborts back to the starting point, while a replay chain
+that fails midway leaves HEAD somewhere in between (field note: `git cherry-pick` accepts no
+`-q` flag, and a blind `git reset --soft HEAD~N` after a failed pick moves HEAD to the wrong
+commit). If you do replay by hand, chain every step with `&&`, verify the commit count after
+each stage, and on any failure restore with `git reset --hard <backup-ref>` and start over
+instead of patching the half-rewritten state.
+
 Keep chronological order. A later commit may depend on an earlier one; avoid moving commits ahead of their prerequisites just to group by file type.
 
 Commit messages must follow the repository's own convention. If the repo requires bodies or trailers, preserve that rule in every rewritten commit.
