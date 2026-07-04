@@ -110,6 +110,11 @@ Risk gates:
 - needs force-with-lease: yes/no
 ```
 
+The inspector reports raw facts (`upstream`, `ahead_behind`, `dirty`, `merge_commits`, and risk
+strings); `pushed`, `remote state refreshed`, and `needs force-with-lease` are judgments you
+derive from those facts and from how you gathered them — the script does not emit these gate
+fields directly.
+
 Ask for confirmation if any safety boundary is present. If the branch is clearly local-only, clean, and the user already asked to rewrite, proceed after presenting the plan.
 
 ### 4. Protect the current state
@@ -134,20 +139,24 @@ picking the simplest one that preserves intent:
 - `git reset --soft <base>` followed by scoped commits for reordering, squashing, or splitting.
   This is the most general tool. It discards original author dates; say so in the plan when
   that matters.
-- `git commit --fixup=<sha>` then `git rebase --autosquash <base>` to fold a fix into an earlier
-  commit without touching the rest. Git >= 2.44 runs `--autosquash` non-interactively; on older
-  Git use `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash <base>` as the equivalent.
+- `git commit --fixup=<sha>` then an autosquash rebase to fold a fix into an earlier commit
+  without touching the rest. Check `git version` first: on Git >= 2.44 use
+  `git rebase --autosquash <base>`; on older Git that exact command exits 0 and reports
+  "Successfully rebased" WITHOUT folding anything (verified on Apple Git 2.30), so use
+  `GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash <base>` instead. Either way, confirm the
+  fold with the commit-structure check in step 6.
 - A generated todo file with `GIT_SEQUENCE_EDITOR="cp <todo-file>" git rebase -i <base>` when
   full reorder/reword control is needed without an interactive editor.
 - Plain `git rebase -i <base>` only when a human will run it in their own terminal.
 
-Prefer the todo-file rebase over a hand-rolled `reset` + `cherry-pick` replay chain for
-reordering or folding: a failed rebase aborts back to the starting point, while a replay chain
-that fails midway leaves HEAD somewhere in between (field note: `git cherry-pick` accepts no
-`-q` flag, and a blind `git reset --soft HEAD~N` after a failed pick moves HEAD to the wrong
-commit). If you do replay by hand, chain every step with `&&`, verify the commit count after
-each stage, and on any failure restore with `git reset --hard <backup-ref>` and start over
-instead of patching the half-rewritten state.
+Stick to the tools above. In particular, do not improvise a multi-step replay chain (for
+example, resetting to a keep-point and re-applying the rest with a `cherry-pick` sequence) when
+the todo-file rebase can express the same reorder or fold: a failed rebase aborts back to the
+starting point, while a replay chain that fails midway leaves HEAD somewhere in between (field
+note: `git cherry-pick` accepts no `-q` flag, and a blind `git reset --soft HEAD~N` after a
+failed pick moves HEAD to the wrong commit). If you must replay by hand, chain every step with
+`&&`, verify the commit count after each stage, and on any failure restore with
+`git reset --hard <backup-ref>` and start over instead of patching the half-rewritten state.
 
 Keep chronological order. A later commit may depend on an earlier one; avoid moving commits ahead of their prerequisites just to group by file type.
 
@@ -166,13 +175,22 @@ git diff --check <base>..HEAD
 Then run the tree-identity check against the backup ref created in step 4:
 
 ```bash
-git diff --quiet backup/<ref> HEAD && echo "tree identical" || echo "TREE DIFFERS"
+git diff --quiet <backup-ref> HEAD && echo "tree identical" || echo "TREE DIFFERS"
 ```
 
 A pure history rewrite (squash, reorder, reword) must leave the final tree byte-identical, so
-expect `tree identical`. If the tree differs, show `git diff --stat backup/<ref> HEAD`, explain
+expect `tree identical`. If the tree differs, show `git diff --stat <backup-ref> HEAD`, explain
 every difference, and get the user's confirmation before treating the rewrite as verified. An
 unexplained difference means restore from the backup ref instead of proceeding.
+
+Also check the commit structure — tree identity cannot catch a fixup that silently failed to
+fold, because the final tree is the same either way:
+
+```bash
+git log --oneline <base>..HEAD
+```
+
+The commit count must match the approved plan, and no `fixup!`/`squash!` subjects may remain.
 
 Also run the most relevant project tests, lint, typecheck, or build commands. If a full suite is too expensive or unavailable, run the closest targeted checks and say what was not run.
 
@@ -204,7 +222,7 @@ End with:
 ```markdown
 History rewritten.
 - Base: <base>
-- Backup ref: <backup/ref or "not needed">
+- Backup ref: <backup-ref or "not needed">
 - Final commits:
   1. <sha> <subject> - <closed-loop purpose>
   2. ...
