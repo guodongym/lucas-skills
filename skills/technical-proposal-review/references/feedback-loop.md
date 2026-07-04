@@ -1,6 +1,6 @@
 # Feedback Loop
 
-The review output does not include this feedback block. When the user wants to provide feedback, they can fill in this structure directly or provide short natural language feedback such as "P1-02 喜欢，P2-03 太泛，漏了迁移回滚".
+The review output does not include this feedback block. When the user gives feedback — a filled-in block, or a short natural-language verdict such as "P1-02 喜欢，P2-03 太泛，漏了迁移回滚" — the skill drafts this structure on the user's behalf and writes it to `feedback/pending/` for human confirmation.
 
 ## Feedback Block
 
