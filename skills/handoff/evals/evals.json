@@ -13,7 +13,8 @@
         "The output explicitly keeps the receiving agent read-only and says not to implement unless separately requested.",
         "The output references the provided plan path and tells the receiving agent to verify the current repo state.",
         "The output includes the receiving agent protocol or equivalent workflow guardrails.",
-        "The output defines a findings-oriented return format with evidence, severity, and verdict."
+        "The output defines a findings-oriented return format with evidence, severity, and verdict.",
+        "Includes a one-to-two sentence why/background for the work (or a one-line essence pointing to the plan/spec background section), not a full background narrative."
       ]
     },
     {
@@ -29,7 +30,8 @@
         "The output tells the receiving agent to verify the plan against the current repo before implementing.",
         "The output includes scope boundaries and stop conditions for new dependencies, schema changes, core API changes, or broad behavior changes.",
         "The output includes acceptance criteria and validation suggestions.",
-        "The output defines a return format covering changes, files changed, verification, deviations from plan, and remaining risks."
+        "The output defines a return format covering changes, files changed, verification, deviations from plan, and remaining risks.",
+        "Includes a one-to-two sentence why/background for the work (or a one-line essence pointing to the plan/spec background section), not a full background narrative."
       ]
     },
     {
@@ -73,7 +75,8 @@
         "The output separates completed, in-progress, unfinished, and blocker status.",
         "The output includes repo/cwd/worktree/branch and relevant file or document context when available.",
         "The output separates confirmed facts from items that still need verification.",
-        "The output provides concrete next steps and stop conditions for the receiving agent."
+        "The output provides concrete next steps and stop conditions for the receiving agent.",
+        "Includes a one-to-two sentence why/background for the work (or a one-line essence pointing to the plan/spec background section), not a full background narrative."
       ]
     }
   ]

@@ -18,6 +18,7 @@ This skill is for delegation. Do not perform the delegated review or implementat
 A good handoff is not a transcript. It is a compact launch brief that tells the receiving agent:
 
 - what task they are taking over
+- why the work exists, in one or two sentences, so they can resolve small ambiguities in the direction of intent instead of stopping or guessing
 - where the work lives, including repo, cwd, worktree, and branch
 - what workflow constraints they should follow
 - what output the user expects back
@@ -89,6 +90,7 @@ Output one copy-ready Markdown package. Start with the route name and target. Us
 # Handoff: <route>
 
 ## 交接目标
+- 为什么: <一两句 — 解决什么问题/由什么触发。plan/spec 已有背景章节时，只写一句本质并指向该文档，不复述>
 
 ## 定位
 - repo:
@@ -254,6 +256,7 @@ Add this route-specific structure:
 
 ```markdown
 ## 当前目标
+- 为什么: <一两句 — 这项工作解决什么问题/由什么触发>
 
 ## 定位
 - repo:
