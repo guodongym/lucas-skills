@@ -59,11 +59,12 @@ Do not add low-frequency cleanup or branch deletion workflows unless the user ex
 Before writing the handoff package, gather only the evidence needed for the route. Do not do a deep investigation unless the user asks for one; deep investigation belongs to the receiving agent.
 
 1. Check the current repo, cwd, worktree path, branch, HEAD short SHA, and `git status --short` output when available.
-2. For plan-execution handoffs, capture the last change of the plan and spec/design files with `git log -1 --oneline -- <path>`.
-3. Identify referenced files, docs, specs, plans, commits, diffs, commands, and validation results.
-4. Distinguish confirmed facts from memory-derived or user-stated claims.
-5. If a file/path is referenced but missing or not readable, say that in the package.
-6. If the user wants a package for another thread, include exact paths and checkout locations.
+2. If uncommitted changes are part of the handoff target, capture their `git diff --stat` summary as the content anchor — HEAD alone cannot pin a dirty tree.
+3. For plan-execution handoffs, capture the last change of the plan and spec/design files with `git log -1 --oneline -- <path>`.
+4. Identify referenced files, docs, specs, plans, commits, diffs, commands, and validation results.
+5. Distinguish confirmed facts from memory-derived or user-stated claims.
+6. If a file/path is referenced but missing or not readable, say that in the package.
+7. If the user wants a package for another thread, include exact paths and checkout locations.
 
 Never tell the receiving agent to trust this handoff blindly. The package should instruct them to re-check the live repo state. Avoid exhaustive search logs; write "not verified" or "path not found in current checkout" when that is enough.
 
@@ -76,7 +77,7 @@ Include this section in every handoff package, adapted to the task:
 
 1. 先读取并遵循目标仓库的本地指令，例如 AGENTS.md / CLAUDE.md / GEMINI.md。
 2. 如果当前环境有 Superpowers 或同类 workflow skill，先调用匹配流程；否则按同等工程流程手动执行。
-3. 不要只相信本交接摘要；先重新确认 repo/cwd/worktree/branch/diff，并对照包内 HEAD 与工作区快照。发现不一致时视为交接包已过期：停下向发起方确认，不要基于过期快照继续。
+3. 不要只相信本交接摘要；先重新确认 repo/cwd/worktree/branch/diff，并对照包内 HEAD、工作区快照与未提交 diff 锚点（如有）。发现不一致时视为交接包已过期：停下向发起方确认，不要基于过期快照继续。
 4. 按本包声明的任务边界执行：review 保持只读；review+fix 在编辑任何文件前先报 findings，再做最小修复，再验证。
 ```
 
@@ -90,7 +91,8 @@ Output one copy-ready Markdown package. Start with the route name and target. Us
 # Handoff: <route>
 
 ## 交接目标
-- 为什么: <一两句 — 解决什么问题/由什么触发。plan/spec 已有背景章节时，只写一句本质并指向该文档，不复述>
+- 做什么: <一句话任务陈述>
+- 为什么: <一两句 — 这项工作存在的动机或触发，不是复述上面的任务；不要另立"背景/触发"字段。plan/spec 已有背景章节时，只写一句本质并指向该文档>
 
 ## 定位
 - repo:
@@ -100,6 +102,7 @@ Output one copy-ready Markdown package. Start with the route name and target. Us
 - HEAD: <短 SHA>
 - 工作区: <clean / git status --short 摘要>
 - target:
+- target 最后改动: <git log -1 --oneline -- <path>；可选，交接对象为已提交内容时使用>
 
 ## 当前状态
 - 已确认:
@@ -114,12 +117,16 @@ Output one copy-ready Markdown package. Start with the route name and target. Us
 ## 停止条件
 ```
 
+Each route template below defines a `返回格式` block; it is the concrete form of `验收 / 返回` — include one of the two, not both.
+
 Use the longer shape only when the handoff would otherwise be ambiguous:
 
 ```markdown
 ## 必读材料
 
 ## 停止条件
+
+## 可选验证命令（最多 5 条单行命令，供接收方重新锚定现场）
 
 ## 可选附录：已验证证据
 ```
@@ -256,7 +263,7 @@ Add this route-specific structure:
 
 ```markdown
 ## 当前目标
-- 为什么: <一两句 — 这项工作解决什么问题/由什么触发>
+- 为什么: <一两句 — 动机或触发，不是复述上面的目标>
 
 ## 定位
 - repo:
