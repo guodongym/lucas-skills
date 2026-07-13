@@ -12,5 +12,8 @@
 __pycache__/
 *.py[cod]
 
+# Local git worktrees
+.worktrees/
+
 # Local/private source materials for technical proposal review
 skills/technical-proposal-review/materials/private/
