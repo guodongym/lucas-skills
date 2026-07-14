@@ -138,7 +138,7 @@ uv run --python '>=3.11' --with pyyaml python3 skill_manager.py set docx --tool 
 uv run --python '>=3.11' --with pyyaml python3 skill_manager.py set docx --tool codex --on --apply --json
 ```
 
-也可以使用 `--all` 批量操作仓库内的有效 Skill，或用 `--off` 停用。执行阶段会重新校验计划和文件系统状态；目标已被普通文件、目录或其他来源软链占用时会报告冲突，不覆盖现有内容。管理器只写入上述受管目标及必要的 Antigravity CLI 插件清单，不改写外部 Skill 内容。
+也可以使用 `--all` 批量操作仓库 Skill，或用 `--off` 停用。管理器采用 fail-closed 策略：只要仓库扫描发现任一扫描问题，就拒绝全部 `set` 和 `adopt`（包括 preview），并在错误中列出问题代码和路径；先修复或移出无效候选后再重新预览。执行阶段还会重新校验计划和文件系统状态；目标已被普通文件、目录或其他来源软链占用时会报告冲突，不覆盖现有内容。管理器只写入上述受管目标及必要的 Antigravity CLI 插件清单，不改写外部 Skill 内容。
 
 按需打开管理页面：
 

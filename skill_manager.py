@@ -170,6 +170,14 @@ def _set_error(payload: dict[str, object], code: str, message: str) -> None:
     payload["message"] = message
 
 
+def _repository_issue_message(issues: Sequence[ScanIssue]) -> str:
+    details = "; ".join(f"{issue.code}: {issue.path}" for issue in issues)
+    return (
+        "repository contains invalid skills; no changes were planned or applied"
+        f": {details}"
+    )
+
+
 def _batch_code(result: BatchResult) -> str | None:
     failures = [item for item in result.results if not item.ok]
     if not failures:
@@ -194,6 +202,40 @@ def _adoption_changes(plan: AdoptionPlan) -> dict[str, object]:
         "bridge_removals": plan.bridge_removals,
         "snapshot_path": plan.snapshot_path,
     }
+
+
+def _set_plan_status(
+    payload: dict[str, object],
+    changes: Sequence[object],
+) -> bool:
+    conflict = next(
+        (
+            change
+            for change in changes
+            if getattr(change, "action", None)
+            in {"blocked", "conflict", "error", "target-conflict"}
+        ),
+        None,
+    )
+    requires_adopt = next(
+        (
+            change
+            for change in changes
+            if getattr(change, "action", None) == "requires-adopt"
+        ),
+        None,
+    )
+    failure = conflict or requires_adopt
+    if failure is None:
+        payload["ok"] = True
+        payload["code"] = None
+        payload["message"] = ""
+        payload.pop("path", None)
+        return True
+    code = "target-conflict" if conflict is not None else "requires-adopt"
+    _set_error(payload, code, getattr(failure, "reason", "plan contains a conflict"))
+    payload["path"] = getattr(failure, "target", None)
+    return False
 
 
 def _doctor_issues(state: ManagedState, home: Path) -> tuple[ScanIssue, ...]:
@@ -327,7 +369,7 @@ def _handle_set_request(
         _set_error(
             payload,
             "invalid-skill",
-            "repository contains invalid skills; no changes were planned or applied",
+            _repository_issue_message(state.repository.issues),
         )
         return 400, payload
     slugs = (
@@ -338,15 +380,7 @@ def _handle_set_request(
     plan = plan_set(state, slugs, [request["tool"]], request["enabled"])
     payload["changes"] = plan.changes
     if not apply:
-        conflicts = [
-            change for change in plan.changes if change.action in {"blocked", "requires-adopt"}
-        ]
-        if conflicts:
-            conflict = conflicts[0]
-            code = "requires-adopt" if conflict.action == "requires-adopt" else "target-conflict"
-            _set_error(payload, code, conflict.reason)
-            payload["path"] = conflict.target
-            return 409, payload
+        _set_plan_status(payload, plan.changes)
         return 200, payload
 
     result = apply_plan(plan, {adapter.key: adapter for adapter in state.adapters})
@@ -370,17 +404,13 @@ def _handle_adopt_request(
         _set_error(
             payload,
             "invalid-skill",
-            "repository contains invalid skills; no changes were planned or applied",
+            _repository_issue_message(state.repository.issues),
         )
         return 400, payload
     plan = plan_adoption(state, server.home / ".local/state/lucas-skills-manager")
     payload["changes"] = _adoption_changes(plan)
-    conflicts = [change for change in plan.link_changes if change.action == "blocked"]
     if not apply:
-        if conflicts:
-            _set_error(payload, "target-conflict", conflicts[0].reason)
-            payload["path"] = conflicts[0].target
-            return 409, payload
+        _set_plan_status(payload, plan.link_changes)
         return 200, payload
 
     result = apply_adoption(plan, {adapter.key: adapter for adapter in state.adapters})
@@ -780,7 +810,7 @@ def main(
             _set_error(
                 payload,
                 "invalid-skill",
-                "repository contains invalid skills; no changes were planned or applied",
+                _repository_issue_message(state.repository.issues),
             )
             _write_payload(stdout, state, mode, payload, args.json)
             return 1
@@ -794,8 +824,9 @@ def main(
             plan = plan_set(state, slugs, [args.tool], args.on)
             payload["changes"] = plan.changes
             if not args.apply:
+                ok = _set_plan_status(payload, plan.changes)
                 _write_payload(stdout, state, "plan", payload, args.json)
-                return 0
+                return 0 if ok else 1
 
             result = apply_plan(plan, {adapter.key: adapter for adapter in state.adapters})
             _add_batch(payload, result)
@@ -810,8 +841,9 @@ def main(
         plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
         payload["changes"] = _adoption_changes(plan)
         if not args.apply:
+            ok = _set_plan_status(payload, plan.link_changes)
             _write_payload(stdout, state, "plan", payload, args.json)
-            return 0
+            return 0 if ok else 1
 
         result = apply_adoption(plan, {adapter.key: adapter for adapter in state.adapters})
         _add_batch(payload, result)

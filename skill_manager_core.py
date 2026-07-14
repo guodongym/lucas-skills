@@ -901,11 +901,25 @@ def _inspect_repository_container(repository: RepositoryScan) -> tuple[bool, str
         return False, "repository skills root contains invalid entries"
     managed = {skill.slug for skill in repository.skills}
     try:
-        children = {child.name for child in repository.skills_root.iterdir()}
+        children = {
+            child.name
+            for child in repository.skills_root.iterdir()
+            if child.name != ".DS_Store"
+        }
     except OSError as exc:
         return False, f"repository skills root cannot be inspected: {exc}"
     if children != managed:
-        return False, "repository skills root contains unmanaged entries"
+        unmanaged = sorted(children - managed)
+        missing = sorted(managed - children)
+        details: list[str] = []
+        if unmanaged:
+            details.append(f"unmanaged: {', '.join(unmanaged)}")
+        if missing:
+            details.append(f"missing: {', '.join(missing)}")
+        return False, (
+            "repository skills root differs from managed skills "
+            f"({'; '.join(details)})"
+        )
     for skill in repository.skills:
         expected = repository.skills_root / skill.slug
         if expected.is_symlink() or not expected.is_dir() or skill.path != expected:
@@ -941,10 +955,23 @@ def _plan_antigravity_legacy_bridge(
     bridge = home / ".gemini/config/plugins/custom-skills/skills"
     if not _lexists(bridge):
         return [], None
-    safe, reason = _inspect_antigravity_legacy_container(home, state.repository)
     desktop = next(
         adapter for adapter in state.adapters if adapter.key == "antigravity-desktop"
     )
+    surfaces = {surface.key: surface for surface in state.surfaces}
+    if not _adapter_available(desktop, surfaces):
+        return [
+            PlannedChange(
+                "unavailable",
+                "*",
+                desktop.key,
+                state.repository.skills_root,
+                bridge,
+                snapshot_path(bridge),
+                "Antigravity Desktop surface is not installed",
+            )
+        ], None
+    safe, reason = _inspect_antigravity_legacy_container(home, state.repository)
     if not safe:
         blocked = PlannedChange(
             "blocked",
@@ -1016,6 +1043,7 @@ def plan_adoption(state: ManagedState, state_dir: Path) -> AdoptionPlan:
     link_changes: list[PlannedChange] = []
     container_changes: list[ContainerChange] = []
     container_adapters: set[str] = set()
+    surfaces = {surface.key: surface for surface in state.surfaces}
     for adapter in state.adapters:
         root_snapshot = snapshot_path(adapter.root)
         if (
@@ -1023,6 +1051,19 @@ def plan_adoption(state: ManagedState, state_dir: Path) -> AdoptionPlan:
             and adapter.root.resolve(strict=False) == repository_root.resolve()
         ):
             container_adapters.add(adapter.key)
+            if not _adapter_available(adapter, surfaces):
+                link_changes.append(
+                    PlannedChange(
+                        "unavailable",
+                        "*",
+                        adapter.key,
+                        repository_root,
+                        adapter.root,
+                        root_snapshot,
+                        "surface is not installed; whole-directory link was not adopted",
+                    )
+                )
+                continue
             safe, reason = _inspect_repository_container(state.repository)
             if safe:
                 container_changes.append(
@@ -1741,7 +1782,13 @@ def apply_adoption(
     plan: AdoptionPlan,
     adapters: Mapping[str, TargetAdapter],
 ) -> BatchResult:
-    _write_snapshot(plan)
+    has_writes = bool(
+        plan.container_changes
+        or plan.bridge_removals
+        or any(change.action in {"create", "remove"} for change in plan.link_changes)
+    )
+    if has_writes:
+        _write_snapshot(plan)
     results: list[OperationResult] = []
     for change in plan.container_changes:
         try:
@@ -1768,8 +1815,11 @@ def apply_adoption(
                 )
             )
     for change in plan.link_changes:
-        if change.action == "blocked":
-            results.append(_operation_result(False, "blocked", change, change.reason))
+        if change.action == "unavailable":
+            results.append(_operation_result(True, "unavailable", change, change.reason))
+            continue
+        if change.action in {"blocked", "requires-adopt"}:
+            results.append(_operation_result(False, change.action, change, change.reason))
             continue
         try:
             if change.action == "no-op":

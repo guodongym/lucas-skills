@@ -4,6 +4,7 @@ import io
 import http.client
 import json
 import os
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -123,6 +124,18 @@ class ReadmeTests(unittest.TestCase):
             readme.index("skill_manager.py adopt --apply"),
         )
 
+    def test_documents_fail_closed_scan_and_ds_store_exception(self) -> None:
+        readme = Path("README.md").read_text(encoding="utf-8")
+        spec = Path(
+            "docs/superpowers/specs/2026-07-14-global-skill-manager-design.md"
+        ).read_text(encoding="utf-8")
+
+        for document in (readme, spec):
+            self.assertIn("扫描问题", document)
+            self.assertIn("拒绝全部 `set` 和 `adopt`", document)
+            self.assertIn("问题代码和路径", document)
+        self.assertIn("`.DS_Store`", spec)
+
 
 class RepositoryScanTests(unittest.TestCase):
     def test_scans_valid_skill_and_allows_name_mismatch_with_warning(self) -> None:
@@ -164,6 +177,23 @@ class RepositoryScanTests(unittest.TestCase):
 
 
 class WebPageTests(unittest.TestCase):
+    @staticmethod
+    def _tool_surface_rows(surfaces: list[dict[str, object]], tool: str) -> object:
+        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        start = page.index("const TOOL_ADAPTERS")
+        end = page.index("async function api")
+        script = page[start:end] + (
+            "\nconsole.log(JSON.stringify(toolSurfaceRows("
+            f"{{surfaces: {json.dumps(surfaces)}}}, {json.dumps(tool)})));"
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(completed.stdout)
+
     def test_page_contains_required_views_and_no_external_assets(self) -> None:
         page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
         for element_id in (
@@ -225,6 +255,14 @@ class WebPageTests(unittest.TestCase):
         self.assertIn("正在", page)
         self.assertIn("操作失败", page)
 
+    def test_page_confirmation_lists_complete_preview_even_when_not_ok(self) -> None:
+        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        self.assertIn("function planItemText(item)", page)
+        self.assertIn("const details = changes.map(planItemText);", page)
+        self.assertIn("...(details.length ? details", page)
+        self.assertNotIn("if (!preview.ok)", page)
+        self.assertIn("document.getElementById(\"confirm-body\").textContent", page)
+
     def test_page_restores_row_controls_after_loading(self) -> None:
         page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
         self.assertIn("if (!busy && state.status) renderManaged(state.status);", page)
@@ -236,6 +274,59 @@ class WebPageTests(unittest.TestCase):
     def test_page_resets_search_flex_basis_on_mobile(self) -> None:
         page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
         self.assertIn(".filters input { flex: 0 0 auto; width: 100%; }", page)
+
+    def test_page_renders_shared_surface_when_only_desktop_is_installed(self) -> None:
+        rows = self._tool_surface_rows(
+            [
+                {"key": "claude-desktop", "installed": True, "detector": "application"},
+                {"key": "claude-cli", "installed": False, "detector": "command:claude"},
+            ],
+            "claude",
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                {"key": "claude-desktop", "label": "Desktop", "installed": True},
+                {"key": "claude-cli", "label": "CLI", "installed": False},
+            ],
+        )
+
+    def test_page_renders_shared_surface_when_only_cli_is_installed(self) -> None:
+        rows = self._tool_surface_rows(
+            [
+                {"key": "codex-desktop", "installed": False, "detector": "application"},
+                {"key": "codex-cli", "installed": True, "detector": "command:codex"},
+            ],
+            "codex",
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                {"key": "codex-desktop", "label": "Desktop", "installed": False},
+                {"key": "codex-cli", "label": "CLI", "installed": True},
+            ],
+        )
+
+    def test_page_displays_all_surface_and_inventory_fields_with_text_content(self) -> None:
+        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        for key in (
+            "claude-desktop",
+            "claude-cli",
+            "codex-desktop",
+            "codex-cli",
+            "copilot-desktop",
+            "copilot-cli",
+            "antigravity-desktop",
+            "antigravity-cli",
+        ):
+            self.assertIn(key, page)
+        self.assertIn('id="surface-summary"', page)
+        self.assertIn("toolSurfaceText(payload, tool)", page)
+        self.assertIn("record.surfaces", page)
+        self.assertIn("node.textContent = text", page)
+        self.assertIn("#surface-summary", page)
 
 
 class ManagedStateTests(unittest.TestCase):
@@ -819,6 +910,78 @@ class ManagedStateFilesystemTests(unittest.TestCase):
 
 
 class AdoptionTests(unittest.TestCase):
+    def test_empty_adoption_apply_succeeds_without_state_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            state = build_test_state(repo, home)
+            state_dir = home / ".local/state/lucas-skills-manager"
+            plan = plan_adoption(state, state_dir)
+
+            result = apply_adoption(plan, {item.key: item for item in state.adapters})
+
+            self.assertTrue(result.ok)
+            self.assertEqual(result.results, ())
+            self.assertFalse(state_dir.exists())
+
+    def test_unavailable_whole_directory_is_skipped_without_container_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            copilot_root = home / ".copilot/skills"
+            copilot_root.parent.mkdir(parents=True)
+            copilot_root.symlink_to(repo / "skills")
+            state = build_test_state(repo, home)
+
+            plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
+
+            self.assertEqual(plan.container_changes, ())
+            self.assertEqual(
+                [(item.adapter_key, item.action) for item in plan.link_changes],
+                [("copilot-shared", "unavailable")],
+            )
+            self.assertTrue(copilot_root.is_symlink())
+
+            result = apply_adoption(plan, {item.key: item for item in state.adapters})
+
+            self.assertTrue(result.ok)
+            self.assertEqual([item.code for item in result.results], ["unavailable"])
+            self.assertFalse((home / ".local/state/lucas-skills-manager").exists())
+            self.assertTrue(copilot_root.is_symlink())
+
+    def test_shared_adapter_is_available_from_either_desktop_or_cli_surface(self) -> None:
+        for installed_commands, installed_apps in (
+            ({}, {"GitHub Copilot.app"}),
+            ({"copilot": "/bin/copilot"}, set()),
+        ):
+            with self.subTest(
+                installed_commands=installed_commands,
+                installed_apps=installed_apps,
+            ), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                repo, home = root / "repo", root / "home"
+                write_skill(repo, "docx", "docx")
+                copilot_root = home / ".copilot/skills"
+                copilot_root.parent.mkdir(parents=True)
+                copilot_root.symlink_to(repo / "skills")
+                state = build_test_state(
+                    repo,
+                    home,
+                    installed_commands=installed_commands,
+                    installed_apps=installed_apps,
+                )
+
+                plan = plan_adoption(
+                    state,
+                    home / ".local/state/lucas-skills-manager",
+                )
+
+                self.assertEqual(len(plan.container_changes), 1)
+                self.assertEqual(plan.container_changes[0].adapter_key, "copilot-shared")
+                self.assertEqual(plan.link_changes, ())
+
     def test_blocks_copilot_directory_adoption_with_hidden_repository_entry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
@@ -838,6 +1001,36 @@ class AdoptionTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(result.results[0].code, "blocked")
             self.assertTrue(copilot_root.is_symlink())
+            self.assertFalse((home / ".local/state/lucas-skills-manager").exists())
+
+    def test_copilot_directory_adoption_ignores_ds_store_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            (repo / "skills/.DS_Store").write_bytes(b"finder metadata")
+            copilot_root = home / ".copilot/skills"
+            copilot_root.parent.mkdir(parents=True)
+            copilot_root.symlink_to(repo / "skills")
+            state = build_test_state(
+                repo,
+                home,
+                installed_commands={"copilot": "/bin/copilot"},
+            )
+
+            plan = plan_adoption(
+                state,
+                home / ".local/state/lucas-skills-manager",
+            )
+            result = apply_adoption(
+                plan,
+                {item.key: item for item in state.adapters},
+            )
+
+            self.assertEqual(len(plan.container_changes), 1)
+            self.assertTrue(result.ok)
+            self.assertTrue((copilot_root / "docx").is_symlink())
+            self.assertFalse((copilot_root / ".DS_Store").exists())
 
     def test_apply_rejects_hidden_entry_added_after_container_plan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1157,6 +1350,30 @@ class AdoptionTests(unittest.TestCase):
 
 
 class AntigravityTests(unittest.TestCase):
+    def test_unavailable_desktop_bridge_is_skipped_without_official_root_or_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "pdf", "pdf")
+            legacy = home / ".gemini/skills"
+            legacy.mkdir(parents=True)
+            (legacy / "pdf").symlink_to(repo / "skills/pdf")
+            bridge = home / ".gemini/config/plugins/custom-skills/skills"
+            bridge.parent.mkdir(parents=True)
+            bridge.symlink_to(legacy)
+            state = build_test_state(repo, home)
+
+            plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
+
+            self.assertEqual(plan.container_changes, ())
+            self.assertEqual(plan.bridge_removals, ())
+            self.assertEqual(
+                [(item.adapter_key, item.action) for item in plan.link_changes],
+                [("antigravity-desktop", "unavailable")],
+            )
+            self.assertFalse((home / ".gemini/config/skills").exists())
+            self.assertTrue(bridge.is_symlink())
+
     def test_enabling_cli_skill_creates_managed_plugin_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
@@ -1902,9 +2119,34 @@ class CliTests(unittest.TestCase):
                     [issue["code"] for issue in payload["issues"]],
                     ["invalid-frontmatter"],
                 )
+                self.assertIn("invalid-frontmatter", payload["message"])
+                self.assertIn(str(invalid / "SKILL.md"), payload["message"])
                 self.assertEqual(payload["changes"], [])
                 self.assertEqual(payload["results"], [])
                 self.assertFalse(os.path.lexists(home / ".claude/skills/docx"))
+
+    def test_invalid_repository_text_error_lists_issue_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            invalid = repo / "skills/invalid"
+            invalid.mkdir()
+            (invalid / "SKILL.md").write_text("# invalid\n", encoding="utf-8")
+            output = io.StringIO()
+
+            code = main(
+                ["set", "--all", "--tool", "claude", "--on"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda command: "/bin/claude" if command == "claude" else None,
+                applications=root / "Applications",
+            )
+
+            self.assertEqual(code, 1)
+            self.assertIn("invalid-frontmatter", output.getvalue())
+            self.assertIn(str(invalid / "SKILL.md"), output.getvalue())
 
     def test_invalid_repository_blocks_adopt_preview_and_apply_without_writes(self) -> None:
         for apply in (False, True):
@@ -2127,6 +2369,91 @@ class CliTests(unittest.TestCase):
             self.assertEqual(len(payload["changes"]), 1)
             self.assertEqual(payload["results"], [])
             self.assertFalse(os.path.lexists(home / ".claude/skills/docx"))
+
+    def test_set_preview_returns_target_conflict_for_blocked_change(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            occupied = home / ".claude/skills/docx"
+            occupied.mkdir(parents=True)
+            output = io.StringIO()
+
+            code = main(
+                ["set", "docx", "--tool", "claude", "--on", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda command: "/bin/claude" if command == "claude" else None,
+                applications=root / "Applications",
+            )
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(code, 1)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["code"], "target-conflict")
+            self.assertEqual(payload["changes"][0]["action"], "blocked")
+            self.assertEqual(payload["changes"][0]["target"], str(occupied))
+            self.assertTrue(occupied.is_dir())
+
+    def test_set_preview_returns_requires_adopt_for_legacy_directory_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            target_root = home / ".copilot/skills"
+            target_root.parent.mkdir(parents=True)
+            target_root.symlink_to(repo / "skills")
+            output = io.StringIO()
+
+            code = main(
+                ["set", "docx", "--tool", "copilot", "--off", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda command: "/bin/copilot" if command == "copilot" else None,
+                applications=root / "Applications",
+            )
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(code, 1)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["code"], "requires-adopt")
+            self.assertEqual(payload["changes"][0]["action"], "requires-adopt")
+            self.assertTrue(target_root.is_symlink())
+
+    def test_adopt_preview_exposes_blocked_change_as_target_conflict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            skill = write_skill(repo, "docx", "docx")
+            legacy_root = home / "legacy-antigravity"
+            legacy_root.mkdir(parents=True)
+            (legacy_root / "docx").symlink_to(skill)
+            bridge = home / ".gemini/config/plugins/custom-skills/skills"
+            bridge.parent.mkdir(parents=True)
+            bridge.symlink_to(legacy_root)
+            occupied = home / ".gemini/config/skills/docx"
+            occupied.mkdir(parents=True)
+            applications = root / "Applications"
+            (applications / "Antigravity.app").mkdir(parents=True)
+            output = io.StringIO()
+
+            code = main(
+                ["adopt", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda _: None,
+                applications=applications,
+            )
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(code, 1)
+            self.assertFalse(payload["ok"])
+            self.assertEqual(payload["code"], "target-conflict")
+            self.assertEqual(payload["changes"]["link_changes"][0]["action"], "blocked")
+            self.assertTrue(bridge.is_symlink())
 
     def test_status_json_contains_tools_surfaces_and_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2621,6 +2948,91 @@ class HttpServerTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, 400)
                 self.assertEqual(self._error_payload(caught.exception)["code"], "invalid-skill")
                 self.assertFalse(os.path.lexists(home / ".claude/evil"))
+
+    def test_conflicted_set_preview_returns_full_plan_then_apply_is_409(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            write_skill(repo, "pdf", "pdf")
+            occupied = home / ".claude/skills/pdf"
+            occupied.mkdir(parents=True)
+            with running_http_server(
+                repo,
+                home,
+                root / "Applications",
+                lambda command: "/bin/claude" if command == "claude" else None,
+            ) as (_server, _thread, base_url):
+                preview_response = self._write_request(
+                    base_url,
+                    "/api/set",
+                    {"all": True, "tool": "claude", "enabled": True, "apply": False},
+                )
+                self.assertEqual(preview_response.status, 200)
+                preview = json.loads(preview_response.read())
+                self.assertFalse(preview["ok"])
+                self.assertEqual(preview["code"], "target-conflict")
+                self.assertEqual(
+                    {item["action"] for item in preview["changes"]},
+                    {"create", "blocked"},
+                )
+                self.assertFalse(os.path.lexists(home / ".claude/skills/docx"))
+
+                with self.assertRaises(urllib.error.HTTPError) as caught:
+                    self._write_request(
+                        base_url,
+                        "/api/set",
+                        {"all": True, "tool": "claude", "enabled": True, "apply": True},
+                    )
+                self.assertEqual(caught.exception.code, 409)
+                applied = self._error_payload(caught.exception)
+                self.assertEqual(applied["code"], "target-conflict")
+                self.assertEqual(
+                    {item["code"] for item in applied["results"]},
+                    {"applied", "blocked"},
+                )
+                self.assertTrue((home / ".claude/skills/docx").is_symlink())
+                self.assertTrue(occupied.is_dir())
+
+    def test_conflicted_adoption_preview_is_http_200_with_complete_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            skill = write_skill(repo, "docx", "docx")
+            legacy_root = home / "legacy-antigravity"
+            legacy_root.mkdir(parents=True)
+            (legacy_root / "docx").symlink_to(skill)
+            bridge = home / ".gemini/config/plugins/custom-skills/skills"
+            bridge.parent.mkdir(parents=True)
+            bridge.symlink_to(legacy_root)
+            (home / ".gemini/config/skills/docx").mkdir(parents=True)
+            applications = root / "Applications"
+            (applications / "Antigravity.app").mkdir(parents=True)
+
+            with running_http_server(repo, home, applications) as (
+                _server,
+                _thread,
+                base_url,
+            ):
+                response = self._write_request(
+                    base_url,
+                    "/api/adopt",
+                    {"apply": False},
+                )
+                self.assertEqual(response.status, 200)
+                preview = json.loads(response.read())
+                self.assertFalse(preview["ok"])
+                self.assertEqual(preview["code"], "target-conflict")
+                self.assertEqual(
+                    [item["action"] for item in preview["changes"]["link_changes"]],
+                    ["blocked"],
+                )
+                self.assertEqual(len(preview["changes"]["bridge_removals"]), 1)
+                self.assertEqual(
+                    preview["changes"]["bridge_removals"][0]["path"],
+                    str(bridge),
+                )
+                self.assertTrue(bridge.is_symlink())
 
     def test_target_conflict_is_409_and_preserves_occupied_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

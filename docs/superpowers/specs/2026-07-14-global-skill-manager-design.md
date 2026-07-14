@@ -176,6 +176,10 @@ Antigravity Desktop 使用官方全局目录 `~/.gemini/config/skills/`。Antigr
 
 扫描提取 `name`、`description` 和源路径供 UI 使用。正文不默认渲染。
 
+写操作采用 fail-closed 策略：仓库只要存在任一扫描问题，就拒绝全部 `set` 和 `adopt`（包括 preview），并报告问题代码和路径；有效候选仍可由 `status` / `doctor` 展示，但在问题修复或移出 `skills/` 前不生成写计划。这是为了避免 `--all` 在不完整仓库上产生部分成功且难以审计的结果。
+
+Copilot 整目录接管要求 `skills/` 的实际条目与受管 Skill 集合一致。macOS Finder 元数据文件 `.DS_Store` 是唯一例外：检查时忽略，转换时也不复制；其他文件、目录和隐藏项仍按未受管条目阻断，并在原因中列出名称。
+
 ## 9. 全局 Skill 概览
 
 概览扫描四个工具官方或已注册的本地加载位置，并按实际加载关系归属到 Desktop/CLI。对 Codex 等存在插件缓存的工具，只把系统目录和已启用插件来源标为“已加载”；不把未启用的原始缓存误报为运行时 Skill。

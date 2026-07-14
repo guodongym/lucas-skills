@@ -113,7 +113,7 @@
       white-space: nowrap;
     }
 
-    .toolbar, .tabs, #summary {
+    .toolbar, .tabs, #summary, #surface-summary {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
@@ -127,6 +127,13 @@
       border: solid var(--line);
       border-width: 0 1px 1px;
       background: #e9eef5;
+    }
+
+    #surface-summary {
+      padding: 10px 24px;
+      border: solid var(--line);
+      border-width: 0 1px 1px;
+      background: #f5f7fa;
     }
 
     .summary-item {
@@ -286,6 +293,12 @@
       #repo-path { max-width: calc(100vw - 60px); }
       header .toolbar, header .toolbar button { width: 100%; }
       #summary { padding: 10px 18px; }
+      #surface-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 10px 18px;
+      }
+      #surface-summary .summary-item { padding-right: 4px; border-right: 0; }
       .filters { align-items: stretch; flex-direction: column; }
       .filters input { flex: 0 0 auto; width: 100%; }
       .filters select, .filters button { width: 100%; }
@@ -313,6 +326,10 @@
 
     <section id="summary" aria-label="统计">
       <span class="muted">正在读取状态…</span>
+    </section>
+
+    <section id="surface-summary" aria-label="工具端安装状态">
+      <span class="muted">正在读取 Desktop / CLI 安装状态…</span>
     </section>
 
     <nav class="tabs" aria-label="视图切换">
@@ -383,6 +400,12 @@
       copilot: ["copilot-shared"],
       antigravity: ["antigravity-desktop", "antigravity-cli"],
     };
+    const TOOL_SURFACES = {
+      claude: ["claude-desktop", "claude-cli"],
+      codex: ["codex-desktop", "codex-cli"],
+      copilot: ["copilot-desktop", "copilot-cli"],
+      antigravity: ["antigravity-desktop", "antigravity-cli"],
+    };
     const TOOLS = Object.keys(TOOL_ADAPTERS);
     const TOOL_LABELS = {
       claude: "Claude",
@@ -406,6 +429,33 @@
       "enable-all-button",
       "disable-all-button",
     ];
+
+    function surfaceMap(payload) {
+      return new Map((payload.surfaces || []).map((surface) => [surface.key, surface]));
+    }
+
+    function toolSurfaceRows(payload, tool) {
+      const surfaces = surfaceMap(payload);
+      return TOOL_SURFACES[tool].map((key) => ({
+        key,
+        label: key.endsWith("-desktop") ? "Desktop" : "CLI",
+        installed: Boolean(surfaces.get(key)?.installed),
+      }));
+    }
+
+    function toolSurfaceText(payload, tool) {
+      return toolSurfaceRows(payload, tool)
+        .map((surface) => `${surface.label}: ${surface.installed ? "已安装" : "未安装"}`)
+        .join(" · ");
+    }
+
+    function surfaceKeysText(keys) {
+      return (keys || []).map((key) => {
+        const tool = key.replace(/-(desktop|cli)$/, "");
+        const surface = key.endsWith("-desktop") ? "Desktop" : "CLI";
+        return `${TOOL_LABELS[tool] || tool} ${surface}`;
+      }).join(", ") || "-";
+    }
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -602,6 +652,17 @@
       );
       const issueCount = (payload.issues || []).length;
       if (issueCount) summary.append(summaryItem("仓库问题", issueCount, "state-error"));
+      const surfaceSummary = document.getElementById("surface-summary");
+      clear(surfaceSummary);
+      for (const tool of TOOLS) {
+        for (const surface of toolSurfaceRows(payload, tool)) {
+          surfaceSummary.append(summaryItem(
+            `${TOOL_LABELS[tool]} ${surface.label}`,
+            surface.installed ? "已安装" : "未安装",
+            surface.installed ? "state-enabled" : "state-unavailable",
+          ));
+        }
+      }
       document.getElementById("repo-path").textContent = payload.repo_root;
       document.getElementById("repo-path").title = payload.repo_root;
     }
@@ -706,15 +767,7 @@
             () => setSkill(skill.slug, tool, states[tool] !== "enabled").catch(showError),
           );
           cell.append(button);
-          if (details.length === 2) {
-            cell.append(
-              element(
-                "div",
-                `Desktop: ${details[0].state} · CLI: ${details[1].state}`,
-                "adapter-detail",
-              ),
-            );
-          }
+          cell.append(element("div", toolSurfaceText(payload, tool), "adapter-detail"));
           appendTargetDetails(cell, details);
           row.append(cell);
         }
@@ -737,7 +790,7 @@
         "muted",
       );
       table.append(caption);
-      appendHeader(table, ["名称", "来源", "工具", "路径", "原始链接", "解析目标", "状态"]);
+      appendHeader(table, ["名称", "来源", "工具", "端", "路径", "原始链接", "解析目标", "状态"]);
       const body = element("tbody");
       let visible = 0;
       for (const record of records) {
@@ -757,18 +810,19 @@
         const values = [
           record.source_type,
           (record.tools || []).join(", ") || "-",
+          surfaceKeysText(record.surfaces),
           record.path,
           record.raw_target || "-",
           record.resolved_target || "-",
           flags.join(", ") || "正常",
         ];
         values.forEach((value, index) => {
-          row.append(element("td", String(value), index >= 2 && index <= 4 ? "path" : ""));
+          row.append(element("td", String(value), index >= 3 && index <= 5 ? "path" : ""));
         });
         body.append(row);
       }
       if (visible) table.append(body);
-      else appendEmptyBody(table, 7, "没有符合当前搜索和筛选条件的全局 Skill。");
+      else appendEmptyBody(table, 8, "没有符合当前搜索和筛选条件的全局 Skill。");
     }
 
     function switchView(viewId) {
@@ -837,6 +891,17 @@
       return Array.isArray(payload.results) ? payload.results : [];
     }
 
+    function planItemText(item) {
+      const action = item.action || item.code
+        || (item.links ? "container" : item.legacy_root ? "bridge-remove" : "change");
+      const identity = [item.slug || "*", item.adapter_key || "-"]
+        .filter(Boolean)
+        .join(" / ");
+      const path = item.target || item.root || item.path || "-";
+      const reason = item.reason || item.message || "";
+      return `- ${action} · ${identity} · ${path}${reason ? ` · ${reason}` : ""}`;
+    }
+
     function confirmPlan(title, payload) {
       const changes = planItems(payload);
       const changed = changes.filter((item) => {
@@ -852,12 +917,15 @@
       const requiresAdopt = changes.filter(
         (item) => (item.action || item.code) === "requires-adopt",
       ).length;
+      const details = changes.map(planItemText);
       document.getElementById("confirm-title").textContent = title;
       document.getElementById("confirm-body").textContent = [
         `变更 ${changed}`,
         `跳过 ${skipped}`,
         `冲突 ${conflicts}`,
         `需接管 ${requiresAdopt}`,
+        "",
+        ...(details.length ? details : ["- 无计划项"]),
       ].join("\n");
       const dialog = document.getElementById("confirm-dialog");
       dialog.returnValue = "cancel";
