@@ -84,6 +84,46 @@ def running_http_server(
         thread.join(timeout=2)
 
 
+class ReadmeTests(unittest.TestCase):
+    def test_documents_on_demand_service_and_adoption_gate(self) -> None:
+        readme = Path("README.md").read_text(encoding="utf-8")
+        for text in (
+            "uv --version",
+            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py status",
+            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py doctor",
+            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py serve --open",
+            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py adopt --apply",
+            "服务不需要后台常驻",
+        ):
+            self.assertIn(text, readme)
+
+    def test_documents_json_review_and_post_integration_acceptance(self) -> None:
+        readme = Path("README.md").read_text(encoding="utf-8")
+        commands = (
+            "skill_manager.py status --json",
+            "skill_manager.py doctor --json",
+            "skill_manager.py set docx --tool codex --on --json",
+            "skill_manager.py adopt --json",
+        )
+        for command in commands:
+            self.assertIn(command, readme)
+        for text in (
+            "文本输出仅提供摘要",
+            "完整字段",
+            "集成后验收门",
+            "preview / cancel / port shutdown",
+        ):
+            self.assertIn(text, readme)
+        self.assertLess(
+            readme.index("skill_manager.py set docx --tool codex --on --json"),
+            readme.index("skill_manager.py set docx --tool codex --on --apply"),
+        )
+        self.assertLess(
+            readme.index("skill_manager.py adopt --json"),
+            readme.index("skill_manager.py adopt --apply"),
+        )
+
+
 class RepositoryScanTests(unittest.TestCase):
     def test_scans_valid_skill_and_allows_name_mismatch_with_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
