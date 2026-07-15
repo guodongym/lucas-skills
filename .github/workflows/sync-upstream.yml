@@ -15,17 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          python-version: '3.x'
-
-      - name: Install dependencies
-        run: pip install pyyaml
+          version: "0.11.28"
+          enable-cache: true
 
       - name: Check for upstream updates
         id: check
         run: |
-          output=$(python vendor.py check)
+          output=$(uv run --frozen upstream-sync check)
           echo "$output"
           # 提取所有显示 [UPDATE] 的行中的仓库名
           updated_names=$(echo "$output" | grep '\[UPDATE\]' | awk '{print $2}' | sed 's/://' | tr '\n' ',' | sed 's/,$//')
@@ -49,7 +48,7 @@ jobs:
           git checkout -b "$BRANCH"
 
           # 执行同步，保留输出作为 PR body 内容
-          SYNC_OUTPUT=$(python vendor.py sync)
+          SYNC_OUTPUT=$(uv run --frozen upstream-sync sync)
           echo "$SYNC_OUTPUT"
 
           # 提取真正有变动的技能文件夹名 (仅包含“新增”或“更新”的行)

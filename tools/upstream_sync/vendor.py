@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """vendor.py - 追踪并同步来自多个上游 git 仓库的部分文件。
 
-用法: python vendor.py <命令> [选项]
-运行 'python vendor.py help' 查看完整说明。
+用法: uv run upstream-sync <命令> [选项]
+运行 'uv run upstream-sync help' 查看完整说明。
 """
 
 import shutil
@@ -14,12 +14,23 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    print("错误: 需要安装 pyyaml: pip install pyyaml", file=sys.stderr)
+    print(
+        "错误: 缺少项目依赖 PyYAML。请在仓库根目录运行 'uv sync'，"
+        "再通过 'uv run upstream-sync <命令>' 执行。",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
+TOOL_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = TOOL_ROOT.parents[1]
 CACHE_DIR = Path.home() / ".cache" / "upstream-sync"
-CONFIG_FILE = Path("upstream.yml")
-LOCK_FILE = Path("upstream.lock.yml")
+CONFIG_FILE = TOOL_ROOT / "upstream.yml"
+LOCK_FILE = TOOL_ROOT / "upstream.lock.yml"
+
+
+def repository_path(path: str | Path) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else REPO_ROOT / candidate
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +113,7 @@ def collect_files(directory):
 # ---------------------------------------------------------------------------
 
 def print_help():
-    print("""用法: python vendor.py <命令> [选项]
+    print("""用法: uv run upstream-sync <命令> [选项]
 
 命令:
   help                          显示此帮助信息
@@ -111,14 +122,14 @@ def print_help():
   sync [--upstream <name>]      执行同步，可通过 --upstream 指定只同步某个上游
 
 示例:
-  python vendor.py check
-  python vendor.py diff
-  python vendor.py sync
-  python vendor.py sync --upstream anthropics-skills
+  uv run upstream-sync check
+  uv run upstream-sync diff
+  uv run upstream-sync sync
+  uv run upstream-sync sync --upstream anthropics-skills
 
 文件说明:
-  upstream.yml       上游配置（手动维护）
-  upstream.lock.yml  同步状态记录（自动生成，建议提交到 git）
+  tools/upstream_sync/upstream.yml       上游配置（手动维护）
+  tools/upstream_sync/upstream.lock.yml  同步状态记录（自动生成，建议提交到 git）
   ~/.cache/upstream-sync/  clone 缓存目录（可安全删除，下次 sync 会重建）
 """)
 
@@ -147,7 +158,7 @@ def cmd_check():
             print(f"[UPDATE] {name}: 有更新  {old} -> {remote[:8]}")
 
     if has_updates:
-        print("\n运行 'python vendor.py diff' 查看详情，或 'python vendor.py sync' 执行同步。")
+        print("\n运行 'uv run upstream-sync diff' 查看详情，或 'uv run upstream-sync sync' 执行同步。")
     else:
         print("\n所有上游均为最新。")
 
@@ -184,7 +195,7 @@ def cmd_diff():
         for mapping in mappings:
             src, dst = mapping["src"], mapping["dst"]
             up_files = collect_files(clone_dir / src)
-            lo_files = collect_files(Path(dst))
+            lo_files = collect_files(repository_path(dst))
             added = set(up_files) - set(lo_files)
             removed = set(lo_files) - set(up_files)
             modified = {
@@ -243,7 +254,7 @@ def cmd_sync(upstream_filter=None):
         for mapping in mappings:
             src, dst = mapping["src"], mapping["dst"]
             up_path = clone_dir / src
-            lo_path = Path(dst)
+            lo_path = repository_path(dst)
 
             if not up_path.exists():
                 print(f"  [WARN] 上游路径不存在: {src}")
@@ -299,11 +310,11 @@ def cmd_sync(upstream_filter=None):
 # 入口
 # ---------------------------------------------------------------------------
 
-def main():
-    args = sys.argv[1:]
-    if not args or args[0] == "help":
+def main(argv: list[str] | None = None) -> int:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args or args[0] in {"help", "-h", "--help"}:
         print_help()
-        return
+        return 0
 
     cmd = args[0]
     if cmd == "check":
@@ -316,14 +327,15 @@ def main():
             idx = args.index("--upstream")
             if idx + 1 >= len(args):
                 print("错误: --upstream 需要指定名称", file=sys.stderr)
-                sys.exit(1)
+                return 2
             upstream_filter = args[idx + 1]
         cmd_sync(upstream_filter)
     else:
         print(f"错误: 未知命令 '{cmd}'", file=sys.stderr)
         print_help()
-        sys.exit(1)
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

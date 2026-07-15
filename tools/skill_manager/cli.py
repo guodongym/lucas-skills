@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TextIO
 
-from skill_manager_core import (
+from .core import (
     AdoptionPlan,
     BatchResult,
     LinkState,
@@ -43,6 +43,8 @@ CONTENT_SECURITY_POLICY = (
     "style-src 'self' 'unsafe-inline'; connect-src 'self'; "
     "img-src 'self' data:"
 )
+DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
+WEB_PATH_PARTS = ("tools", "skill_manager", "web")
 
 
 def to_jsonable(value: object) -> object:
@@ -312,6 +314,19 @@ def _error_payload(code: str, message: str) -> dict[str, object]:
     return {"ok": False, "code": code, "message": message}
 
 
+def _open_directory_chain(root_fd: int, parts: Sequence[str], flags: int) -> int:
+    current_fd = os.dup(root_fd)
+    try:
+        for part in parts:
+            next_fd = os.open(part, flags, dir_fd=current_fd)
+            os.close(current_fd)
+            current_fd = next_fd
+        return current_fd
+    except BaseException:
+        os.close(current_fd)
+        raise
+
+
 def _read_web_index(server: "SkillManagerHTTPServer") -> str:
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     repo_fd: int | None = None
@@ -319,7 +334,7 @@ def _read_web_index(server: "SkillManagerHTTPServer") -> str:
     index_fd: int | None = None
     try:
         repo_fd = os.open(server.repo_root, directory_flags)
-        web_fd = os.open("skill_manager_web", directory_flags, dir_fd=repo_fd)
+        web_fd = _open_directory_chain(repo_fd, WEB_PATH_PARTS, directory_flags)
         index_fd = os.open("index.html", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=web_fd)
         if not stat.S_ISREG(os.fstat(index_fd).st_mode):
             raise FileNotFoundError("web index is not a regular file")
@@ -771,7 +786,7 @@ def main(
     args = parser.parse_args(argv)
     stdout = stdout or sys.stdout
     home = (home or Path.home()).expanduser().resolve()
-    repo_root = (repo_root or Path(__file__).resolve().parent).expanduser().resolve()
+    repo_root = (repo_root or DEFAULT_REPO_ROOT).expanduser().resolve()
     applications = applications.expanduser().resolve()
 
     if args.command == "serve":

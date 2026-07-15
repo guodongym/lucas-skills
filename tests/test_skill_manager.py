@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import http.client
+import importlib
 import json
 import os
 import subprocess
@@ -15,8 +16,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from skill_manager import create_server, main
-from skill_manager_core import (
+from tools.skill_manager.cli import create_server, main
+from tools.skill_manager.core import (
     _enabled_codex_plugin_sources,
     apply_adoption,
     apply_plan,
@@ -83,6 +84,13 @@ def running_http_server(
             server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+class PackageLayoutTests(unittest.TestCase):
+    def test_default_repo_root_points_to_checkout(self) -> None:
+        from tools.skill_manager import cli
+
+        self.assertEqual(cli.DEFAULT_REPO_ROOT, Path(__file__).resolve().parents[1])
 
 
 class ReadmeTests(unittest.TestCase):
@@ -179,7 +187,7 @@ class RepositoryScanTests(unittest.TestCase):
 class WebPageTests(unittest.TestCase):
     @staticmethod
     def _tool_surface_rows(surfaces: list[dict[str, object]], tool: str) -> object:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         start = page.index("const TOOL_ADAPTERS")
         end = page.index("async function api")
         script = page[start:end] + (
@@ -195,7 +203,7 @@ class WebPageTests(unittest.TestCase):
         return json.loads(completed.stdout)
 
     def test_page_contains_required_views_and_no_external_assets(self) -> None:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         for element_id in (
             "summary",
             "managed-view",
@@ -219,7 +227,7 @@ class WebPageTests(unittest.TestCase):
         self.assertNotIn("innerHTML", page)
 
     def test_page_wires_api_matrix_confirmation_and_feedback(self) -> None:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         for function_name in (
             "api",
             "loadStatus",
@@ -256,7 +264,7 @@ class WebPageTests(unittest.TestCase):
         self.assertIn("操作失败", page)
 
     def test_page_confirmation_lists_complete_preview_even_when_not_ok(self) -> None:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn("function planItemText(item)", page)
         self.assertIn("const details = changes.map(planItemText);", page)
         self.assertIn("...(details.length ? details", page)
@@ -264,15 +272,15 @@ class WebPageTests(unittest.TestCase):
         self.assertIn("document.getElementById(\"confirm-body\").textContent", page)
 
     def test_page_restores_row_controls_after_loading(self) -> None:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn("if (!busy && state.status) renderManaged(state.status);", page)
 
     def test_page_avoids_a_default_favicon_request(self) -> None:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn('<link rel="icon" href="data:,">', page)
 
     def test_page_resets_search_flex_basis_on_mobile(self) -> None:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn(".filters input { flex: 0 0 auto; width: 100%; }", page)
 
     def test_page_renders_shared_surface_when_only_desktop_is_installed(self) -> None:
@@ -310,7 +318,7 @@ class WebPageTests(unittest.TestCase):
         )
 
     def test_page_displays_all_surface_and_inventory_fields_with_text_content(self) -> None:
-        page = Path("skill_manager_web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         for key in (
             "claude-desktop",
             "claude-cli",
@@ -1211,7 +1219,7 @@ class AdoptionTests(unittest.TestCase):
                     raise OSError("deterministic exchange failure")
                 return real_replace(source, destination, *args, **kwargs)
 
-            with patch("skill_manager_core.os.replace", side_effect=fail_install):
+            with patch("tools.skill_manager.core.os.replace", side_effect=fail_install):
                 result = apply_adoption(plan, {item.key: item for item in state.adapters})
 
             self.assertFalse(result.ok)
@@ -1229,7 +1237,9 @@ class AdoptionTests(unittest.TestCase):
             copilot_root.symlink_to(repo / "skills")
             state = build_test_state(repo, home, installed_commands={"copilot": "/bin/copilot"})
             plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
-            real_verify = __import__("skill_manager_core")._target_is_direct_link
+            real_verify = importlib.import_module(
+                "tools.skill_manager.core"
+            )._target_is_direct_link
             injected = False
 
             def inject_unknown_and_fail(target: Path, source: Path) -> bool:
@@ -1244,7 +1254,7 @@ class AdoptionTests(unittest.TestCase):
                 return real_verify(target, source)
 
             with patch(
-                "skill_manager_core._target_is_direct_link",
+                "tools.skill_manager.core._target_is_direct_link",
                 side_effect=inject_unknown_and_fail,
             ):
                 result = apply_adoption(plan, {item.key: item for item in state.adapters})
@@ -1277,7 +1287,9 @@ class AdoptionTests(unittest.TestCase):
             copilot_root.symlink_to(repo / "skills")
             state = build_test_state(repo, home, installed_commands={"copilot": "/bin/copilot"})
             plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
-            real_verify = __import__("skill_manager_core")._target_is_direct_link
+            real_verify = importlib.import_module(
+                "tools.skill_manager.core"
+            )._target_is_direct_link
             real_symlink = os.symlink
             injected = False
 
@@ -1299,10 +1311,13 @@ class AdoptionTests(unittest.TestCase):
 
             with (
                 patch(
-                    "skill_manager_core._target_is_direct_link",
+                    "tools.skill_manager.core._target_is_direct_link",
                     side_effect=inject_unknown_and_fail,
                 ),
-                patch("skill_manager_core.os.symlink", side_effect=occupy_restore_path),
+                patch(
+                    "tools.skill_manager.core.os.symlink",
+                    side_effect=occupy_restore_path,
+                ),
             ):
                 result = apply_adoption(plan, {item.key: item for item in state.adapters})
 
@@ -1747,14 +1762,19 @@ class SetOperationTests(unittest.TestCase):
                 replace(docx, target=root / "outside/docx"),
                 replace(docx, source=external),
             )
-            real_snapshot = __import__("skill_manager_core").snapshot_path
+            real_snapshot = importlib.import_module(
+                "tools.skill_manager.core"
+            ).snapshot_path
 
             def snapshot_with_error(path: Path):
                 if path == pdf.target:
                     raise OSError("deterministic path failure")
                 return real_snapshot(path)
 
-            with patch("skill_manager_core.snapshot_path", side_effect=snapshot_with_error):
+            with patch(
+                "tools.skill_manager.core.snapshot_path",
+                side_effect=snapshot_with_error,
+            ):
                 result = apply_plan(
                     ChangePlan(malformed + (pdf, docx), generated.repository),
                     by_key,
@@ -1838,7 +1858,7 @@ class SetOperationTests(unittest.TestCase):
                     dir_fd=dir_fd,
                 )
 
-            with patch("skill_manager_core.os.symlink", side_effect=racing_symlink):
+            with patch("tools.skill_manager.core.os.symlink", side_effect=racing_symlink):
                 result = apply_plan(plan, by_key)
 
             self.assertFalse(result.ok)
@@ -1891,13 +1911,13 @@ class SetOperationTests(unittest.TestCase):
 
             with (
                 patch(
-                    "skill_manager_core.os.rename",
+                    "tools.skill_manager.core.os.rename",
                     side_effect=lambda src, dst, *args, **kwargs: race(
                         real_rename, src, dst, *args, **kwargs
                     ),
                 ),
                 patch(
-                    "skill_manager_core.os.replace",
+                    "tools.skill_manager.core.os.replace",
                     side_effect=lambda src, dst, *args, **kwargs: race(
                         real_replace, src, dst, *args, **kwargs
                     ),
@@ -2022,7 +2042,10 @@ class SetOperationTests(unittest.TestCase):
                     source.rename(moved_source)
                 return result
 
-            with patch("skill_manager_core.os.symlink", side_effect=disappearing_source):
+            with patch(
+                "tools.skill_manager.core.os.symlink",
+                side_effect=disappearing_source,
+            ):
                 result = apply_plan(plan, by_key)
 
             self.assertFalse(result.ok)
@@ -2233,7 +2256,10 @@ class CliTests(unittest.TestCase):
             write_skill(repo, "docx", "docx")
             output = io.StringIO()
 
-            with patch("skill_manager.plan_adoption", side_effect=OSError("failed")):
+            with patch(
+                "tools.skill_manager.cli.plan_adoption",
+                side_effect=OSError("failed"),
+            ):
                 code = main(
                     ["adopt", "--json"],
                     home=home,
@@ -2752,8 +2778,8 @@ class HttpServerTests(unittest.TestCase):
             root = Path(tmp).resolve()
             repo, home = root / "repo", root / "home"
             write_skill(repo, "docx", "docx")
-            web_root = repo / "skill_manager_web"
-            web_root.mkdir()
+            web_root = repo / "tools/skill_manager/web"
+            web_root.mkdir(parents=True)
             (web_root / "index.html").write_text(
                 "<script>const token = __SKILL_MANAGER_TOKEN__;</script>",
                 encoding="utf-8",
@@ -2766,7 +2792,7 @@ class HttpServerTests(unittest.TestCase):
                 index = urllib.request.urlopen(f"{base_url}/", timeout=2).read().decode()
                 self.assertIn('const token = "test-token";', index)
 
-                for path in ("/index.html", "/../skill_manager.py", "/api/unknown"):
+                for path in ("/index.html", "/../cli.py", "/api/unknown"):
                     with self.subTest(path=path), self.assertRaises(
                         urllib.error.HTTPError
                     ) as caught:
@@ -2798,30 +2824,46 @@ class HttpServerTests(unittest.TestCase):
                         connection.close()
 
     def test_rejects_symlinked_web_root_without_reading_external_index(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            external = root / "external-web"
-            external.mkdir()
-            (external / "index.html").write_text("sensitive-external-file", encoding="utf-8")
-            (repo / "skill_manager_web").symlink_to(external)
+        for symlinked_component in ("web", "skill_manager"):
+            with self.subTest(symlinked_component=symlinked_component):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp).resolve()
+                    repo, home = root / "repo", root / "home"
+                    write_skill(repo, "docx", "docx")
+                    external = root / f"external-{symlinked_component}"
 
-            with running_http_server(repo, home, root / "Applications") as (
-                _server,
-                _thread,
-                base_url,
-            ):
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    urllib.request.urlopen(f"{base_url}/", timeout=2)
+                    if symlinked_component == "web":
+                        external.mkdir()
+                        (external / "index.html").write_text(
+                            "sensitive-external-file",
+                            encoding="utf-8",
+                        )
+                        (repo / "tools/skill_manager").mkdir(parents=True)
+                        (repo / "tools/skill_manager/web").symlink_to(external)
+                    else:
+                        (external / "web").mkdir(parents=True)
+                        (external / "web/index.html").write_text(
+                            "sensitive-external-file",
+                            encoding="utf-8",
+                        )
+                        (repo / "tools").mkdir()
+                        (repo / "tools/skill_manager").symlink_to(external)
 
-                self.assertIn(caught.exception.code, {403, 404})
-                body = caught.exception.read().decode()
-                self.assertEqual(
-                    caught.exception.headers.get_content_type(),
-                    "application/json",
-                )
-                self.assertNotIn("sensitive-external-file", body)
+                    with running_http_server(
+                        repo,
+                        home,
+                        root / "Applications",
+                    ) as (_server, _thread, base_url):
+                        with self.assertRaises(urllib.error.HTTPError) as caught:
+                            urllib.request.urlopen(f"{base_url}/", timeout=2)
+
+                        self.assertIn(caught.exception.code, {403, 404})
+                        body = caught.exception.read().decode()
+                        self.assertEqual(
+                            caught.exception.headers.get_content_type(),
+                            "application/json",
+                        )
+                        self.assertNotIn("sensitive-external-file", body)
 
     def test_manifest_owner_conflict_is_409_but_invalid_manifest_is_500(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3116,9 +3158,15 @@ class HttpServerTests(unittest.TestCase):
                 output = io.StringIO()
                 argv = ["serve"] + (["--open"] if open_browser else [])
                 with (
-                    patch("skill_manager.secrets.token_urlsafe", return_value="generated-token"),
-                    patch("skill_manager.create_server", return_value=FakeServer()) as create,
-                    patch("skill_manager.webbrowser.open") as browser_open,
+                    patch(
+                        "tools.skill_manager.cli.secrets.token_urlsafe",
+                        return_value="generated-token",
+                    ),
+                    patch(
+                        "tools.skill_manager.cli.create_server",
+                        return_value=FakeServer(),
+                    ) as create,
+                    patch("tools.skill_manager.cli.webbrowser.open") as browser_open,
                 ):
                     code = main(
                         argv,

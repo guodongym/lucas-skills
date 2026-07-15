@@ -4,7 +4,7 @@ upstreams:
     branch: main
     mappings:
       - src: skills/skill-creator     # 上游路径（相对于仓库根）
-        dst: skills/skill-creator     # 本地目标路径（相对于此文件所在目录）
+        dst: skills/skill-creator     # 本地目标路径（相对于仓库根）
       - src: skills/frontend-design
         dst: skills/frontend-design
       - src: skills/pdf
