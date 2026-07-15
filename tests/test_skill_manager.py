@@ -104,7 +104,12 @@ class ReadmeTests(unittest.TestCase):
             "uv run upstream-sync check",
             "uv run upstream-sync sync",
         )
-        for text in (*required, "uv --version", "服务不需要后台常驻"):
+        for text in (
+            *required,
+            "uv --version",
+            "服务不需要后台常驻",
+            "Skill 加载位置",
+        ):
             self.assertIn(text, readme)
         for path in ("pyproject.toml", "uv.lock", "tools/"):
             self.assertIn(path, readme)
@@ -211,6 +216,58 @@ class WebPageTests(unittest.TestCase):
         )
         return json.loads(completed.stdout)
 
+    @staticmethod
+    def _load_path_rows(payload: dict[str, object]) -> object:
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        if "function loadPathRows(" not in page:
+            raise AssertionError("loadPathRows is not implemented")
+        start = page.index("const TOOL_ADAPTERS")
+        end = page.index("async function api")
+        script = page[start:end] + (
+            "\nconsole.log(JSON.stringify(loadPathRows("
+            f"{json.dumps(payload)})));"
+        )
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(completed.stdout)
+
+    @staticmethod
+    def _copy_path_with_fallback(path: str, fallback_result: bool = True) -> object:
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        if "function fallbackCopyText(" not in page:
+            raise AssertionError("fallbackCopyText is not implemented")
+        start = page.index("const TOOL_ADAPTERS")
+        end = page.index('document.getElementById("rescan-button")')
+        script = page[start:end] + f"""
+const messageNode = {{ textContent: "", className: "" }};
+global.document = {{ getElementById() {{ return messageNode; }} }};
+let fallbackValue = "";
+(async () => {{
+  let error = "";
+  try {{
+    await copyRootPath(
+      {json.dumps(path)},
+      {{ writeText: async () => {{ throw new Error("Document is not focused"); }} }},
+      (value) => {{ fallbackValue = value; return {json.dumps(fallback_result)}; }},
+    );
+  }} catch (cause) {{
+    error = cause.message;
+  }}
+  console.log(JSON.stringify({{ fallbackValue, message: messageNode.textContent, error }}));
+}})().catch((error) => {{ console.error(error); process.exitCode = 1; }});
+"""
+        completed = subprocess.run(
+            ["node", "-e", script],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(completed.stdout)
+
     def test_page_contains_required_views_and_no_external_assets(self) -> None:
         page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
         for element_id in (
@@ -308,6 +365,100 @@ class WebPageTests(unittest.TestCase):
                 {"key": "claude-cli", "label": "CLI", "installed": False},
             ],
         )
+
+    def test_page_builds_repository_and_adapter_load_path_rows(self) -> None:
+        rows = self._load_path_rows(
+            {
+                "repo_root": "/Users/test/Codes/lucas-skills",
+                "adapters": [
+                    {
+                        "key": "claude-shared",
+                        "home": "/Users/test",
+                        "root": "/Users/test/.claude/skills",
+                    },
+                    {
+                        "key": "antigravity-cli",
+                        "home": "/Users/test",
+                        "root": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
+                    },
+                ],
+            }
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                {
+                    "key": "repository",
+                    "label": "统一来源",
+                    "scope": "仓库 Skills",
+                    "path": "/Users/test/Codes/lucas-skills/skills",
+                    "display_path": "/Users/test/Codes/lucas-skills/skills",
+                },
+                {
+                    "key": "claude-shared",
+                    "label": "Claude",
+                    "scope": "Desktop + CLI",
+                    "path": "/Users/test/.claude/skills",
+                    "display_path": "~/.claude/skills",
+                },
+                {
+                    "key": "antigravity-cli",
+                    "label": "Antigravity CLI",
+                    "scope": "agy",
+                    "path": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
+                    "display_path": "~/.gemini/antigravity-cli/plugins/lucas-skills/skills",
+                },
+            ],
+        )
+
+    def test_page_renders_load_path_panel_with_copy_actions(self) -> None:
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+
+        for element_id in (
+            "load-paths",
+            "load-paths-title",
+            "load-path-list",
+        ):
+            self.assertIn(f'id="{element_id}"', page)
+        self.assertIn("Skill 加载位置", page)
+        self.assertIn("function renderLoadPaths(", page)
+        self.assertIn("function copyRootPath(", page)
+        self.assertIn("renderLoadPaths(state.status);", page)
+        self.assertIn("clipboard.writeText(path)", page)
+        self.assertIn("fallbackCopyText", page)
+        self.assertIn('element("button", "复制"', page)
+
+    def test_page_falls_back_when_clipboard_requires_document_focus(self) -> None:
+        self.assertEqual(
+            self._copy_path_with_fallback("/Users/test/.claude/skills"),
+            {
+                "fallbackValue": "/Users/test/.claude/skills",
+                "message": "已复制路径：/Users/test/.claude/skills",
+                "error": "",
+            },
+        )
+
+    def test_page_guides_manual_copy_when_browser_rejects_all_copy_methods(self) -> None:
+        self.assertEqual(
+            self._copy_path_with_fallback(
+                "/Users/test/.claude/skills",
+                fallback_result=False,
+            ),
+            {
+                "fallbackValue": "/Users/test/.claude/skills",
+                "message": "浏览器阻止自动复制，请手动复制：/Users/test/.claude/skills",
+                "error": "",
+            },
+        )
+
+    def test_page_focuses_fallback_textarea_before_selecting_text(self) -> None:
+        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        focus = page.find("textarea.focus();")
+        select = page.find("textarea.select();")
+
+        self.assertGreaterEqual(focus, 0)
+        self.assertLess(focus, select)
 
     def test_page_renders_shared_surface_when_only_cli_is_installed(self) -> None:
         rows = self._tool_surface_rows(

@@ -141,7 +141,7 @@ uv run skill-manager set docx --tool codex --on --apply --json
 uv run skill-manager serve --open
 ```
 
-服务只绑定本机回环地址，写操作需要当前服务生成的临时令牌。服务不需要后台常驻。关闭页面中的服务或在终端按 `Ctrl+C` 后，已创建的软链继续生效。启停 Skill 后，已运行的 Agent 可能仍使用启动时的缓存；请新建会话，必要时重启对应 Desktop 或 CLI。
+页面中的“Skill 加载位置”会汇总仓库来源和五个受管根目录，并可复制完整绝对路径。服务只绑定本机回环地址，写操作需要当前服务生成的临时令牌。服务不需要后台常驻。关闭页面中的服务或在终端按 `Ctrl+C` 后，已创建的软链继续生效。启停 Skill 后，已运行的 Agent 可能仍使用启动时的缓存；请新建会话，必要时重启对应 Desktop 或 CLI。
 
 ### 从 cc-switch 等旧链接迁移
 
