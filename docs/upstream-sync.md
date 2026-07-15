@@ -12,7 +12,7 @@
 | `git submodule` | 引用整个仓库，无法只取部分路径，协作时依赖外部仓库可访问性 |
 | `git sparse-checkout` | 需为每个上游维护独立 clone，无变更检测机制（无 lock 文件），多上游管理全靠手动脚本；本方案内部已封装此能力 |
 | `vendir` | 需要安装额外工具，引入外部依赖 |
-| **本方案** | 只依赖 Python 3 + pyyaml + git，配置即文档，lock 文件可 git 追踪 |
+| **本方案** | 只依赖 uv、Python 3 和 Git；PyYAML 由 uv 统一管理，配置即文档，lock 文件可 Git 追踪 |
 
 ---
 
@@ -20,23 +20,22 @@
 
 ```
 lucas-skills/
-├── upstream.yml               # 上游来源配置（手动维护）
-├── upstream.lock.yml          # 同步状态记录（自动生成，建议提交到 git）
-├── vendor.py                  # 同步脚本
 ├── .github/
 │   └── workflows/
 │       └── sync-upstream.yml  # 每周自动检测并开 PR 的 Actions workflow
+├── tools/
+│   └── upstream_sync/
+│       ├── upstream.yml       # 上游来源配置（手动维护）
+│       ├── upstream.lock.yml  # 同步状态记录（自动生成，建议提交到 git）
+│       └── vendor.py          # 同步实现
 └── skills/                    # 本地 skill 文件
-    ├── skill-creator/
-    ├── frontend-design/
-    └── ...
 ```
 
 ---
 
 ## 配置文件格式
 
-### upstream.yml
+### tools/upstream_sync/upstream.yml
 
 ```yaml
 upstreams:
@@ -45,12 +44,12 @@ upstreams:
     branch: main
     mappings:
       - src: skills/skill-creator     # 上游仓库中的路径（相对于仓库根）
-        dst: skills/skill-creator     # 本地目标路径（相对于此文件所在目录）
+        dst: skills/skill-creator     # 本地目标路径（相对于仓库根）
       - src: skills/frontend-design
         dst: skills/frontend-design
 ```
 
-### upstream.lock.yml（自动生成）
+### tools/upstream_sync/upstream.lock.yml（自动生成）
 
 ```yaml
 # 此文件由 vendor.py 自动生成，请勿手动编辑
@@ -121,12 +120,12 @@ for 每个 upstream:
 
 ```
 1. checkout 仓库
-2. 安装 pyyaml
-3. 运行 vendor.py check
+2. 安装 uv
+3. 运行 uv run upstream-sync check
    → 无更新：直接结束
    → 有更新：继续下一步
 4. 创建新分支 upstream-sync/YYYY-MM-DD
-5. 运行 vendor.py sync
+5. 运行 uv run upstream-sync sync
 6. git add -A && git commit
 7. git push origin <branch>
 8. gh pr create，PR body 包含 sync 输出详情

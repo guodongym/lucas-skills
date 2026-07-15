@@ -96,23 +96,30 @@ class PackageLayoutTests(unittest.TestCase):
 class ReadmeTests(unittest.TestCase):
     def test_documents_on_demand_service_and_adoption_gate(self) -> None:
         readme = Path("README.md").read_text(encoding="utf-8")
-        for text in (
-            "uv --version",
-            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py status",
-            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py doctor",
-            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py serve --open",
-            "uv run --python '>=3.11' --with pyyaml python3 skill_manager.py adopt --apply",
-            "服务不需要后台常驻",
-        ):
+        required = (
+            "uv run skill-manager status",
+            "uv run skill-manager doctor",
+            "uv run skill-manager serve --open",
+            "uv run skill-manager adopt --apply --json",
+            "uv run upstream-sync check",
+            "uv run upstream-sync sync",
+        )
+        for text in (*required, "uv --version", "服务不需要后台常驻"):
             self.assertIn(text, readme)
+        for path in ("pyproject.toml", "uv.lock", "tools/"):
+            self.assertIn(path, readme)
+        for obsolete in ("pip install pyyaml", "python " "vendor.py"):
+            self.assertNotIn(obsolete, readme)
 
     def test_documents_json_review_and_post_integration_acceptance(self) -> None:
         readme = Path("README.md").read_text(encoding="utf-8")
         commands = (
-            "skill_manager.py status --json",
-            "skill_manager.py doctor --json",
-            "skill_manager.py set docx --tool codex --on --json",
-            "skill_manager.py adopt --json",
+            "uv run skill-manager status --json",
+            "uv run skill-manager doctor --json",
+            "uv run skill-manager set docx --tool codex --on --json",
+            "uv run skill-manager set docx --tool codex --on --apply --json",
+            "uv run skill-manager adopt --json",
+            "uv run skill-manager adopt --apply --json",
         )
         for command in commands:
             self.assertIn(command, readme)
@@ -124,12 +131,14 @@ class ReadmeTests(unittest.TestCase):
         ):
             self.assertIn(text, readme)
         self.assertLess(
-            readme.index("skill_manager.py set docx --tool codex --on --json"),
-            readme.index("skill_manager.py set docx --tool codex --on --apply"),
+            readme.index("uv run skill-manager set docx --tool codex --on --json"),
+            readme.index(
+                "uv run skill-manager set docx --tool codex --on --apply --json"
+            ),
         )
         self.assertLess(
-            readme.index("skill_manager.py adopt --json"),
-            readme.index("skill_manager.py adopt --apply"),
+            readme.index("uv run skill-manager adopt --json"),
+            readme.index("uv run skill-manager adopt --apply --json"),
         )
 
     def test_documents_fail_closed_scan_and_ds_store_exception(self) -> None:
