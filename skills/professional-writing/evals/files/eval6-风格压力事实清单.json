@@ -1,0 +1,54 @@
+{
+  "non_common_abbreviations": {
+    "PSG": "支付状态网关",
+    "RRA": "退款风险评估服务"
+  },
+  "facts": [
+    {
+      "id": "F1",
+      "statement": "2026-07-08 在 staging 以 1,000 rps 压测，PSG 的 p99 从 480 ms 降到 310 ms，生产尚未验证"
+    },
+    {
+      "id": "F2",
+      "statement": "RRA 仅对网络超时重试，最多 3 次、间隔 200 ms，HTTP 4xx 不重试"
+    },
+    {
+      "id": "F3",
+      "statement": "任意连续 5 分钟错误率超过 1.5% 时由当班 SRE 发起回滚，生产阈值配置仍待审批"
+    },
+    {
+      "id": "F4",
+      "statement": "变更只覆盖支付状态查询；账户对账不在范围内，继续每天 02:00 批处理"
+    }
+  ],
+  "repeated_proposition": {
+    "id": "R1",
+    "statement": "本次变更只覆盖支付状态查询，不覆盖账户对账任务",
+    "source_occurrences": 3,
+    "expected_full_expansions_in_output": 1
+  },
+  "undefined_jargon": [
+    {
+      "id": "U1",
+      "source_text": "监控侧做统一收口",
+      "undefined_dimensions": [
+        "主体",
+        "动作",
+        "对象",
+        "责任范围",
+        "强度"
+      ],
+      "allowed_handling": [
+        "删除该表述且不新增职责命题",
+        "保留带引号原词并说明全部未定义项"
+      ],
+      "forbidden_enhancements": [
+        "负责",
+        "承担",
+        "统一管理",
+        "统一监控",
+        "触发回滚"
+      ]
+    }
+  ]
+}

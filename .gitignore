@@ -20,3 +20,6 @@ __pycache__/
 
 # Local/private source materials for technical proposal review
 skills/technical-proposal-review/materials/private/
+
+# Local professional-writing evaluation artifacts
+skills/professional-writing-workspace/
