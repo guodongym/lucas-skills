@@ -1795,14 +1795,14 @@ held-out 通过率与修正点写入 body；Codex 宿主抽测结果单独记录
 
 ---
 
-### Task 8: 部署与真实首战交接（分支整合后执行）
+### Task 8: 部署与真实首战交接（部署已完成，首战待执行）
 
-> 用户已经接受 iteration-9 的 beta 人工审阅结果。先完成 feature 分支整合，再按当前机器的实际安装布局建链；不得把宿主 skill 链接到临时 worktree。
+> 用户已经接受 iteration-9 的 beta 人工审阅结果。2026-07-16 feature 分支已 fast-forward 合入 main，两条宿主软链均直接指向主仓库；真实首战仍按下方检查点执行。
 
 **Files:**
 - Create: `~/.claude/skills/professional-writing`（软链）、`~/.codex/skills/professional-writing`（软链），目标均为主仓库 `/Users/zhaoguodong/Codes/ai-coding/lucas-skills/skills/professional-writing`
 
-- [ ] **Step 1: 幂等预检（写 `~/` 属仓库外写入，需相应权限批准）**
+- [x] **Step 1: 幂等预检（写 `~/` 属仓库外写入，需相应权限批准）**
 
 ```bash
 ls -la ~/.claude/skills/professional-writing ~/.codex/skills/professional-writing 2>&1
@@ -1810,7 +1810,7 @@ ls -la ~/.claude/skills/professional-writing ~/.codex/skills/professional-writin
 
 三种结果分别处理：不存在 → 下一步创建；已存在且指向主仓库 `skills/professional-writing` → 跳过创建；已存在但指向别处 → **停下来报告**，不覆盖未知路径。创建前确认主仓库目标已包含合入后的 `SKILL.md` 与 references。
 
-- [ ] **Step 2: 只创建缺失的软链（逐条执行，不串联）**
+- [x] **Step 2: 只创建缺失的软链（逐条执行，不串联）**
 
 ```bash
 ln -s /Users/zhaoguodong/Codes/ai-coding/lucas-skills/skills/professional-writing ~/.claude/skills/professional-writing
@@ -1820,7 +1820,7 @@ ln -s /Users/zhaoguodong/Codes/ai-coding/lucas-skills/skills/professional-writin
 ln -s /Users/zhaoguodong/Codes/ai-coding/lucas-skills/skills/professional-writing ~/.codex/skills/professional-writing
 ```
 
-- [ ] **Step 3: 验证链路**
+- [x] **Step 3: 验证链路**
 
 Run（分步执行）：
 
