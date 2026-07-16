@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = ["PyYAML"]
 
 [project.scripts]
-skill-manager = "tools.skill_manager.cli:main"
+agent-manager = "tools.agent_manager.cli:main"
 upstream-sync = "tools.upstream_sync.vendor:main"
 
 [build-system]

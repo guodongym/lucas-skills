@@ -16,6 +16,16 @@ from pathlib import Path
 
 import yaml
 
+from .core import (
+    InvalidPlanError as _InvalidPlanError,
+    PathSnapshot,
+    StateChangedError as _StateChangedError,
+    TargetConflictError as _TargetConflictError,
+    lexists as _lexists,
+    path_snapshot as snapshot_path,
+    under as _under,
+)
+
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
@@ -178,12 +188,6 @@ class InventoryRecord:
 
 
 @dataclass(frozen=True)
-class PathSnapshot:
-    kind: str
-    link_target: str | None = None
-
-
-@dataclass(frozen=True)
 class PlannedChange:
     action: str
     slug: str
@@ -324,21 +328,9 @@ def detect_surfaces(
     return result
 
 
-def _lexists(path: Path) -> bool:
-    return os.path.lexists(path)
-
-
 def _absolute_link_target(path: Path) -> Path:
     raw = Path(os.readlink(path))
     return raw if raw.is_absolute() else path.parent / raw
-
-
-def _under(path: Path, root: Path) -> bool:
-    try:
-        Path(os.path.abspath(path)).relative_to(Path(os.path.abspath(root)))
-        return True
-    except ValueError:
-        return False
 
 
 def _adapter_available(
@@ -792,16 +784,6 @@ def scan_inventory(state: ManagedState, home: Path) -> tuple[InventoryRecord, ..
     )
 
 
-def snapshot_path(path: Path) -> PathSnapshot:
-    if not _lexists(path):
-        return PathSnapshot("missing")
-    if path.is_symlink():
-        return PathSnapshot("symlink", os.readlink(path))
-    if path.is_dir():
-        return PathSnapshot("directory")
-    return PathSnapshot("file")
-
-
 def plan_set(
     state: ManagedState,
     slugs: Sequence[str],
@@ -1122,18 +1104,6 @@ def plan_adoption(state: ManagedState, state_dir: Path) -> AdoptionPlan:
 VALID_PLAN_ACTIONS = frozenset(
     {"create", "remove", "no-op", "unavailable", "requires-adopt", "blocked"}
 )
-
-
-class _InvalidPlanError(ValueError):
-    pass
-
-
-class _StateChangedError(RuntimeError):
-    pass
-
-
-class _TargetConflictError(OSError):
-    pass
 
 
 def _trusted_source(plan: ChangePlan, change: PlannedChange) -> Path:

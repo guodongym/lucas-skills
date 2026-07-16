@@ -16,8 +16,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.skill_manager.cli import create_server, main
-from tools.skill_manager.core import (
+from tools.agent_manager.cli import create_server, main
+from tools.agent_manager.skills import (
     _enabled_codex_plugin_sources,
     apply_adoption,
     apply_plan,
@@ -88,7 +88,7 @@ def running_http_server(
 
 class PackageLayoutTests(unittest.TestCase):
     def test_default_repo_root_points_to_checkout(self) -> None:
-        from tools.skill_manager import cli
+        from tools.agent_manager import cli
 
         self.assertEqual(cli.DEFAULT_REPO_ROOT, Path(__file__).resolve().parents[1])
 
@@ -201,7 +201,7 @@ class RepositoryScanTests(unittest.TestCase):
 class WebPageTests(unittest.TestCase):
     @staticmethod
     def _tool_surface_rows(surfaces: list[dict[str, object]], tool: str) -> object:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         start = page.index("const TOOL_ADAPTERS")
         end = page.index("async function api")
         script = page[start:end] + (
@@ -218,7 +218,7 @@ class WebPageTests(unittest.TestCase):
 
     @staticmethod
     def _load_path_rows(payload: dict[str, object]) -> object:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         if "function loadPathRows(" not in page:
             raise AssertionError("loadPathRows is not implemented")
         start = page.index("const TOOL_ADAPTERS")
@@ -237,7 +237,7 @@ class WebPageTests(unittest.TestCase):
 
     @staticmethod
     def _copy_path_with_fallback(path: str, fallback_result: bool = True) -> object:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         if "function fallbackCopyText(" not in page:
             raise AssertionError("fallbackCopyText is not implemented")
         start = page.index("const TOOL_ADAPTERS")
@@ -269,7 +269,7 @@ let fallbackValue = "";
         return json.loads(completed.stdout)
 
     def test_page_contains_required_views_and_no_external_assets(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         for element_id in (
             "summary",
             "managed-view",
@@ -287,13 +287,13 @@ let fallbackValue = "";
             "disable-all-button",
         ):
             self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("__SKILL_MANAGER_TOKEN__", page)
+        self.assertIn("__AGENT_MANAGER_TOKEN__", page)
         self.assertNotIn("http://", page)
         self.assertNotIn("https://", page)
         self.assertNotIn("innerHTML", page)
 
     def test_page_wires_api_matrix_confirmation_and_feedback(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         for function_name in (
             "api",
             "loadStatus",
@@ -319,7 +319,7 @@ let fallbackValue = "";
             '"/api/shutdown"',
         ):
             self.assertIn(api_path, page)
-        self.assertIn('"X-Skill-Manager-Token"', page)
+        self.assertIn('"X-Agent-Manager-Token"', page)
         self.assertIn("const TOOL_ADAPTERS", page)
         self.assertIn("apply: false", page)
         self.assertIn("apply: true", page)
@@ -330,7 +330,7 @@ let fallbackValue = "";
         self.assertIn("操作失败", page)
 
     def test_page_confirmation_lists_complete_preview_even_when_not_ok(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn("function planItemText(item)", page)
         self.assertIn("const details = changes.map(planItemText);", page)
         self.assertIn("...(details.length ? details", page)
@@ -338,15 +338,15 @@ let fallbackValue = "";
         self.assertIn("document.getElementById(\"confirm-body\").textContent", page)
 
     def test_page_restores_row_controls_after_loading(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn("if (!busy && state.status) renderManaged(state.status);", page)
 
     def test_page_avoids_a_default_favicon_request(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn('<link rel="icon" href="data:,">', page)
 
     def test_page_resets_search_flex_basis_on_mobile(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         self.assertIn(".filters input { flex: 0 0 auto; width: 100%; }", page)
 
     def test_page_renders_shared_surface_when_only_desktop_is_installed(self) -> None:
@@ -413,7 +413,7 @@ let fallbackValue = "";
         )
 
     def test_page_renders_load_path_panel_with_copy_actions(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
 
         for element_id in (
             "load-paths",
@@ -453,7 +453,7 @@ let fallbackValue = "";
         )
 
     def test_page_focuses_fallback_textarea_before_selecting_text(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         focus = page.find("textarea.focus();")
         select = page.find("textarea.select();")
 
@@ -478,7 +478,7 @@ let fallbackValue = "";
         )
 
     def test_page_displays_all_surface_and_inventory_fields_with_text_content(self) -> None:
-        page = Path("tools/skill_manager/web/index.html").read_text(encoding="utf-8")
+        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
         for key in (
             "claude-desktop",
             "claude-cli",
@@ -1379,7 +1379,7 @@ class AdoptionTests(unittest.TestCase):
                     raise OSError("deterministic exchange failure")
                 return real_replace(source, destination, *args, **kwargs)
 
-            with patch("tools.skill_manager.core.os.replace", side_effect=fail_install):
+            with patch("tools.agent_manager.skills.os.replace", side_effect=fail_install):
                 result = apply_adoption(plan, {item.key: item for item in state.adapters})
 
             self.assertFalse(result.ok)
@@ -1398,7 +1398,7 @@ class AdoptionTests(unittest.TestCase):
             state = build_test_state(repo, home, installed_commands={"copilot": "/bin/copilot"})
             plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
             real_verify = importlib.import_module(
-                "tools.skill_manager.core"
+                "tools.agent_manager.skills"
             )._target_is_direct_link
             injected = False
 
@@ -1414,7 +1414,7 @@ class AdoptionTests(unittest.TestCase):
                 return real_verify(target, source)
 
             with patch(
-                "tools.skill_manager.core._target_is_direct_link",
+                "tools.agent_manager.skills._target_is_direct_link",
                 side_effect=inject_unknown_and_fail,
             ):
                 result = apply_adoption(plan, {item.key: item for item in state.adapters})
@@ -1448,7 +1448,7 @@ class AdoptionTests(unittest.TestCase):
             state = build_test_state(repo, home, installed_commands={"copilot": "/bin/copilot"})
             plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
             real_verify = importlib.import_module(
-                "tools.skill_manager.core"
+                "tools.agent_manager.skills"
             )._target_is_direct_link
             real_symlink = os.symlink
             injected = False
@@ -1471,11 +1471,11 @@ class AdoptionTests(unittest.TestCase):
 
             with (
                 patch(
-                    "tools.skill_manager.core._target_is_direct_link",
+                    "tools.agent_manager.skills._target_is_direct_link",
                     side_effect=inject_unknown_and_fail,
                 ),
                 patch(
-                    "tools.skill_manager.core.os.symlink",
+                    "tools.agent_manager.skills.os.symlink",
                     side_effect=occupy_restore_path,
                 ),
             ):
@@ -1923,7 +1923,7 @@ class SetOperationTests(unittest.TestCase):
                 replace(docx, source=external),
             )
             real_snapshot = importlib.import_module(
-                "tools.skill_manager.core"
+                "tools.agent_manager.skills"
             ).snapshot_path
 
             def snapshot_with_error(path: Path):
@@ -1932,7 +1932,7 @@ class SetOperationTests(unittest.TestCase):
                 return real_snapshot(path)
 
             with patch(
-                "tools.skill_manager.core.snapshot_path",
+                "tools.agent_manager.skills.snapshot_path",
                 side_effect=snapshot_with_error,
             ):
                 result = apply_plan(
@@ -2018,7 +2018,7 @@ class SetOperationTests(unittest.TestCase):
                     dir_fd=dir_fd,
                 )
 
-            with patch("tools.skill_manager.core.os.symlink", side_effect=racing_symlink):
+            with patch("tools.agent_manager.skills.os.symlink", side_effect=racing_symlink):
                 result = apply_plan(plan, by_key)
 
             self.assertFalse(result.ok)
@@ -2071,13 +2071,13 @@ class SetOperationTests(unittest.TestCase):
 
             with (
                 patch(
-                    "tools.skill_manager.core.os.rename",
+                    "tools.agent_manager.skills.os.rename",
                     side_effect=lambda src, dst, *args, **kwargs: race(
                         real_rename, src, dst, *args, **kwargs
                     ),
                 ),
                 patch(
-                    "tools.skill_manager.core.os.replace",
+                    "tools.agent_manager.skills.os.replace",
                     side_effect=lambda src, dst, *args, **kwargs: race(
                         real_replace, src, dst, *args, **kwargs
                     ),
@@ -2203,7 +2203,7 @@ class SetOperationTests(unittest.TestCase):
                 return result
 
             with patch(
-                "tools.skill_manager.core.os.symlink",
+                "tools.agent_manager.skills.os.symlink",
                 side_effect=disappearing_source,
             ):
                 result = apply_plan(plan, by_key)
@@ -2417,7 +2417,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             with patch(
-                "tools.skill_manager.cli.plan_adoption",
+                "tools.agent_manager.cli.plan_adoption",
                 side_effect=OSError("failed"),
             ):
                 code = main(
@@ -2740,7 +2740,7 @@ class HttpServerTests(unittest.TestCase):
             headers={
                 "Content-Type": "application/json",
                 "Origin": base_url,
-                "X-Skill-Manager-Token": "test-token",
+                "X-Agent-Manager-Token": "test-token",
             },
         )
         return urllib.request.urlopen(request, timeout=2)
@@ -2826,7 +2826,7 @@ class HttpServerTests(unittest.TestCase):
                     headers={
                         "Content-Type": "application/json",
                         "Origin": "http://127.0.0.1:1",
-                        "X-Skill-Manager-Token": "test-token",
+                        "X-Agent-Manager-Token": "test-token",
                     },
                 )
                 with self.assertRaises(urllib.error.HTTPError) as caught:
@@ -2849,8 +2849,8 @@ class HttpServerTests(unittest.TestCase):
                 connection.putheader("Content-Length", str(len(body)))
                 connection.putheader("Origin", base_url)
                 connection.putheader("Origin", base_url)
-                connection.putheader("X-Skill-Manager-Token", "test-token")
-                connection.putheader("X-Skill-Manager-Token", "test-token")
+                connection.putheader("X-Agent-Manager-Token", "test-token")
+                connection.putheader("X-Agent-Manager-Token", "test-token")
                 connection.endheaders(body)
                 response = connection.getresponse()
                 self.assertEqual(response.status, 403)
@@ -2876,7 +2876,7 @@ class HttpServerTests(unittest.TestCase):
             ):
                 common = {
                     "Origin": base_url,
-                    "X-Skill-Manager-Token": "test-token",
+                    "X-Agent-Manager-Token": "test-token",
                 }
                 request = urllib.request.Request(
                     f"{base_url}/api/set",
@@ -2924,7 +2924,7 @@ class HttpServerTests(unittest.TestCase):
                 connection.putrequest("POST", "/api/adopt")
                 connection.putheader("Content-Type", "application/json")
                 connection.putheader("Origin", base_url)
-                connection.putheader("X-Skill-Manager-Token", "test-token")
+                connection.putheader("X-Agent-Manager-Token", "test-token")
                 connection.endheaders()
                 response = connection.getresponse()
                 self.assertEqual(response.status, 411)
@@ -2938,10 +2938,10 @@ class HttpServerTests(unittest.TestCase):
             root = Path(tmp).resolve()
             repo, home = root / "repo", root / "home"
             write_skill(repo, "docx", "docx")
-            web_root = repo / "tools/skill_manager/web"
+            web_root = repo / "tools/agent_manager/web"
             web_root.mkdir(parents=True)
             (web_root / "index.html").write_text(
-                "<script>const token = __SKILL_MANAGER_TOKEN__;</script>",
+                "<script>const token = __AGENT_MANAGER_TOKEN__;</script>",
                 encoding="utf-8",
             )
             with running_http_server(repo, home, root / "Applications") as (
@@ -2984,7 +2984,7 @@ class HttpServerTests(unittest.TestCase):
                         connection.close()
 
     def test_rejects_symlinked_web_root_without_reading_external_index(self) -> None:
-        for symlinked_component in ("web", "skill_manager"):
+        for symlinked_component in ("web", "agent_manager"):
             with self.subTest(symlinked_component=symlinked_component):
                 with tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp).resolve()
@@ -2998,8 +2998,8 @@ class HttpServerTests(unittest.TestCase):
                             "sensitive-external-file",
                             encoding="utf-8",
                         )
-                        (repo / "tools/skill_manager").mkdir(parents=True)
-                        (repo / "tools/skill_manager/web").symlink_to(external)
+                        (repo / "tools/agent_manager").mkdir(parents=True)
+                        (repo / "tools/agent_manager/web").symlink_to(external)
                     else:
                         (external / "web").mkdir(parents=True)
                         (external / "web/index.html").write_text(
@@ -3007,7 +3007,7 @@ class HttpServerTests(unittest.TestCase):
                             encoding="utf-8",
                         )
                         (repo / "tools").mkdir()
-                        (repo / "tools/skill_manager").symlink_to(external)
+                        (repo / "tools/agent_manager").symlink_to(external)
 
                     with running_http_server(
                         repo,
@@ -3319,14 +3319,14 @@ class HttpServerTests(unittest.TestCase):
                 argv = ["serve"] + (["--open"] if open_browser else [])
                 with (
                     patch(
-                        "tools.skill_manager.cli.secrets.token_urlsafe",
+                        "tools.agent_manager.cli.secrets.token_urlsafe",
                         return_value="generated-token",
                     ),
                     patch(
-                        "tools.skill_manager.cli.create_server",
+                        "tools.agent_manager.cli.create_server",
                         return_value=FakeServer(),
                     ) as create,
-                    patch("tools.skill_manager.cli.webbrowser.open") as browser_open,
+                    patch("tools.agent_manager.cli.webbrowser.open") as browser_open,
                 ):
                     code = main(
                         argv,

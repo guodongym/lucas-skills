@@ -473,7 +473,7 @@
     <div id="message" role="status" aria-live="polite"></div>
   </main>
 
-  <script>window.SKILL_MANAGER_TOKEN = __SKILL_MANAGER_TOKEN__;</script>
+  <script>window.AGENT_MANAGER_TOKEN = __AGENT_MANAGER_TOKEN__;</script>
   <script>
     "use strict";
 
@@ -581,7 +581,7 @@
         ...options,
         headers: {
           "Content-Type": "application/json",
-          "X-Skill-Manager-Token": window.SKILL_MANAGER_TOKEN,
+          "X-Agent-Manager-Token": window.AGENT_MANAGER_TOKEN,
           ...(options.headers || {}),
         },
       });

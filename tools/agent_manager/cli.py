@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TextIO
 
-from .core import (
+from .skills import (
     AdoptionPlan,
     BatchResult,
     LinkState,
@@ -44,7 +44,7 @@ CONTENT_SECURITY_POLICY = (
     "img-src 'self' data:"
 )
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
-WEB_PATH_PARTS = ("tools", "skill_manager", "web")
+WEB_PATH_PARTS = ("tools", "agent_manager", "web")
 
 
 def to_jsonable(value: object) -> object:
@@ -65,7 +65,7 @@ def to_jsonable(value: object) -> object:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="skill-manager")
+    parser = argparse.ArgumentParser(prog="agent-manager")
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name in ("status", "doctor"):
         command = subparsers.add_parser(name)
@@ -288,10 +288,10 @@ def _write_text(
         results = payload["results"]
         stdout.write(f"Results: {len(results) if isinstance(results, (list, tuple)) else 0}\n")
     next_command = {
-        "status": "skill-manager doctor",
-        "doctor": "skill-manager set <skill> --tool <tool> --on",
+        "status": "agent-manager doctor",
+        "doctor": "agent-manager set <skill> --tool <tool> --on",
         "plan": "repeat the command with --apply",
-        "apply": "skill-manager status",
+        "apply": "agent-manager status",
     }[mode]
     stdout.write(f"Next: {next_command}\n")
 
@@ -327,7 +327,7 @@ def _open_directory_chain(root_fd: int, parts: Sequence[str], flags: int) -> int
         raise
 
 
-def _read_web_index(server: "SkillManagerHTTPServer") -> str:
+def _read_web_index(server: "AgentManagerHTTPServer") -> str:
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     repo_fd: int | None = None
     web_fd: int | None = None
@@ -373,7 +373,7 @@ def _result_http_status(
 
 
 def _handle_set_request(
-    server: "SkillManagerHTTPServer",
+    server: "AgentManagerHTTPServer",
     request: Mapping[str, object],
 ) -> tuple[int, dict[str, object]]:
     apply = request["apply"]
@@ -408,7 +408,7 @@ def _handle_set_request(
 
 
 def _handle_adopt_request(
-    server: "SkillManagerHTTPServer",
+    server: "AgentManagerHTTPServer",
     request: Mapping[str, object],
 ) -> tuple[int, dict[str, object]]:
     apply = request["apply"]
@@ -437,7 +437,7 @@ def _handle_adopt_request(
     return _result_http_status(payload, result), payload
 
 
-class SkillManagerHTTPServer(ThreadingHTTPServer):
+class AgentManagerHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(
@@ -453,12 +453,12 @@ class SkillManagerHTTPServer(ThreadingHTTPServer):
         self.token = token
         self.applications = applications.expanduser().resolve()
         self.which = which
-        super().__init__(("127.0.0.1", 0), SkillManagerRequestHandler)
+        super().__init__(("127.0.0.1", 0), AgentManagerRequestHandler)
 
 
-class SkillManagerRequestHandler(BaseHTTPRequestHandler):
-    server: SkillManagerHTTPServer
-    server_version = "SkillManagerHTTP/1.0"
+class AgentManagerRequestHandler(BaseHTTPRequestHandler):
+    server: AgentManagerHTTPServer
+    server_version = "AgentManagerHTTP/1.0"
     sys_version = ""
 
     def log_message(self, format: str, *args: object) -> None:
@@ -508,7 +508,7 @@ class SkillManagerRequestHandler(BaseHTTPRequestHandler):
     def _check_write_authorization(self) -> bool:
         host, port = self.server.server_address
         expected_origin = f"http://{host}:{port}"
-        tokens = self.headers.get_all("X-Skill-Manager-Token", failobj=[])
+        tokens = self.headers.get_all("X-Agent-Manager-Token", failobj=[])
         origins = self.headers.get_all("Origin", failobj=[])
         token_ok = len(tokens) == 1 and secrets.compare_digest(
             tokens[0], self.server.token
@@ -612,7 +612,7 @@ class SkillManagerRequestHandler(BaseHTTPRequestHandler):
                 self._send_problem(500, "internal-error", "failed to load web interface")
                 return
             body = template.replace(
-                "__SKILL_MANAGER_TOKEN__",
+                "__AGENT_MANAGER_TOKEN__",
                 json.dumps(self.server.token),
             ).encode("utf-8")
             self.send_response(200)
@@ -742,10 +742,10 @@ def create_server(
     token: str,
     applications: Path,
     which: Callable[[str], str | None],
-) -> SkillManagerHTTPServer:
+) -> AgentManagerHTTPServer:
     if not token:
         raise ValueError("token must not be empty")
-    return SkillManagerHTTPServer(repo_root, home, token, applications, which)
+    return AgentManagerHTTPServer(repo_root, home, token, applications, which)
 
 
 def _serve(
