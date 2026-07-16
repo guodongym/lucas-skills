@@ -443,7 +443,7 @@ git commit -m "feat(agent-manager): scan personal instructions" \
 - Modify: `tests/test_agent_manager_instructions.py`
 
 **Interfaces:**
-- `InstructionChange(action, key, source, target, expected, reason)`.
+- `InstructionChange(action, key, source, target, expected, parent_expected, reason)`.
 - `InstructionPlan(changes, repo_root, source, source_sha256, fingerprint, snapshot_path, replace_existing)`.
 - `InstructionResult(ok, code, key, path, message)` and `InstructionBatchResult(ok, results, snapshot_path)`.
 - `plan_instruction_set(scan, target_keys: Sequence[str], enabled: bool, state_dir: Path) -> InstructionPlan`.
@@ -474,13 +474,13 @@ adopt_without_replace = {
 }
 ```
 
-With `replace_existing=True`, different regular files, valid foreign links, and broken links become `replace`; directories and special files remain `unsupported-target`. `set --off` maps only `enabled` to `remove`, `missing` to `no-op`, and every other state to `blocked`.
+With `replace_existing=True`, different regular files, valid foreign links, and broken links become `replace`; directories and special files remain `unsupported-target`. A missing leaf becomes `create` only when its fixed first-level parent already exists as a real directory. A missing parent is `blocked` with `parent-missing`; a file, symlink, or special parent is `blocked` with `parent-not-directory`. `set --off` maps only `enabled` to `remove`, `missing` to `no-op`, and every other state to `blocked`.
 
 - [ ] **Step 2: Write apply and byte-exact snapshot tests**
 
 Use non-UTF-8 bytes such as `b"\xff\x00rules\n"` in a conflicting regular file. After replace apply, assert the snapshot JSON decodes to the original bytes, stores `stat.S_IMODE(mode)` and SHA-256, and the target is a direct link to the trusted source. Restore from the snapshot fixture and assert byte and mode equality.
 
-Add a five-target adoption test covering current-machine shapes: two enabled links, one conflicting file, one missing target, and one indirect link. Preview performs zero writes; approved apply produces five direct links and one snapshot.
+Add a five-target adoption test covering current-machine shapes: two enabled links, one conflicting file, one missing target under a pre-existing parent directory, and one indirect link. Preview performs zero writes; approved apply produces five direct links and one snapshot.
 
 - [ ] **Step 3: Write failure, rollback, and race tests**
 
@@ -494,11 +494,15 @@ Cover all of these concrete cases:
 - post-replacement direct-link verification fails;
 - rollback target is occupied by a competitor;
 - parent component is replaced by an external symlink;
-- a newly created parent receives a competitor file before rollback;
+- a missing parent makes preview `blocked` with no snapshot, and apply performs zero `mkdir` and zero leaf writes;
+- a reviewer race swaps a competitor immediately after the legacy `mkdir` point; the implementation must never enter that creation path;
+- an existing parent is replaced with a different inode after planning; apply returns `state-changed` with zero leaf writes;
+- an existing identity-stable parent allows normal create;
+- a parent component is a regular file, symlink, or special file and is blocked with a stable reason;
 - repeated apply is idempotent.
 - a synthetic `prepared` snapshot is reported as `incomplete-transaction` with zero automatic writes.
 
-Assertions: successful rollback restores every earlier target; competitor content is never overwritten; an unrecoverable isolated backup path appears in the failed item message; newly created parents are removed only when still empty and device/inode match the creation record.
+Assertions: successful target rollback restores every earlier leaf; competitor content is never overwritten; an unrecoverable isolated backup path appears in the failed item message. Planning and apply never create or remove first-level parent directories. Parent kind/device/inode is part of the reviewed fingerprint and must match exactly before any leaf mutation.
 
 - [ ] **Step 4: Run the new tests and verify they fail on missing operations**
 
@@ -512,9 +516,9 @@ Expected: FAIL because plan/apply functions are absent.
 
 - [ ] **Step 5: Implement deterministic planning and fingerprint validation**
 
-Build plans only from the five fixed targets. For each selected target, recapture with `include_content=True`, verify its kind/hash/raw target still matches the supplied scan status, and store that full `FileSnapshot` as the preview expectation. Store the source SHA-256. Before apply, rescan the trusted source and every selected target, recompute the plan, validate the expected fingerprint as exactly 64 lowercase hexadecimal characters, compare it to the recomputed fingerprint with `secrets.compare_digest`, and require exact snapshot equality. Reject unknown keys, duplicate keys after normalization, invalid source, blocked actions, and `replace_existing=True` on a non-adopt plan with stable codes.
+Build plans only from the five fixed targets. For each selected target, recapture with `include_content=True`, verify its kind/hash/raw target still matches the supplied scan status, and store that full `FileSnapshot` as the preview expectation. Also lstat the fixed first-level parent and store its kind/device/inode. Missing parents are `blocked` / `parent-missing`; file, symlink, and special parents are `blocked` / `parent-not-directory`. Store the source SHA-256. Before apply, rescan the trusted source, every selected target, and every reviewed parent, recompute the plan, validate the expected fingerprint as exactly 64 lowercase hexadecimal characters, compare it to the recomputed fingerprint with `secrets.compare_digest`, and require exact snapshot equality. Reject unknown keys, duplicate keys after normalization, invalid source, blocked actions, and `replace_existing=True` on a non-adopt plan with stable codes.
 
-Canonicalize repo/source identity, source hash, replace flag, target keys, actions, and full expected snapshots as sorted JSON, then compute the SHA-256 plan fingerprint. Use the deterministic snapshot path:
+Canonicalize repo/source identity, source hash, replace flag, target keys, actions, full expected snapshots, and parent kind/device/inode as sorted JSON, then compute the SHA-256 plan fingerprint. Use the deterministic snapshot path:
 
 ```python
 state_dir / "snapshots" / f"instructions-{fingerprint}.json"
@@ -528,7 +532,7 @@ Serialize `version`, `phase: "prepared"`, `created_at`, `fingerprint`, `repo_roo
 
 - [ ] **Step 7: Implement FD-based atomic replacement and reverse rollback**
 
-Open HOME and each fixed first-level directory with `O_DIRECTORY | O_NOFOLLOW`. Create a missing first-level directory with `os.mkdir(..., mode=0o700, dir_fd=home_fd)` and record its device/inode. For each write action:
+Open HOME and each reviewed fixed first-level directory with `O_DIRECTORY | O_NOFOLLOW`. Never create or remove a first-level parent during apply. If it is missing, the user must pre-create it manually with the corresponding `mkdir -m 700 ~/.agents` (or other fixed parent) command, then generate and review a new plan. Verify the reviewed kind/device/inode before and after opening the directory and retain that fd through writes, rollback, and the commit barrier. For each write action:
 
 1. rename an existing file/link to `.agent-manager-<uuid>.backup` in the same directory;
 2. create `.agent-manager-<uuid>.tmp` as a direct symlink to the source;
@@ -537,6 +541,8 @@ Open HOME and each fixed first-level directory with `O_DIRECTORY | O_NOFOLLOW`. 
 5. keep the backup until the whole selected batch verifies.
 
 On failure, walk applied entries in reverse: isolate the manager-created link, restore the backup only if the target leaf is absent, and never overwrite a competitor. After the committed marker is durable, unlink backups and fsync parent directories. For `remove`, isolate and verify the direct managed link before unlinking it; rollback renames it back only into an empty leaf. `scan_incomplete_transactions` treats every readable prepared snapshot as diagnostic state and includes any retained `.backup` paths; it never restores during status or doctor.
+
+macOS/Python exposes no identity-bound primitive for safely publishing a missing first-level directory while excluding a same-name competitor. Do not use `ctypes` or add a dependency to emulate one. The supported boundary is therefore an already-existing, reviewed parent whose exact identity is rechecked during apply; otherwise the batch remains blocked with zero writes.
 
 - [ ] **Step 8: Verify atomic behavior and the complete repository suite**
 
