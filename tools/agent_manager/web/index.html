@@ -563,7 +563,7 @@
           path: source,
           display_path: source,
         },
-        ...(payload.adapters || []).map((adapter) => {
+        ...(payload.skills?.adapters || []).map((adapter) => {
           const [label, scope] = ADAPTER_PATH_LABELS[adapter.key] || [adapter.key, ""];
           return {
             key: adapter.key,
@@ -627,9 +627,9 @@
       setBusy(true);
       showMessage(`正在${enabled ? "启用" : "停用"} ${slug} / ${TOOL_LABELS[tool]}…`);
       try {
-        const result = await api("/api/set", {
+        const result = await api("/api/skills/set", {
           method: "POST",
-          body: JSON.stringify({ skill: slug, tool, enabled, apply: true }),
+          body: JSON.stringify({ skill: slug, all: false, tool, on: enabled, apply: true }),
         });
         await Promise.all([loadStatus(), loadInventory()]);
         showOperationResult(enabled ? "启用完成" : "停用完成", result);
@@ -645,8 +645,8 @@
       setBusy(true);
       showMessage(`正在预览${enabled ? "全部启用" : "全部停用"}…`);
       try {
-        const request = { all: true, tool: "all", enabled };
-        const preview = await api("/api/set", {
+        const request = { skill: null, all: true, tool: "all", on: enabled };
+        const preview = await api("/api/skills/set", {
           method: "POST",
           body: JSON.stringify({ ...request, apply: false }),
         });
@@ -655,7 +655,7 @@
           return;
         }
         showMessage(`正在应用${enabled ? "全部启用" : "全部停用"}…`);
-        const result = await api("/api/set", {
+        const result = await api("/api/skills/set", {
           method: "POST",
           body: JSON.stringify({ ...request, apply: true }),
         });
@@ -673,7 +673,7 @@
       setBusy(true);
       showMessage("正在预览迁移旧链接…");
       try {
-        const preview = await api("/api/adopt", {
+        const preview = await api("/api/skills/adopt", {
           method: "POST",
           body: JSON.stringify({ apply: false }),
         });
@@ -682,7 +682,7 @@
           return;
         }
         showMessage("正在迁移旧链接…");
-        const result = await api("/api/adopt", {
+        const result = await api("/api/skills/adopt", {
           method: "POST",
           body: JSON.stringify({ apply: true }),
         });
@@ -727,7 +727,7 @@
 
     function targetMap(payload, slug) {
       return new Map(
-        payload.targets
+        (payload.skills?.targets || [])
           .filter((item) => item.slug === slug)
           .map((item) => [item.adapter_key, item]),
       );
@@ -819,21 +819,21 @@
     function renderSummary(payload) {
       const summary = document.getElementById("summary");
       clear(summary);
-      summary.append(summaryItem("仓库", payload.skills.length));
+      summary.append(summaryItem("仓库", payload.skills.records.length));
       for (const tool of TOOLS) {
-        const count = payload.skills.filter(
+        const count = payload.skills.records.filter(
           (skill) => toolState(payload, skill.slug, tool) === "enabled",
         ).length;
         summary.append(summaryItem(TOOL_LABELS[tool], count));
       }
-      const states = payload.skills.flatMap(
+      const states = payload.skills.records.flatMap(
         (skill) => TOOLS.map((tool) => toolState(payload, skill.slug, tool)),
       );
       summary.append(
         summaryItem("冲突", states.filter((value) => value === "conflict").length, "state-conflict"),
         summaryItem("异常", states.filter((value) => value === "error").length, "state-error"),
       );
-      const issueCount = (payload.issues || []).length;
+      const issueCount = (payload.skills.issues || []).length;
       if (issueCount) summary.append(summaryItem("仓库问题", issueCount, "state-error"));
       const surfaceSummary = document.getElementById("surface-summary");
       clear(surfaceSummary);
@@ -902,7 +902,7 @@
       appendHeader(table, ["Skill", "Claude", "Codex", "Copilot", "Antigravity"]);
       const body = element("tbody");
       let visible = 0;
-      for (const skill of payload.skills) {
+      for (const skill of payload.skills.records) {
         const states = Object.fromEntries(
           TOOLS.map((tool) => [tool, toolState(payload, skill.slug, tool)]),
         );

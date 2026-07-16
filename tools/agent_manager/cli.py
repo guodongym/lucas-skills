@@ -2,27 +2,37 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import errno
 import json
 import os
-import secrets
+import re
+import shlex
 import shutil
-import stat
 import sys
-import threading
-import webbrowser
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime, timezone
 from enum import Enum
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import TextIO
 
+from .instructions import (
+    IncompleteTransaction,
+    InstructionBatchResult,
+    InstructionScan,
+    InstructionState,
+    apply_instruction_plan,
+    plan_instruction_adoption,
+    plan_instruction_set,
+    scan_incomplete_transactions,
+    scan_instructions,
+)
 from .skills import (
     AdoptionPlan,
     BatchResult,
     LinkState,
     ManagedState,
+    RepositoryScan,
     ScanIssue,
+    SurfaceStatus,
     _enabled_codex_plugin_sources,
     apply_adoption,
     apply_plan,
@@ -34,17 +44,34 @@ from .skills import (
     scan_managed_state,
     scan_repository,
 )
+from .server import _serve
 
 
 TOOLS = ("claude", "codex", "copilot", "antigravity")
-MAX_REQUEST_BODY = 64 * 1024
-CONTENT_SECURITY_POLICY = (
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-    "style-src 'self' 'unsafe-inline'; connect-src 'self'; "
-    "img-src 'self' data:"
-)
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
-WEB_PATH_PARTS = ("tools", "agent_manager", "web")
+INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot", "antigravity")
+FINGERPRINT_PATTERN = r"[0-9a-f]{64}"
+
+
+@dataclasses.dataclass(frozen=True)
+class AgentSummary:
+    skills_enabled: int
+    skills_total: int
+    instructions_enabled: int
+    instructions_total: int
+    conflicts: int
+    issues: int
+
+
+@dataclasses.dataclass(frozen=True)
+class AgentState:
+    repository: RepositoryScan
+    skills: ManagedState
+    instructions: InstructionScan
+    surfaces: tuple[SurfaceStatus, ...]
+    summary: AgentSummary
+    scanned_at: str
+    incomplete_transactions: tuple[IncompleteTransaction, ...]
 
 
 def to_jsonable(value: object) -> object:
@@ -57,21 +84,22 @@ def to_jsonable(value: object) -> object:
         return str(value)
     if isinstance(value, Enum):
         return value.value
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {str(key): to_jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [to_jsonable(item) for item in value]
     return value
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="agent-manager")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    for name in ("status", "doctor"):
-        command = subparsers.add_parser(name)
-        command.add_argument("--json", action="store_true")
+def _add_json(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--json", action="store_true")
 
-    set_parser = subparsers.add_parser("set")
+
+def _add_skill_commands(parser: argparse.ArgumentParser) -> None:
+    commands = parser.add_subparsers(dest="command", required=True)
+    _add_json(commands.add_parser("status"))
+
+    set_parser = commands.add_parser("set")
     set_parser.add_argument("skill", nargs="?", default=None)
     set_parser.add_argument("--all", action="store_true")
     set_parser.add_argument(
@@ -83,13 +111,55 @@ def _build_parser() -> argparse.ArgumentParser:
     toggle.add_argument("--on", action="store_true")
     toggle.add_argument("--off", action="store_true")
     set_parser.add_argument("--apply", action="store_true")
-    set_parser.add_argument("--json", action="store_true")
+    _add_json(set_parser)
 
-    adopt_parser = subparsers.add_parser("adopt")
+    adopt_parser = commands.add_parser("adopt")
     adopt_parser.add_argument("--apply", action="store_true")
-    adopt_parser.add_argument("--json", action="store_true")
+    _add_json(adopt_parser)
 
-    serve_parser = subparsers.add_parser("serve")
+
+def _fingerprint(value: str) -> str:
+    if re.fullmatch(FINGERPRINT_PATTERN, value) is None:
+        raise argparse.ArgumentTypeError(
+            "fingerprint must be exactly 64 lowercase hexadecimal characters"
+        )
+    return value
+
+
+def _add_instruction_commands(parser: argparse.ArgumentParser) -> None:
+    commands = parser.add_subparsers(dest="command", required=True)
+    _add_json(commands.add_parser("status"))
+
+    set_parser = commands.add_parser("set")
+    set_parser.add_argument(
+        "--target",
+        choices=(*INSTRUCTION_TARGETS, "all"),
+        required=True,
+    )
+    toggle = set_parser.add_mutually_exclusive_group(required=True)
+    toggle.add_argument("--on", action="store_true")
+    toggle.add_argument("--off", action="store_true")
+    set_parser.add_argument("--apply", action="store_true")
+    set_parser.add_argument("--expect-fingerprint", type=_fingerprint)
+    _add_json(set_parser)
+
+    adopt_parser = commands.add_parser("adopt")
+    adopt_parser.add_argument("--replace-existing", action="store_true")
+    adopt_parser.add_argument("--apply", action="store_true")
+    adopt_parser.add_argument("--expect-fingerprint", type=_fingerprint)
+    _add_json(adopt_parser)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="agent-manager")
+    resources = parser.add_subparsers(dest="resource", required=True)
+    for name in ("status", "doctor"):
+        _add_json(resources.add_parser(name))
+
+    _add_skill_commands(resources.add_parser("skills"))
+    _add_instruction_commands(resources.add_parser("instructions"))
+
+    serve_parser = resources.add_parser("serve")
     serve_parser.add_argument("--open", action="store_true")
     return parser
 
@@ -106,6 +176,64 @@ def _build_state(
     return scan_managed_state(repository, adapters, surfaces)
 
 
+def build_agent_state(
+    repo_root: Path,
+    home: Path,
+    which: Callable[[str], str | None],
+    applications: Path,
+) -> AgentState:
+    repository = scan_repository(repo_root)
+    adapters = build_adapters(home)
+    surfaces = detect_surfaces(which=which, applications=applications)
+    skills = scan_managed_state(repository, adapters, surfaces)
+    instruction_scan = scan_instructions(repo_root, home)
+    incomplete = scan_incomplete_transactions(
+        home / ".local/state/lucas-agent-manager"
+    )
+    enabled_skills = {
+        target.slug
+        for target in skills.targets
+        if target.state in {LinkState.ENABLED, LinkState.LEGACY}
+    }
+    skill_conflicts = sum(
+        target.state == LinkState.CONFLICT for target in skills.targets
+    )
+    skill_errors = sum(target.state == LinkState.ERROR for target in skills.targets)
+    instruction_conflicts = sum(
+        target.state == InstructionState.CONFLICT
+        for target in instruction_scan.targets
+    )
+    instruction_errors = sum(
+        target.state == InstructionState.BROKEN
+        for target in instruction_scan.targets
+    )
+    summary = AgentSummary(
+        len(enabled_skills),
+        len(repository.skills),
+        sum(
+            target.state == InstructionState.ENABLED
+            for target in instruction_scan.targets
+        ),
+        len(instruction_scan.targets),
+        skill_conflicts + instruction_conflicts,
+        len(repository.issues)
+        + len(instruction_scan.issues)
+        + skill_errors
+        + instruction_errors
+        + len(incomplete),
+    )
+    scanned_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return AgentState(
+        repository,
+        skills,
+        instruction_scan,
+        tuple(surfaces.values()),
+        summary,
+        scanned_at,
+        incomplete,
+    )
+
+
 def _state_ok(state: ManagedState) -> bool:
     return not state.repository.issues and all(
         target.state not in {LinkState.CONFLICT, LinkState.ERROR}
@@ -113,19 +241,104 @@ def _state_ok(state: ManagedState) -> bool:
     )
 
 
-def _base_payload(state: ManagedState, mode: str, *, ok: bool | None = None) -> dict[str, object]:
+def _instructions_ok(scan: InstructionScan) -> bool:
+    return not scan.issues and all(
+        target.state not in {InstructionState.CONFLICT, InstructionState.BROKEN}
+        for target in scan.targets
+    )
+
+
+def _agent_state_ok(state: AgentState) -> bool:
+    return (
+        _state_ok(state.skills)
+        and _instructions_ok(state.instructions)
+        and not state.incomplete_transactions
+    )
+
+
+def _skills_container(state: AgentState) -> dict[str, object]:
     return {
-        "mode": mode,
-        "ok": _state_ok(state) if ok is None else ok,
-        "code": None,
-        "message": "",
-        "repo_root": state.repository.repo_root,
-        "skills": state.repository.skills,
-        "adapters": state.adapters,
-        "surfaces": state.surfaces,
-        "targets": state.targets,
-        "issues": state.repository.issues,
+        "records": state.skills.repository.skills,
+        "adapters": state.skills.adapters,
+        "targets": state.skills.targets,
+        "issues": state.skills.repository.issues,
     }
+
+
+def _instructions_container(state: AgentState) -> dict[str, object]:
+    return {
+        "source": state.instructions.source,
+        "source_sha256": state.instructions.source_sha256,
+        "source_text": state.instructions.source_text,
+        "targets": state.instructions.targets,
+        "manual_surfaces": state.instructions.manual_surfaces,
+        "issues": state.instructions.issues,
+    }
+
+
+def _state_problem(state: AgentState, domain: str | None = None) -> tuple[str | None, str]:
+    if state.incomplete_transactions and domain != "skills":
+        issue = state.incomplete_transactions[0]
+        return issue.code, issue.message
+    if domain != "skills" and state.instructions.issues:
+        issue = state.instructions.issues[0]
+        return issue.code, issue.message
+    if domain != "instructions" and state.skills.repository.issues:
+        issue = state.skills.repository.issues[0]
+        return issue.code, issue.message
+    if domain != "skills":
+        failed = next(
+            (
+                target for target in state.instructions.targets
+                if target.state in {InstructionState.CONFLICT, InstructionState.BROKEN}
+            ),
+            None,
+        )
+        if failed is not None:
+            return failed.state.value, failed.message
+    if domain != "instructions":
+        failed = next(
+            (
+                target for target in state.skills.targets
+                if target.state in {LinkState.CONFLICT, LinkState.ERROR}
+            ),
+            None,
+        )
+        if failed is not None:
+            return failed.state.value, failed.message
+    return None, ""
+
+
+def _base_payload(
+    state: AgentState,
+    mode: str,
+    *,
+    domain: str | None = None,
+    ok: bool | None = None,
+) -> dict[str, object]:
+    if ok is None:
+        if domain == "skills":
+            ok = _state_ok(state.skills)
+        elif domain == "instructions":
+            ok = _instructions_ok(state.instructions) and not state.incomplete_transactions
+        else:
+            ok = _agent_state_ok(state)
+    code, message = (None, "") if ok else _state_problem(state, domain)
+    payload: dict[str, object] = {
+        "mode": mode,
+        "ok": ok,
+        "code": code,
+        "message": message,
+        "repo_root": state.repository.repo_root,
+        "surfaces": state.surfaces,
+        "summary": state.summary,
+        "scanned_at": state.scanned_at,
+    }
+    if domain != "instructions":
+        payload["skills"] = _skills_container(state)
+    if domain != "skills":
+        payload["instructions"] = _instructions_container(state)
+    return payload
 
 
 def _empty_adoption_changes() -> dict[str, object]:
@@ -141,28 +354,50 @@ def _command_payload(
     command: str,
     mode: str,
     repo_root: Path,
-    state: ManagedState | None = None,
+    state: AgentState | None = None,
+    domain: str | None = None,
 ) -> dict[str, object]:
-    payload = _base_payload(state, mode) if state is not None else {
+    payload = _base_payload(state, mode, domain=domain) if state is not None else {
         "mode": mode,
         "ok": False,
         "code": None,
         "message": "",
         "repo_root": repo_root,
-        "skills": (),
-        "adapters": (),
         "surfaces": (),
-        "targets": (),
-        "issues": (),
+        "summary": AgentSummary(0, 0, 0, 0, 0, 0),
+        "scanned_at": "",
     }
+    if state is None and domain != "instructions":
+        payload["skills"] = {
+            "records": (), "adapters": (), "targets": (), "issues": (),
+        }
+    if state is None and domain != "skills":
+        payload["instructions"] = {
+            "source": repo_root / "AGENTS.md",
+            "source_sha256": None,
+            "source_text": None,
+            "targets": (),
+            "manual_surfaces": (),
+            "issues": (),
+        }
     if command == "doctor":
         payload["inventory"] = ()
     elif command == "set":
         payload["changes"] = ()
-        payload["results"] = ()
+        if domain == "instructions":
+            payload["fingerprint"] = None
+            payload["snapshot_path"] = None
+        if domain != "instructions" or mode == "apply":
+            payload["results"] = ()
     elif command == "adopt":
-        payload["changes"] = _empty_adoption_changes()
-        payload["results"] = ()
+        payload["changes"] = (
+            () if domain == "instructions" else _empty_adoption_changes()
+        )
+        if domain == "instructions":
+            payload["fingerprint"] = None
+            payload["snapshot_path"] = None
+        if domain != "instructions" or mode == "apply":
+            payload["results"] = ()
     return payload
 
 
@@ -180,7 +415,7 @@ def _repository_issue_message(issues: Sequence[ScanIssue]) -> str:
     )
 
 
-def _batch_code(result: BatchResult) -> str | None:
+def _batch_code(result: BatchResult | InstructionBatchResult) -> str | None:
     failures = [item for item in result.results if not item.ok]
     if not failures:
         return None
@@ -189,12 +424,17 @@ def _batch_code(result: BatchResult) -> str | None:
     return failures[0].code
 
 
-def _add_batch(payload: dict[str, object], result: BatchResult) -> None:
+def _add_batch(
+    payload: dict[str, object],
+    result: BatchResult | InstructionBatchResult,
+) -> None:
     payload["ok"] = result.ok
     payload["results"] = result.results
     code = _batch_code(result)
     if code is not None:
         payload["code"] = code
+        failure = next(item for item in result.results if not item.ok)
+        payload["message"] = failure.message
 
 
 def _adoption_changes(plan: AdoptionPlan) -> dict[str, object]:
@@ -215,7 +455,10 @@ def _set_plan_status(
             change
             for change in changes
             if getattr(change, "action", None)
-            in {"blocked", "conflict", "error", "target-conflict"}
+            in {
+                "blocked", "conflict", "error", "target-conflict",
+                "unsupported-target",
+            }
         ),
         None,
     )
@@ -245,35 +488,61 @@ def _doctor_issues(state: ManagedState, home: Path) -> tuple[ScanIssue, ...]:
     return (*state.repository.issues, *plugin_issues)
 
 
-def _enabled_counts(state: ManagedState) -> dict[str, int]:
-    return {
-        tool: len(
-            {
-                target.slug
-                for target in state.targets
-                if target.tool == tool
-                and target.state in {LinkState.ENABLED, LinkState.LEGACY}
-            }
-        )
-        for tool in TOOLS
-    }
+def _instruction_preview_command(args: argparse.Namespace) -> str:
+    command = f"agent-manager instructions {args.command}"
+    if args.command == "set":
+        toggle = "--on" if args.on else "--off"
+        return f"{command} --target {args.target} {toggle}"
+    if args.replace_existing:
+        return f"{command} --replace-existing"
+    return command
+
+
+def _instruction_plan_next(
+    args: argparse.Namespace,
+    payload: Mapping[str, object],
+) -> str:
+    changes = payload.get("changes", ())
+    blocked = next(
+        (
+            change for change in changes
+            if getattr(change, "action", None) in {"blocked", "unsupported-target"}
+        ),
+        None,
+    )
+    if blocked is not None:
+        target = Path(getattr(blocked, "target"))
+        reason = getattr(blocked, "reason", "")
+        review_path = target.parent if reason.startswith("parent-") else target
+        quoted = shlex.quote(str(review_path))
+        if reason == "parent-missing":
+            return f"mkdir -m 700 {quoted}"
+        return f"ls -ld {quoted}"
+
+    preview = _instruction_preview_command(args)
+    fingerprint = payload.get("fingerprint")
+    if not isinstance(fingerprint, str):
+        return preview
+    return f"{preview} --apply --expect-fingerprint {fingerprint}"
 
 
 def _write_text(
     stdout: TextIO,
-    state: ManagedState,
+    state: AgentState,
     mode: str,
     payload: Mapping[str, object],
+    next_command: str | None = None,
 ) -> None:
-    stdout.write(f"Mode: {mode}\n")
-    stdout.write(f"Skills: {len(state.repository.skills)}\n")
-    for tool, count in _enabled_counts(state).items():
-        stdout.write(f"{tool}: {count} enabled\n")
-    conflicts = sum(
-        target.state in {LinkState.CONFLICT, LinkState.ERROR}
-        for target in state.targets
+    stdout.write(f"Repository: {state.repository.repo_root}\n")
+    stdout.write(
+        f"Skills: {state.summary.skills_enabled}/{state.summary.skills_total}\n"
     )
-    stdout.write(f"Conflicts: {conflicts}\n")
+    stdout.write(
+        "Instructions: "
+        f"{state.summary.instructions_enabled}/{state.summary.instructions_total}\n"
+    )
+    stdout.write(f"Conflicts: {state.summary.conflicts}\n")
+    stdout.write(f"Issues: {state.summary.issues}\n")
     if not payload.get("ok", False) and payload.get("code"):
         stdout.write(f"Error [{payload['code']}]: {payload.get('message', '')}\n")
     if "changes" in payload:
@@ -287,490 +556,29 @@ def _write_text(
     if "results" in payload:
         results = payload["results"]
         stdout.write(f"Results: {len(results) if isinstance(results, (list, tuple)) else 0}\n")
-    next_command = {
-        "status": "agent-manager doctor",
-        "doctor": "agent-manager set <skill> --tool <tool> --on",
-        "plan": "repeat the command with --apply",
-        "apply": "agent-manager status",
-    }[mode]
+    if next_command is None:
+        next_command = {
+            "status": "agent-manager doctor",
+            "doctor": "agent-manager skills status",
+            "plan": "repeat the command with --apply",
+            "apply": "agent-manager status",
+        }[mode]
     stdout.write(f"Next: {next_command}\n")
 
 
 def _write_payload(
     stdout: TextIO,
-    state: ManagedState,
+    state: AgentState,
     mode: str,
     payload: Mapping[str, object],
     json_output: bool,
+    next_command: str | None = None,
 ) -> None:
     if json_output:
         json.dump(to_jsonable(dict(payload)), stdout, ensure_ascii=False, indent=2)
         stdout.write("\n")
     else:
-        _write_text(stdout, state, mode, payload)
-
-
-def _error_payload(code: str, message: str) -> dict[str, object]:
-    return {"ok": False, "code": code, "message": message}
-
-
-def _open_directory_chain(root_fd: int, parts: Sequence[str], flags: int) -> int:
-    current_fd = os.dup(root_fd)
-    try:
-        for part in parts:
-            next_fd = os.open(part, flags, dir_fd=current_fd)
-            os.close(current_fd)
-            current_fd = next_fd
-        return current_fd
-    except BaseException:
-        os.close(current_fd)
-        raise
-
-
-def _read_web_index(server: "AgentManagerHTTPServer") -> str:
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    repo_fd: int | None = None
-    web_fd: int | None = None
-    index_fd: int | None = None
-    try:
-        repo_fd = os.open(server.repo_root, directory_flags)
-        web_fd = _open_directory_chain(repo_fd, WEB_PATH_PARTS, directory_flags)
-        index_fd = os.open("index.html", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=web_fd)
-        if not stat.S_ISREG(os.fstat(index_fd).st_mode):
-            raise FileNotFoundError("web index is not a regular file")
-        with os.fdopen(index_fd, encoding="utf-8") as stream:
-            index_fd = None
-            return stream.read()
-    finally:
-        for descriptor in (index_fd, web_fd, repo_fd):
-            if descriptor is not None:
-                os.close(descriptor)
-
-
-def _result_http_status(
-    payload: dict[str, object],
-    result: BatchResult,
-) -> int:
-    failures = [item for item in result.results if not item.ok]
-    if not failures:
-        return 200
-    codes = {item.code for item in failures}
-    if "permission-denied" in codes:
-        code, status = "permission-denied", 403
-    elif codes & {"blocked", "target-conflict", "state-changed"}:
-        code, status = "target-conflict", 409
-    elif "requires-adopt" in codes:
-        code, status = "requires-adopt", 409
-    elif "invalid-plan" in codes:
-        code, status = "invalid-skill", 400
-    else:
-        code, status = "internal-error", 500
-    failure = next(item for item in failures if item.code in codes)
-    payload["code"] = code
-    payload["message"] = failure.message
-    payload["path"] = failure.path
-    return status
-
-
-def _handle_set_request(
-    server: "AgentManagerHTTPServer",
-    request: Mapping[str, object],
-) -> tuple[int, dict[str, object]]:
-    apply = request["apply"]
-    mode = "apply" if apply else "plan"
-    state = _build_state(server.repo_root, server.home, server.which, server.applications)
-    payload = _command_payload("set", mode, server.repo_root, state)
-    if state.repository.issues:
-        _set_error(
-            payload,
-            "invalid-skill",
-            _repository_issue_message(state.repository.issues),
-        )
-        return 400, payload
-    slugs = (
-        [skill.slug for skill in state.repository.skills]
-        if request.get("all") is True
-        else [request["skill"]]
-    )
-    plan = plan_set(state, slugs, [request["tool"]], request["enabled"])
-    payload["changes"] = plan.changes
-    if not apply:
-        _set_plan_status(payload, plan.changes)
-        return 200, payload
-
-    result = apply_plan(plan, {adapter.key: adapter for adapter in state.adapters})
-    state = _build_state(server.repo_root, server.home, server.which, server.applications)
-    changes = payload["changes"]
-    payload = _command_payload("set", mode, server.repo_root, state)
-    payload["changes"] = changes
-    _add_batch(payload, result)
-    return _result_http_status(payload, result), payload
-
-
-def _handle_adopt_request(
-    server: "AgentManagerHTTPServer",
-    request: Mapping[str, object],
-) -> tuple[int, dict[str, object]]:
-    apply = request["apply"]
-    mode = "apply" if apply else "plan"
-    state = _build_state(server.repo_root, server.home, server.which, server.applications)
-    payload = _command_payload("adopt", mode, server.repo_root, state)
-    if state.repository.issues:
-        _set_error(
-            payload,
-            "invalid-skill",
-            _repository_issue_message(state.repository.issues),
-        )
-        return 400, payload
-    plan = plan_adoption(state, server.home / ".local/state/lucas-skills-manager")
-    payload["changes"] = _adoption_changes(plan)
-    if not apply:
-        _set_plan_status(payload, plan.link_changes)
-        return 200, payload
-
-    result = apply_adoption(plan, {adapter.key: adapter for adapter in state.adapters})
-    state = _build_state(server.repo_root, server.home, server.which, server.applications)
-    changes = payload["changes"]
-    payload = _command_payload("adopt", mode, server.repo_root, state)
-    payload["changes"] = changes
-    _add_batch(payload, result)
-    return _result_http_status(payload, result), payload
-
-
-class AgentManagerHTTPServer(ThreadingHTTPServer):
-    daemon_threads = True
-
-    def __init__(
-        self,
-        repo_root: Path,
-        home: Path,
-        token: str,
-        applications: Path,
-        which: Callable[[str], str | None],
-    ) -> None:
-        self.repo_root = repo_root.expanduser().resolve()
-        self.home = home.expanduser().resolve()
-        self.token = token
-        self.applications = applications.expanduser().resolve()
-        self.which = which
-        super().__init__(("127.0.0.1", 0), AgentManagerRequestHandler)
-
-
-class AgentManagerRequestHandler(BaseHTTPRequestHandler):
-    server: AgentManagerHTTPServer
-    server_version = "AgentManagerHTTP/1.0"
-    sys_version = ""
-
-    def log_message(self, format: str, *args: object) -> None:
-        del format, args
-
-    def send_error(
-        self,
-        code: int,
-        message: str | None = None,
-        explain: str | None = None,
-    ) -> None:
-        del explain
-        if code == 501:
-            self._unsupported_method()
-            return
-        self._send_problem(code, "http-error", message or "HTTP request failed")
-
-    def _security_headers(self) -> None:
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
-
-    def _send_json(self, status: int, payload: Mapping[str, object]) -> None:
-        body = json.dumps(to_jsonable(dict(payload)), ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self._security_headers()
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _send_problem(self, status: int, code: str, message: str) -> None:
-        self._send_json(status, _error_payload(code, message))
-
-    def _valid_host(self) -> bool:
-        host, port = self.server.server_address
-        expected = f"{host}:{port}"
-        values = self.headers.get_all("Host", failobj=[])
-        return values == [expected]
-
-    def _check_host(self) -> bool:
-        if self._valid_host():
-            return True
-        self._send_problem(403, "invalid-host", "Host header does not match this service")
-        return False
-
-    def _check_write_authorization(self) -> bool:
-        host, port = self.server.server_address
-        expected_origin = f"http://{host}:{port}"
-        tokens = self.headers.get_all("X-Agent-Manager-Token", failobj=[])
-        origins = self.headers.get_all("Origin", failobj=[])
-        token_ok = len(tokens) == 1 and secrets.compare_digest(
-            tokens[0], self.server.token
-        )
-        origin_ok = origins == [expected_origin]
-        if token_ok and origin_ok:
-            return True
-        self._send_problem(403, "invalid-token", "write request authorization failed")
-        return False
-
-    def _read_json_object(self) -> dict[str, object] | None:
-        content_types = self.headers.get_all("Content-Type", failobj=[])
-        if len(content_types) != 1 or self.headers.get_content_type() != "application/json":
-            self._send_problem(415, "invalid-request", "Content-Type must be application/json")
-            return None
-        if self.headers.get("Transfer-Encoding") is not None:
-            self._send_problem(400, "invalid-request", "Transfer-Encoding is not supported")
-            return None
-        lengths = self.headers.get_all("Content-Length", failobj=[])
-        if len(lengths) != 1:
-            self._send_problem(411, "invalid-request", "Content-Length is required")
-            return None
-        try:
-            length = int(lengths[0], 10)
-        except ValueError:
-            self._send_problem(400, "invalid-request", "Content-Length is invalid")
-            return None
-        if length < 0:
-            self._send_problem(400, "invalid-request", "Content-Length is invalid")
-            return None
-        if length > MAX_REQUEST_BODY:
-            self._send_problem(413, "request-too-large", "request body exceeds 64 KiB")
-            return None
-
-        def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-            result: dict[str, object] = {}
-            for key, value in pairs:
-                if key in result:
-                    raise ValueError(f"duplicate JSON field: {key}")
-                result[key] = value
-            return result
-
-        def reject_constant(value: str) -> object:
-            raise ValueError(f"invalid JSON constant: {value}")
-
-        try:
-            payload = json.loads(
-                self.rfile.read(length),
-                object_pairs_hook=unique_object,
-                parse_constant=reject_constant,
-            )
-        except (UnicodeError, ValueError):
-            self._send_problem(400, "invalid-request", "request body must be valid JSON")
-            return None
-        if not isinstance(payload, dict):
-            self._send_problem(400, "invalid-request", "request body must be a JSON object")
-            return None
-        return payload
-
-    def _validate_set_request(self, payload: dict[str, object]) -> bool:
-        single_keys = {"skill", "tool", "enabled", "apply"}
-        bulk_keys = {"all", "tool", "enabled", "apply"}
-        keys = set(payload)
-        single = keys == single_keys and isinstance(payload.get("skill"), str)
-        bulk = keys == bulk_keys and payload.get("all") is True
-        valid = (
-            (single or bulk)
-            and payload.get("tool") in (*TOOLS, "all")
-            and type(payload.get("enabled")) is bool
-            and type(payload.get("apply")) is bool
-        )
-        if valid:
-            return True
-        self._send_problem(400, "invalid-request", "request does not match the set contract")
-        return False
-
-    def _validate_apply_request(self, payload: dict[str, object]) -> bool:
-        if set(payload) == {"apply"} and type(payload.get("apply")) is bool:
-            return True
-        self._send_problem(400, "invalid-request", "request does not match the adopt contract")
-        return False
-
-    def do_GET(self) -> None:
-        if not self._check_host():
-            return
-        if self.path == "/":
-            try:
-                template = _read_web_index(self.server)
-            except FileNotFoundError:
-                self._send_problem(404, "not-found", "web interface is not installed")
-                return
-            except OSError as exc:
-                if exc.errno in {errno.ENOENT, errno.ENOTDIR, errno.ELOOP}:
-                    self._send_problem(404, "not-found", "web interface is not installed")
-                elif exc.errno in {errno.EACCES, errno.EPERM}:
-                    self._send_problem(403, "permission-denied", "web interface is not readable")
-                else:
-                    self._send_problem(500, "internal-error", "failed to load web interface")
-                return
-            except UnicodeError:
-                self._send_problem(500, "internal-error", "failed to load web interface")
-                return
-            body = template.replace(
-                "__AGENT_MANAGER_TOKEN__",
-                json.dumps(self.server.token),
-            ).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self._security_headers()
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
-        if self.path == "/api/status":
-            try:
-                state = _build_state(
-                    self.server.repo_root,
-                    self.server.home,
-                    self.server.which,
-                    self.server.applications,
-                )
-                self._send_json(200, _base_payload(state, "status"))
-            except PermissionError:
-                self._send_problem(403, "permission-denied", "status scan was denied")
-            except Exception:
-                self._send_problem(500, "internal-error", "status scan failed")
-            return
-        if self.path == "/api/inventory":
-            try:
-                state = _build_state(
-                    self.server.repo_root,
-                    self.server.home,
-                    self.server.which,
-                    self.server.applications,
-                )
-                inventory = scan_inventory(state, self.server.home)
-                issues = _doctor_issues(state, self.server.home)
-                payload = {
-                    "ok": _state_ok(state) and not issues,
-                    "inventory": inventory,
-                    "issues": issues,
-                }
-                self._send_json(200, payload)
-            except PermissionError:
-                self._send_problem(403, "permission-denied", "inventory scan was denied")
-            except Exception:
-                self._send_problem(500, "internal-error", "inventory scan failed")
-            return
-        if self.path in {"/api/set", "/api/adopt", "/api/shutdown"}:
-            self._method_not_allowed("POST")
-            return
-        self._send_problem(404, "not-found", "route does not exist")
-
-    def do_POST(self) -> None:
-        if not self._check_host():
-            return
-        if self.path in {"/", "/api/status", "/api/inventory"}:
-            self._method_not_allowed("GET")
-            return
-        if self.path not in {"/api/set", "/api/adopt", "/api/shutdown"}:
-            self._send_problem(404, "not-found", "route does not exist")
-            return
-        if not self._check_write_authorization():
-            return
-        payload = self._read_json_object()
-        if payload is None:
-            return
-        if self.path == "/api/shutdown":
-            if payload:
-                self._send_problem(400, "invalid-request", "shutdown body must be empty")
-                return
-            self._send_json(200, {"ok": True, "code": None, "message": ""})
-            threading.Thread(target=self.server.shutdown, daemon=True).start()
-            return
-        try:
-            if self.path == "/api/set":
-                if not self._validate_set_request(payload):
-                    return
-                status, response = _handle_set_request(self.server, payload)
-            else:
-                if not self._validate_apply_request(payload):
-                    return
-                status, response = _handle_adopt_request(self.server, payload)
-            self._send_json(status, response)
-        except ValueError as exc:
-            self._send_problem(400, "invalid-skill", str(exc))
-        except PermissionError as exc:
-            self._send_problem(403, "permission-denied", str(exc))
-        except Exception:
-            self._send_problem(500, "internal-error", "request failed")
-
-    def _method_not_allowed(self, allowed: str) -> None:
-        body = json.dumps(_error_payload("method-not-allowed", "method is not allowed")).encode()
-        self.send_response(405)
-        self.send_header("Allow", allowed)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self._security_headers()
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_PUT(self) -> None:
-        self._unsupported_method()
-
-    def do_PATCH(self) -> None:
-        self._unsupported_method()
-
-    def do_DELETE(self) -> None:
-        self._unsupported_method()
-
-    def do_OPTIONS(self) -> None:
-        self._unsupported_method()
-
-    def do_HEAD(self) -> None:
-        self._unsupported_method()
-
-    def _unsupported_method(self) -> None:
-        if not self._check_host():
-            return
-        if self.path in {"/", "/api/status", "/api/inventory"}:
-            self._method_not_allowed("GET")
-        elif self.path in {"/api/set", "/api/adopt", "/api/shutdown"}:
-            self._method_not_allowed("POST")
-        else:
-            self._send_problem(404, "not-found", "route does not exist")
-
-
-def create_server(
-    repo_root: Path,
-    home: Path,
-    token: str,
-    applications: Path,
-    which: Callable[[str], str | None],
-) -> AgentManagerHTTPServer:
-    if not token:
-        raise ValueError("token must not be empty")
-    return AgentManagerHTTPServer(repo_root, home, token, applications, which)
-
-
-def _serve(
-    stdout: TextIO,
-    open_browser: bool,
-    repo_root: Path,
-    home: Path,
-    applications: Path,
-    which: Callable[[str], str | None],
-) -> int:
-    token = secrets.token_urlsafe(32)
-    server = create_server(repo_root, home, token, applications, which)
-    host, port = server.server_address
-    url = f"http://{host}:{port}/"
-    stdout.write(f"{url}\n")
-    stdout.flush()
-    if open_browser:
-        webbrowser.open(url)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.server_close()
-    return 0
+        _write_text(stdout, state, mode, payload, next_command)
 
 
 def main(
@@ -784,103 +592,214 @@ def main(
 ) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.resource == "skills" and args.command == "set":
+        if bool(args.all) == bool(args.skill):
+            parser.error("skills set requires exactly one of <skill> or --all")
+    if args.resource == "instructions" and args.command in {"set", "adopt"}:
+        has_fingerprint = args.expect_fingerprint is not None
+        if args.apply and not has_fingerprint:
+            parser.error("Instructions apply requires --expect-fingerprint")
+        if not args.apply and has_fingerprint:
+            parser.error("--expect-fingerprint is only accepted with --apply")
+
     stdout = stdout or sys.stdout
     home = (home or Path.home()).expanduser().resolve()
     repo_root = (repo_root or DEFAULT_REPO_ROOT).expanduser().resolve()
     applications = applications.expanduser().resolve()
 
-    if args.command == "serve":
+    if args.resource == "serve":
         return _serve(stdout, args.open, repo_root, home, applications, which)
-    if args.command == "set" and bool(args.all) == bool(args.skill):
-        parser.error("set requires exactly one of <skill> or --all")
 
-    if args.command in {"set", "adopt"}:
+    command = getattr(args, "command", args.resource)
+    domain = args.resource if args.resource in {"skills", "instructions"} else None
+    if command in {"set", "adopt"}:
         mode = "apply" if args.apply else "plan"
     else:
-        mode = args.command
-    state: ManagedState | None = None
-    payload = _command_payload(args.command, mode, repo_root)
+        mode = args.resource if domain is None else command
+    state: AgentState | None = None
+    payload = _command_payload(command, mode, repo_root, domain=domain)
     try:
-        state = _build_state(repo_root, home, which, applications)
-        payload = _command_payload(args.command, mode, repo_root, state)
-        if args.command == "status":
+        state = build_agent_state(repo_root, home, which, applications)
+        payload = _command_payload(command, mode, repo_root, state, domain)
+        if command == "status":
             _write_payload(stdout, state, "status", payload, args.json)
             return 0 if payload["ok"] else 1
 
-        if args.command == "doctor":
-            inventory = scan_inventory(state, home)
+        if args.resource == "doctor":
+            inventory = scan_inventory(state.skills, home)
             payload["inventory"] = inventory
-            issues = _doctor_issues(state, home)
+            _sources, plugin_issues = _enabled_codex_plugin_sources(home)
             broken_inventory = any(
                 record.source_type == "broken" or record.flags
                 for record in inventory
             )
-            ok = _state_ok(state) and not issues and not broken_inventory
+            ok = _agent_state_ok(state) and not plugin_issues and not broken_inventory
             payload["ok"] = ok
-            payload["issues"] = issues
+            if state.incomplete_transactions:
+                issue = state.incomplete_transactions[0]
+                payload["code"] = issue.code
+                payload["message"] = issue.message
+            elif plugin_issues:
+                payload["code"] = plugin_issues[0].code
+                payload["message"] = plugin_issues[0].message
+            elif broken_inventory:
+                payload["code"] = "inventory-issue"
+                payload["message"] = "inventory contains broken or flagged records"
             _write_payload(stdout, state, "doctor", payload, args.json)
             return 0 if ok else 1
 
-        if state.repository.issues:
+        if domain == "skills" and state.skills.repository.issues:
             _set_error(
                 payload,
                 "invalid-skill",
-                _repository_issue_message(state.repository.issues),
+                _repository_issue_message(state.skills.repository.issues),
             )
             _write_payload(stdout, state, mode, payload, args.json)
             return 1
 
-        if args.command == "set":
+        if domain == "skills" and command == "set":
             slugs = (
-                [skill.slug for skill in state.repository.skills]
+                [skill.slug for skill in state.skills.repository.skills]
                 if args.all
                 else [args.skill]
             )
-            plan = plan_set(state, slugs, [args.tool], args.on)
+            plan = plan_set(state.skills, slugs, [args.tool], args.on)
             payload["changes"] = plan.changes
             if not args.apply:
                 ok = _set_plan_status(payload, plan.changes)
                 _write_payload(stdout, state, "plan", payload, args.json)
                 return 0 if ok else 1
 
-            result = apply_plan(plan, {adapter.key: adapter for adapter in state.adapters})
+            result = apply_plan(
+                plan,
+                {adapter.key: adapter for adapter in state.skills.adapters},
+            )
             _add_batch(payload, result)
-            state = _build_state(repo_root, home, which, applications)
+            state = build_agent_state(repo_root, home, which, applications)
             changes = payload["changes"]
-            payload = _command_payload(args.command, mode, repo_root, state)
+            payload = _command_payload(command, mode, repo_root, state, domain)
             payload["changes"] = changes
             _add_batch(payload, result)
             _write_payload(stdout, state, "apply", payload, args.json)
             return 0 if result.ok else 1
 
-        plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
-        payload["changes"] = _adoption_changes(plan)
+        if domain == "skills":
+            plan = plan_adoption(
+                state.skills,
+                home / ".local/state/lucas-agent-manager",
+            )
+            payload["changes"] = _adoption_changes(plan)
+            if not args.apply:
+                ok = _set_plan_status(payload, plan.link_changes)
+                _write_payload(stdout, state, "plan", payload, args.json)
+                return 0 if ok else 1
+
+            result = apply_adoption(
+                plan,
+                {adapter.key: adapter for adapter in state.skills.adapters},
+            )
+            changes = payload["changes"]
+            _add_batch(payload, result)
+            try:
+                state = build_agent_state(repo_root, home, which, applications)
+            except Exception as exc:
+                _set_error(
+                    payload,
+                    "post-apply-verification-failed",
+                    "skill adoption apply completed and returned results, "
+                    f"but post-apply state verification failed: {exc}",
+                )
+                _write_payload(stdout, state, "apply", payload, args.json)
+                return 1
+            payload = _command_payload(command, mode, repo_root, state, domain)
+            payload["changes"] = changes
+            _add_batch(payload, result)
+            _write_payload(stdout, state, "apply", payload, args.json)
+            return 0 if result.ok else 1
+
+        state_dir = home / ".local/state/lucas-agent-manager"
+        if command == "set":
+            targets = INSTRUCTION_TARGETS if args.target == "all" else (args.target,)
+            instruction_plan = plan_instruction_set(
+                state.instructions,
+                targets,
+                args.on,
+                state_dir,
+            )
+        else:
+            instruction_plan = plan_instruction_adoption(
+                state.instructions,
+                state_dir,
+                replace_existing=args.replace_existing,
+            )
+        payload["changes"] = instruction_plan.changes
+        payload["fingerprint"] = instruction_plan.fingerprint
+        payload["snapshot_path"] = instruction_plan.snapshot_path
         if not args.apply:
-            ok = _set_plan_status(payload, plan.link_changes)
-            _write_payload(stdout, state, "plan", payload, args.json)
+            ok = _set_plan_status(payload, instruction_plan.changes)
+            _write_payload(
+                stdout,
+                state,
+                "plan",
+                payload,
+                args.json,
+                _instruction_plan_next(args, payload),
+            )
             return 0 if ok else 1
 
-        result = apply_adoption(plan, {adapter.key: adapter for adapter in state.adapters})
-        _add_batch(payload, result)
-        state = _build_state(repo_root, home, which, applications)
-        changes = payload["changes"]
-        payload = _command_payload(args.command, mode, repo_root, state)
-        payload["changes"] = changes
-        _add_batch(payload, result)
+        instruction_result = apply_instruction_plan(
+            instruction_plan,
+            home,
+            expected_fingerprint=args.expect_fingerprint,
+        )
+        reviewed = {
+            "changes": payload["changes"],
+            "fingerprint": payload["fingerprint"],
+            "snapshot_path": payload["snapshot_path"],
+        }
+        payload.update(reviewed)
+        _add_batch(payload, instruction_result)
+        try:
+            state = build_agent_state(repo_root, home, which, applications)
+        except Exception as exc:
+            _set_error(
+                payload,
+                "post-apply-verification-failed",
+                "instruction apply completed and returned results, but post-apply "
+                f"state verification failed: {exc}",
+            )
+            _write_payload(
+                stdout,
+                state,
+                "apply",
+                payload,
+                args.json,
+                "agent-manager instructions status",
+            )
+            return 1
+        payload = _command_payload(command, mode, repo_root, state, domain)
+        payload.update(reviewed)
+        _add_batch(payload, instruction_result)
         _write_payload(stdout, state, "apply", payload, args.json)
-        return 0 if result.ok else 1
+        return 0 if instruction_result.ok else 1
     except ValueError as exc:
-        if args.command == "set":
+        if domain == "skills" and command == "set":
             code = "invalid-skill"
-        elif args.command == "adopt":
+        elif domain == "skills" and command == "adopt":
             code = "adoption-failed"
+        elif domain == "instructions":
+            code = getattr(exc, "code", "invalid-instructions")
         else:
             code = "internal-error"
         _set_error(payload, code, str(exc))
     except PermissionError as exc:
         _set_error(payload, "permission-denied", str(exc))
     except (OSError, RuntimeError) as exc:
-        code = "adoption-failed" if args.command == "adopt" else "verification-failed"
+        code = (
+            "adoption-failed"
+            if domain == "skills" and command == "adopt"
+            else "verification-failed"
+        )
         _set_error(payload, code, str(exc))
     except Exception as exc:
         _set_error(payload, "internal-error", str(exc))

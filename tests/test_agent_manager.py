@@ -1,28 +1,28 @@
 from __future__ import annotations
 
 import io
-import http.client
 import importlib
 import json
 import os
 import subprocess
 import tempfile
-import threading
 import unittest
-import urllib.error
-import urllib.request
-from contextlib import contextmanager
+from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.agent_manager.cli import create_server, main
+from tools.agent_manager import cli as agent_manager_cli
+from tools.agent_manager.cli import main
+from tools.agent_manager.instructions import InstructionPlanError
 from tools.agent_manager.skills import (
     _enabled_codex_plugin_sources,
     apply_adoption,
     apply_plan,
+    BatchResult,
     ChangePlan,
     LinkState,
+    OperationResult,
     PathSnapshot,
     PlannedChange,
     build_adapters,
@@ -36,6 +36,15 @@ from tools.agent_manager.skills import (
 
 
 def write_skill(root: Path, slug: str, name: str, description: str = "test skill") -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "pyproject.toml").write_text(
+        "[project]\nname = 'fixture'\n",
+        encoding="utf-8",
+    )
+    (root / "AGENTS.md").write_text(
+        "# Repository instructions\n\nKeep changes focused.\n",
+        encoding="utf-8",
+    )
     skill_dir = root / "skills" / slug
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
@@ -63,27 +72,6 @@ def build_test_state(
         applications=applications,
     )
     return scan_managed_state(scan_repository(repo), adapters, surfaces)
-
-
-@contextmanager
-def running_http_server(
-    repo: Path,
-    home: Path,
-    applications: Path,
-    which=lambda _: None,
-):
-    server = create_server(repo, home, "test-token", applications, which)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    host, port = server.server_address
-    try:
-        yield server, thread, f"http://{host}:{port}"
-    finally:
-        thread.join(timeout=0.05)
-        if thread.is_alive():
-            server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
 
 
 class PackageLayoutTests(unittest.TestCase):
@@ -314,8 +302,8 @@ let fallbackValue = "";
         for api_path in (
             '"/api/status"',
             '"/api/inventory"',
-            '"/api/set"',
-            '"/api/adopt"',
+            '"/api/skills/set"',
+            '"/api/skills/adopt"',
             '"/api/shutdown"',
         ):
             self.assertIn(api_path, page)
@@ -323,6 +311,14 @@ let fallbackValue = "";
         self.assertIn("const TOOL_ADAPTERS", page)
         self.assertIn("apply: false", page)
         self.assertIn("apply: true", page)
+        self.assertIn(
+            "JSON.stringify({ skill: slug, all: false, tool, on: enabled, apply: true })",
+            page,
+        )
+        self.assertIn(
+            'const request = { skill: null, all: true, tool: "all", on: enabled };',
+            page,
+        )
         self.assertIn("confirmPlan(", page)
         self.assertIn("addEventListener", page)
         self.assertIn("Promise.all([loadStatus(), loadInventory()])", page)
@@ -370,18 +366,20 @@ let fallbackValue = "";
         rows = self._load_path_rows(
             {
                 "repo_root": "/Users/test/Codes/lucas-skills",
-                "adapters": [
-                    {
-                        "key": "claude-shared",
-                        "home": "/Users/test",
-                        "root": "/Users/test/.claude/skills",
-                    },
-                    {
-                        "key": "antigravity-cli",
-                        "home": "/Users/test",
-                        "root": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-                    },
-                ],
+                "skills": {
+                    "adapters": [
+                        {
+                            "key": "claude-shared",
+                            "home": "/Users/test",
+                            "root": "/Users/test/.claude/skills",
+                        },
+                        {
+                            "key": "antigravity-cli",
+                            "home": "/Users/test",
+                            "root": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
+                        },
+                    ],
+                },
             }
         )
 
@@ -2213,6 +2211,237 @@ class SetOperationTests(unittest.TestCase):
             self.assertFalse(os.path.lexists(plan.changes[0].target))
 
 
+class UmbrellaParserTests(unittest.TestCase):
+    def assert_parse_exit(self, argv: list[str], expected: int) -> None:
+        with (
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit) as caught,
+        ):
+            main(argv)
+        self.assertEqual(caught.exception.code, expected)
+
+    def test_help_contract_covers_root_and_every_command_level(self) -> None:
+        for argv in (
+            ["--help"],
+            ["status", "--help"],
+            ["doctor", "--help"],
+            ["serve", "--help"],
+            ["skills", "--help"],
+            ["skills", "status", "--help"],
+            ["skills", "set", "--help"],
+            ["skills", "adopt", "--help"],
+            ["instructions", "--help"],
+            ["instructions", "status", "--help"],
+            ["instructions", "set", "--help"],
+            ["instructions", "adopt", "--help"],
+        ):
+            with self.subTest(argv=argv):
+                self.assert_parse_exit(argv, 0)
+
+    def test_old_flat_skill_commands_are_parser_errors(self) -> None:
+        for argv in (
+            ["set", "docx", "--tool", "claude", "--on"],
+            ["adopt"],
+        ):
+            with self.subTest(argv=argv):
+                self.assert_parse_exit(argv, 2)
+
+    def test_replace_existing_is_exclusive_to_instructions_adopt(self) -> None:
+        invalid = (
+            ["status", "--replace-existing"],
+            ["doctor", "--replace-existing"],
+            ["skills", "status", "--replace-existing"],
+            ["skills", "set", "docx", "--tool", "claude", "--on", "--replace-existing"],
+            ["skills", "adopt", "--replace-existing"],
+            ["instructions", "status", "--replace-existing"],
+            ["instructions", "set", "--target", "codex", "--on", "--replace-existing"],
+        )
+        for argv in invalid:
+            with self.subTest(argv=argv):
+                self.assert_parse_exit(argv, 2)
+
+    def test_instruction_apply_requires_one_valid_reviewed_fingerprint(self) -> None:
+        digest = "a" * 64
+        for argv in (
+            ["instructions", "set", "--target", "codex", "--on", "--apply"],
+            ["instructions", "adopt", "--apply"],
+            ["instructions", "set", "--target", "codex", "--on", "--expect-fingerprint", digest],
+            ["instructions", "adopt", "--expect-fingerprint", digest],
+            ["instructions", "adopt", "--apply", "--expect-fingerprint", "A" * 64],
+            ["instructions", "adopt", "--apply", "--expect-fingerprint", "a" * 63],
+            ["skills", "adopt", "--expect-fingerprint", digest],
+        ):
+            with self.subTest(argv=argv):
+                self.assert_parse_exit(argv, 2)
+
+
+class AggregateCliContractTests(unittest.TestCase):
+    def invoke(self, argv: list[str], repo: Path, home: Path) -> tuple[int, dict[str, object]]:
+        output = io.StringIO()
+        code = main(
+            argv,
+            home=home,
+            repo_root=repo,
+            stdout=output,
+            which=lambda _: None,
+            applications=home.parent / "Applications",
+        )
+        return code, json.loads(output.getvalue())
+
+    def test_status_json_has_exact_aggregate_schema_and_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+
+            code, payload = self.invoke(["status", "--json"], repo, home)
+
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                set(payload),
+                {
+                    "mode", "ok", "code", "message", "repo_root", "skills",
+                    "instructions", "surfaces", "summary", "scanned_at",
+                },
+            )
+            self.assertEqual(
+                set(payload["summary"]),
+                {
+                    "skills_enabled", "skills_total", "instructions_enabled",
+                    "instructions_total", "conflicts", "issues",
+                },
+            )
+            self.assertEqual(
+                set(payload["skills"]),
+                {"records", "adapters", "targets", "issues"},
+            )
+            self.assertEqual(
+                set(payload["instructions"]),
+                {"source", "source_sha256", "source_text", "targets", "manual_surfaces", "issues"},
+            )
+            self.assertEqual(payload["summary"]["skills_total"], 1)
+            self.assertEqual(payload["summary"]["instructions_total"], 5)
+            self.assertRegex(payload["scanned_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$")
+
+    def test_domain_statuses_keep_the_common_envelope_and_one_container(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            common = {"mode", "ok", "code", "message", "repo_root", "surfaces", "summary", "scanned_at"}
+
+            skills_code, skills = self.invoke(["skills", "status", "--json"], repo, home)
+            instructions_code, instructions = self.invoke(
+                ["instructions", "status", "--json"], repo, home
+            )
+
+            self.assertEqual((skills_code, instructions_code), (0, 0))
+            self.assertEqual(set(skills), common | {"skills"})
+            self.assertEqual(set(skills["skills"]), {"records", "adapters", "targets", "issues"})
+            self.assertEqual(set(instructions), common | {"instructions"})
+            self.assertEqual(
+                set(instructions["instructions"]),
+                {"source", "source_sha256", "source_text", "targets", "manual_surfaces", "issues"},
+            )
+
+    def test_instruction_missing_and_matching_copy_are_healthy_but_failures_are_not(self) -> None:
+        for shape, expected in (("missing", 0), ("matching-copy", 0), ("conflict", 1), ("broken", 1)):
+            with self.subTest(shape=shape), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                repo, home = root / "repo", root / "home"
+                write_skill(repo, "docx", "docx")
+                target = home / ".codex/AGENTS.md"
+                if shape != "missing":
+                    target.parent.mkdir(parents=True)
+                if shape == "matching-copy":
+                    target.write_bytes((repo / "AGENTS.md").read_bytes())
+                elif shape == "conflict":
+                    target.write_text("different\n", encoding="utf-8")
+                elif shape == "broken":
+                    target.symlink_to(target.parent / "absent.md")
+
+                code, payload = self.invoke(["status", "--json"], repo, home)
+
+                self.assertEqual(code, expected)
+                self.assertEqual(payload["ok"], expected == 0)
+
+    def test_invalid_instruction_source_fails_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            (repo / "AGENTS.md").unlink()
+
+            code, payload = self.invoke(["status", "--json"], repo, home)
+
+            self.assertEqual(code, 1)
+            self.assertFalse(payload["ok"])
+            self.assertGreater(payload["summary"]["issues"], 0)
+
+    def test_instruction_planning_errors_keep_the_review_schema(self) -> None:
+        cases = (
+            ("set", "invalid-source", False),
+            ("adopt", "invalid-source", False),
+            ("set", "state-changed", False),
+            ("adopt", "state-changed", True),
+        )
+        for command, error, apply in cases:
+            with self.subTest(command=command, error=error, apply=apply), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp).resolve()
+                repo, home = root / "repo", root / "home"
+                write_skill(repo, "docx", "docx")
+                (home / ".codex").mkdir(parents=True)
+                argv = ["instructions", command]
+                if command == "set":
+                    argv.extend(["--target", "codex", "--on"])
+                if apply:
+                    argv.extend(["--apply", "--expect-fingerprint", "a" * 64])
+                argv.append("--json")
+
+                if error == "invalid-source":
+                    (repo / "AGENTS.md").unlink()
+                    code, payload = self.invoke(argv, repo, home)
+                else:
+                    with patch(
+                        f"tools.agent_manager.cli.plan_instruction_{'set' if command == 'set' else 'adoption'}",
+                        side_effect=InstructionPlanError(
+                            "state-changed",
+                            "planning state changed",
+                        ),
+                    ):
+                        code, payload = self.invoke(argv, repo, home)
+
+                self.assertEqual(code, 1)
+                self.assertEqual(payload["changes"], [])
+                self.assertIsNone(payload["fingerprint"])
+                self.assertIsNone(payload["snapshot_path"])
+                if apply:
+                    self.assertEqual(payload["results"], [])
+                else:
+                    self.assertNotIn("results", payload)
+
+    def test_doctor_reports_prepared_instruction_snapshot_without_recovery_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            snapshot = home / ".local/state/lucas-agent-manager/snapshots" / f"instructions-{'a' * 64}.json"
+            snapshot.parent.mkdir(parents=True)
+            snapshot.write_text(
+                json.dumps({"phase": "prepared", "fingerprint": "a" * 64, "targets": []}),
+                encoding="utf-8",
+            )
+            before = snapshot.read_bytes()
+
+            code, payload = self.invoke(["doctor", "--json"], repo, home)
+
+            self.assertEqual(code, 1)
+            self.assertEqual(payload["code"], "incomplete-transaction")
+            self.assertIn("inventory", payload)
+            self.assertEqual(snapshot.read_bytes(), before)
+
+
 class CliTests(unittest.TestCase):
     def test_doctor_success_has_stable_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2235,11 +2464,14 @@ class CliTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertIsNone(payload["code"])
             self.assertEqual(payload["message"], "")
-            self.assertEqual([item["slug"] for item in payload["skills"]], ["docx"])
+            self.assertEqual(
+                [item["slug"] for item in payload["skills"]["records"]],
+                ["docx"],
+            )
             self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["targets"]), 5)
+            self.assertEqual(len(payload["skills"]["targets"]), 5)
             self.assertEqual(payload["inventory"], [])
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(payload["skills"]["issues"], [])
 
     def test_adopt_preview_has_stable_schema(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2249,7 +2481,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["adopt", "--json"],
+                ["skills", "adopt", "--json"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2262,12 +2494,44 @@ class CliTests(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertIsNone(payload["code"])
             self.assertEqual(payload["message"], "")
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"]["link_changes"], [])
             self.assertEqual(payload["changes"]["container_changes"], [])
             self.assertEqual(payload["changes"]["bridge_removals"], [])
             self.assertIsNotNone(payload["changes"]["snapshot_path"])
             self.assertEqual(payload["results"], [])
+
+    def test_adopt_apply_writes_snapshot_under_aggregate_state_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            skill = write_skill(repo, "docx", "docx")
+            legacy = home / ".cc-switch/skills/docx"
+            legacy.parent.mkdir(parents=True)
+            legacy.symlink_to(skill)
+            target = home / ".claude/skills/docx"
+            target.parent.mkdir(parents=True)
+            target.symlink_to(legacy)
+            output = io.StringIO()
+
+            code = main(
+                ["skills", "adopt", "--apply", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda command: "/bin/claude" if command == "claude" else None,
+                applications=root / "Applications",
+            )
+
+            payload = json.loads(output.getvalue())
+            snapshot = Path(payload["changes"]["snapshot_path"])
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                snapshot.parent,
+                home / ".local/state/lucas-agent-manager/snapshots",
+            )
+            self.assertTrue(snapshot.is_file())
+            self.assertFalse((home / ".local/state/lucas-skills-manager").exists())
 
     def test_invalid_repository_blocks_set_preview_and_apply_without_writes(self) -> None:
         for apply in (False, True):
@@ -2279,7 +2543,7 @@ class CliTests(unittest.TestCase):
                 invalid.mkdir()
                 (invalid / "SKILL.md").write_text("# invalid\n", encoding="utf-8")
                 output = io.StringIO()
-                argv = ["set", "--all", "--tool", "claude", "--on"]
+                argv = ["skills", "set", "--all", "--tool", "claude", "--on"]
                 if apply:
                     argv.append("--apply")
                 argv.append("--json")
@@ -2297,9 +2561,12 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(code, 1)
                 self.assertFalse(payload["ok"])
                 self.assertEqual(payload["code"], "invalid-skill")
-                self.assertEqual([item["slug"] for item in payload["skills"]], ["docx"])
                 self.assertEqual(
-                    [issue["code"] for issue in payload["issues"]],
+                    [item["slug"] for item in payload["skills"]["records"]],
+                    ["docx"],
+                )
+                self.assertEqual(
+                    [issue["code"] for issue in payload["skills"]["issues"]],
                     ["invalid-frontmatter"],
                 )
                 self.assertIn("invalid-frontmatter", payload["message"])
@@ -2319,7 +2586,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["set", "--all", "--tool", "claude", "--on"],
+                ["skills", "set", "--all", "--tool", "claude", "--on"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2347,7 +2614,7 @@ class CliTests(unittest.TestCase):
                 target.parent.mkdir(parents=True)
                 target.symlink_to(legacy)
                 output = io.StringIO()
-                argv = ["adopt"]
+                argv = ["skills", "adopt"]
                 if apply:
                     argv.append("--apply")
                 argv.append("--json")
@@ -2366,7 +2633,7 @@ class CliTests(unittest.TestCase):
                 self.assertFalse(payload["ok"])
                 self.assertEqual(payload["code"], "invalid-skill")
                 self.assertEqual(
-                    [issue["code"] for issue in payload["issues"]],
+                    [issue["code"] for issue in payload["skills"]["issues"]],
                     ["invalid-frontmatter"],
                 )
                 self.assertEqual(payload["changes"]["link_changes"], [])
@@ -2400,12 +2667,15 @@ class CliTests(unittest.TestCase):
             payload = json.loads(output.getvalue())
             self.assertEqual(code, 1)
             self.assertFalse(payload["ok"])
-            self.assertEqual([item["slug"] for item in payload["skills"]], ["docx"])
-            self.assertEqual(len(payload["adapters"]), 5)
-            self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["targets"]), 5)
             self.assertEqual(
-                [issue["code"] for issue in payload["issues"]],
+                [item["slug"] for item in payload["skills"]["records"]],
+                ["docx"],
+            )
+            self.assertEqual(len(payload["skills"]["adapters"]), 5)
+            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(
+                [issue["code"] for issue in payload["skills"]["issues"]],
                 ["invalid-frontmatter"],
             )
 
@@ -2421,7 +2691,7 @@ class CliTests(unittest.TestCase):
                 side_effect=OSError("failed"),
             ):
                 code = main(
-                    ["adopt", "--json"],
+                    ["skills", "adopt", "--json"],
                     home=home,
                     repo_root=repo,
                     stdout=output,
@@ -2434,14 +2704,94 @@ class CliTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["mode"], "plan")
             self.assertEqual(payload["code"], "adoption-failed")
-            self.assertEqual([item["slug"] for item in payload["skills"]], ["docx"])
+            self.assertEqual(
+                [item["slug"] for item in payload["skills"]["records"]],
+                ["docx"],
+            )
             self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["targets"]), 5)
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"]["link_changes"], [])
             self.assertEqual(payload["changes"]["container_changes"], [])
             self.assertEqual(payload["changes"]["bridge_removals"], [])
             self.assertEqual(payload["results"], [])
+
+    def test_skill_adopt_post_rescan_failure_preserves_execution_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            skill = write_skill(repo, "docx", "docx")
+            legacy = home / ".cc-switch/skills/docx"
+            legacy.parent.mkdir(parents=True)
+            legacy.symlink_to(skill)
+            target = home / ".claude/skills/docx"
+            target.parent.mkdir(parents=True)
+            target.symlink_to(legacy)
+            which = lambda command: "/bin/claude" if command == "claude" else None
+
+            initial_state = agent_manager_cli.build_agent_state(
+                repo,
+                home,
+                which,
+                root / "Applications",
+            )
+            plan = plan_adoption(
+                initial_state.skills,
+                home / ".local/state/lucas-skills-manager",
+            )
+            expected_changes = agent_manager_cli.to_jsonable(
+                {
+                    "link_changes": plan.link_changes,
+                    "container_changes": plan.container_changes,
+                    "bridge_removals": plan.bridge_removals,
+                    "snapshot_path": plan.snapshot_path,
+                }
+            )
+            result = BatchResult(
+                True,
+                (
+                    OperationResult(
+                        True,
+                        "applied",
+                        "docx",
+                        "claude-shared",
+                        target,
+                        "adopted link",
+                    ),
+                ),
+            )
+            output = io.StringIO()
+            with (
+                patch(
+                    "tools.agent_manager.cli.build_agent_state",
+                    side_effect=[initial_state, OSError("post scan failed")],
+                ),
+                patch(
+                    "tools.agent_manager.cli.apply_adoption",
+                    return_value=result,
+                ) as apply_mock,
+                patch(
+                    "tools.agent_manager.cli.plan_adoption",
+                    return_value=plan,
+                ),
+            ):
+                code = main(
+                    ["skills", "adopt", "--apply", "--json"],
+                    home=home,
+                    repo_root=repo,
+                    stdout=output,
+                    which=which,
+                    applications=root / "Applications",
+                )
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(code, 1)
+            apply_mock.assert_called_once()
+            self.assertEqual(payload["changes"], expected_changes)
+            self.assertEqual(payload["results"][0]["code"], "applied")
+            self.assertEqual(payload["code"], "post-apply-verification-failed")
+            self.assertIn("apply completed", payload["message"])
+            self.assertIn("post scan failed", payload["message"])
 
     def test_status_text_counts_legacy_as_enabled_without_skill_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2467,8 +2817,8 @@ class CliTests(unittest.TestCase):
 
             text = output.getvalue()
             self.assertEqual(code, 0)
-            self.assertIn("Skills: 1", text)
-            self.assertIn("claude: 1 enabled", text)
+            self.assertIn("Skills: 1/1", text)
+            self.assertIn("Instructions: 0/5", text)
             self.assertIn("Conflicts: 0", text)
             self.assertIn("Next:", text)
             self.assertNotIn("do not print this", text)
@@ -2496,12 +2846,15 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertEqual(payload["mode"], "doctor")
             self.assertEqual(payload["code"], "internal-error")
-            self.assertEqual([item["slug"] for item in payload["skills"]], ["docx"])
-            self.assertEqual(len(payload["adapters"]), 5)
+            self.assertEqual(
+                [item["slug"] for item in payload["skills"]["records"]],
+                ["docx"],
+            )
+            self.assertEqual(len(payload["skills"]["adapters"]), 5)
             self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["targets"]), 5)
+            self.assertEqual(len(payload["skills"]["targets"]), 5)
             self.assertEqual(payload["inventory"], [])
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(payload["skills"]["issues"], [])
 
     def test_set_error_uses_plan_mode_in_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2511,7 +2864,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["set", "missing", "--tool", "claude", "--on", "--json"],
+                ["skills", "set", "missing", "--tool", "claude", "--on", "--json"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2523,11 +2876,14 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertEqual(payload["mode"], "plan")
             self.assertEqual(payload["code"], "invalid-skill")
-            self.assertEqual([item["slug"] for item in payload["skills"]], ["docx"])
-            self.assertEqual(len(payload["adapters"]), 5)
+            self.assertEqual(
+                [item["slug"] for item in payload["skills"]["records"]],
+                ["docx"],
+            )
+            self.assertEqual(len(payload["skills"]["adapters"]), 5)
             self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["targets"]), 5)
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"], [])
             self.assertEqual(payload["results"], [])
 
@@ -2539,7 +2895,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["set", "docx", "--tool", "claude", "--on", "--json"],
+                ["skills", "set", "docx", "--tool", "claude", "--on", "--json"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2551,7 +2907,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual(payload["mode"], "plan")
             self.assertIsNone(payload["code"])
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(len(payload["changes"]), 1)
             self.assertEqual(payload["results"], [])
             self.assertFalse(os.path.lexists(home / ".claude/skills/docx"))
@@ -2566,7 +2922,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["set", "docx", "--tool", "claude", "--on", "--json"],
+                ["skills", "set", "docx", "--tool", "claude", "--on", "--json"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2593,7 +2949,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["set", "docx", "--tool", "copilot", "--off", "--json"],
+                ["skills", "set", "docx", "--tool", "copilot", "--off", "--json"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2626,7 +2982,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["adopt", "--json"],
+                ["skills", "adopt", "--json"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2659,10 +3015,10 @@ class CliTests(unittest.TestCase):
 
             payload = json.loads(output.getvalue())
             self.assertEqual(code, 0)
-            self.assertEqual(payload["skills"][0]["slug"], "pdf")
-            self.assertEqual(len(payload["adapters"]), 5)
+            self.assertEqual(payload["skills"]["records"][0]["slug"], "pdf")
+            self.assertEqual(len(payload["skills"]["adapters"]), 5)
             self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(payload["skills"]["issues"], [])
 
     def test_batch_partial_failure_returns_one_with_per_item_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2675,7 +3031,7 @@ class CliTests(unittest.TestCase):
             output = io.StringIO()
 
             code = main(
-                ["set", "--all", "--tool", "claude", "--on", "--apply", "--json"],
+                ["skills", "set", "--all", "--tool", "claude", "--on", "--apply", "--json"],
                 home=home,
                 repo_root=repo,
                 stdout=output,
@@ -2688,7 +3044,7 @@ class CliTests(unittest.TestCase):
             self.assertFalse(payload["ok"])
             self.assertEqual(payload["code"], "partial-failure")
             self.assertEqual(len(payload["changes"]), 2)
-            self.assertEqual(payload["issues"], [])
+            self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(
                 {item["code"] for item in payload["results"]},
                 {"applied", "blocked"},
@@ -2705,6 +3061,7 @@ class CliTests(unittest.TestCase):
 
             code = main(
                 [
+                    "skills",
                     "set",
                     "pdf",
                     "--tool",
@@ -2727,616 +3084,3 @@ class CliTests(unittest.TestCase):
                 "unavailable",
                 {item["code"] for item in payload["results"]},
             )
-
-
-class HttpServerTests(unittest.TestCase):
-    @staticmethod
-    def _write_request(base_url: str, path: str, payload: object):
-        body = json.dumps(payload).encode()
-        request = urllib.request.Request(
-            f"{base_url}{path}",
-            data=body,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "Origin": base_url,
-                "X-Agent-Manager-Token": "test-token",
-            },
-        )
-        return urllib.request.urlopen(request, timeout=2)
-
-    @staticmethod
-    def _error_payload(error: urllib.error.HTTPError) -> dict[str, object]:
-        return json.loads(error.read())
-
-    def test_binds_loopback_and_read_apis_recover_from_filesystem(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            skill = write_skill(repo, "docx", "docx")
-            target = home / ".claude/skills/docx"
-            target.parent.mkdir(parents=True)
-            target.symlink_to(skill)
-
-            def read_status() -> dict[str, object]:
-                with running_http_server(
-                    repo,
-                    home,
-                    root / "Applications",
-                    lambda command: "/bin/claude" if command == "claude" else None,
-                ) as (server, _thread, base_url):
-                    self.assertEqual(server.server_address[0], "127.0.0.1")
-                    response = urllib.request.urlopen(f"{base_url}/api/status", timeout=2)
-                    self.assertEqual(response.headers["Cache-Control"], "no-store")
-                    self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
-                    self.assertNotIn("Access-Control-Allow-Origin", response.headers)
-                    return json.loads(response.read())
-
-            first = read_status()
-            second = read_status()
-            self.assertEqual(first["targets"], second["targets"])
-            self.assertTrue(target.is_symlink())
-
-            with running_http_server(repo, home, root / "Applications") as (
-                _server,
-                _thread,
-                base_url,
-            ):
-                inventory = json.loads(
-                    urllib.request.urlopen(f"{base_url}/api/inventory", timeout=2).read()
-                )
-                self.assertTrue(inventory["ok"])
-                self.assertIn("inventory", inventory)
-                self.assertTrue(target.is_symlink())
-
-    def test_write_requires_exact_host_origin_and_token(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            with running_http_server(
-                repo,
-                home,
-                root / "Applications",
-                lambda command: "/bin/claude" if command == "claude" else None,
-            ) as (server, _thread, base_url):
-                body = json.dumps(
-                    {
-                        "skill": "docx",
-                        "tool": "claude",
-                        "enabled": True,
-                        "apply": True,
-                    }
-                ).encode()
-                missing = urllib.request.Request(
-                    f"{base_url}/api/set",
-                    data=body,
-                    method="POST",
-                    headers={"Content-Type": "application/json"},
-                )
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    urllib.request.urlopen(missing, timeout=2)
-                self.assertEqual(caught.exception.code, 403)
-                self.assertEqual(self._error_payload(caught.exception)["code"], "invalid-token")
-
-                wrong_origin = urllib.request.Request(
-                    f"{base_url}/api/set",
-                    data=body,
-                    method="POST",
-                    headers={
-                        "Content-Type": "application/json",
-                        "Origin": "http://127.0.0.1:1",
-                        "X-Agent-Manager-Token": "test-token",
-                    },
-                )
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    urllib.request.urlopen(wrong_origin, timeout=2)
-                self.assertEqual(caught.exception.code, 403)
-
-                host, port = server.server_address
-                connection = http.client.HTTPConnection(host, port, timeout=2)
-                connection.putrequest("GET", "/api/status", skip_host=True)
-                connection.putheader("Host", "localhost:9999")
-                connection.endheaders()
-                response = connection.getresponse()
-                self.assertEqual(response.status, 403)
-                self.assertEqual(json.loads(response.read())["code"], "invalid-host")
-                connection.close()
-
-                connection = http.client.HTTPConnection(host, port, timeout=2)
-                connection.putrequest("POST", "/api/set")
-                connection.putheader("Content-Type", "application/json")
-                connection.putheader("Content-Length", str(len(body)))
-                connection.putheader("Origin", base_url)
-                connection.putheader("Origin", base_url)
-                connection.putheader("X-Agent-Manager-Token", "test-token")
-                connection.putheader("X-Agent-Manager-Token", "test-token")
-                connection.endheaders(body)
-                response = connection.getresponse()
-                self.assertEqual(response.status, 403)
-                response.read()
-                connection.close()
-
-                response = self._write_request(base_url, "/api/set", json.loads(body))
-                self.assertTrue(json.loads(response.read())["ok"])
-                self.assertEqual(
-                    (home / ".claude/skills/docx").resolve(),
-                    (repo / "skills/docx").resolve(),
-                )
-
-    def test_rejects_invalid_content_type_body_shape_and_size(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            with running_http_server(repo, home, root / "Applications") as (
-                server,
-                _thread,
-                base_url,
-            ):
-                common = {
-                    "Origin": base_url,
-                    "X-Agent-Manager-Token": "test-token",
-                }
-                request = urllib.request.Request(
-                    f"{base_url}/api/set",
-                    data=b"{}",
-                    method="POST",
-                    headers={**common, "Content-Type": "text/plain"},
-                )
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    urllib.request.urlopen(request, timeout=2)
-                self.assertEqual(caught.exception.code, 415)
-
-                for payload in ([], {"apply": True, "unexpected": True}):
-                    with self.subTest(payload=payload):
-                        with self.assertRaises(urllib.error.HTTPError) as caught:
-                            self._write_request(base_url, "/api/adopt", payload)
-                        self.assertEqual(caught.exception.code, 400)
-                        self.assertEqual(
-                            self._error_payload(caught.exception)["code"],
-                            "invalid-request",
-                        )
-
-                oversized = urllib.request.Request(
-                    f"{base_url}/api/set",
-                    data=b" " * (64 * 1024 + 1),
-                    method="POST",
-                    headers={**common, "Content-Type": "application/json"},
-                )
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    urllib.request.urlopen(oversized, timeout=2)
-                self.assertEqual(caught.exception.code, 413)
-
-                duplicate_body = b'{"apply":false,"apply":true}'
-                duplicate = urllib.request.Request(
-                    f"{base_url}/api/adopt",
-                    data=duplicate_body,
-                    method="POST",
-                    headers={**common, "Content-Type": "application/json"},
-                )
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    urllib.request.urlopen(duplicate, timeout=2)
-                self.assertEqual(caught.exception.code, 400)
-
-                host, port = server.server_address
-                connection = http.client.HTTPConnection(host, port, timeout=2)
-                connection.putrequest("POST", "/api/adopt")
-                connection.putheader("Content-Type", "application/json")
-                connection.putheader("Origin", base_url)
-                connection.putheader("X-Agent-Manager-Token", "test-token")
-                connection.endheaders()
-                response = connection.getresponse()
-                self.assertEqual(response.status, 411)
-                response.read()
-                connection.close()
-
-            self.assertFalse((home / ".local/state/lucas-skills-manager").exists())
-
-    def test_rejects_path_traversal_and_unsupported_routes_or_methods(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            web_root = repo / "tools/agent_manager/web"
-            web_root.mkdir(parents=True)
-            (web_root / "index.html").write_text(
-                "<script>const token = __AGENT_MANAGER_TOKEN__;</script>",
-                encoding="utf-8",
-            )
-            with running_http_server(repo, home, root / "Applications") as (
-                server,
-                _thread,
-                base_url,
-            ):
-                index = urllib.request.urlopen(f"{base_url}/", timeout=2).read().decode()
-                self.assertIn('const token = "test-token";', index)
-
-                for path in ("/index.html", "/../cli.py", "/api/unknown"):
-                    with self.subTest(path=path), self.assertRaises(
-                        urllib.error.HTTPError
-                    ) as caught:
-                        urllib.request.urlopen(f"{base_url}{path}", timeout=2)
-                    self.assertEqual(caught.exception.code, 404)
-
-                outside = root / "outside.html"
-                outside.write_text("sensitive", encoding="utf-8")
-                (web_root / "index.html").unlink()
-                (web_root / "index.html").symlink_to(outside)
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    urllib.request.urlopen(f"{base_url}/", timeout=2)
-                self.assertEqual(caught.exception.code, 404)
-
-                host, port = server.server_address
-                methods = (
-                    ("GET", "/api/set"),
-                    ("POST", "/api/status"),
-                    ("PUT", "/api/set"),
-                )
-                for method, path in methods:
-                    with self.subTest(method=method, path=path):
-                        connection = http.client.HTTPConnection(host, port, timeout=2)
-                        connection.request(method, path)
-                        response = connection.getresponse()
-                        self.assertEqual(response.status, 405)
-                        self.assertIn("Allow", response.headers)
-                        response.read()
-                        connection.close()
-
-    def test_rejects_symlinked_web_root_without_reading_external_index(self) -> None:
-        for symlinked_component in ("web", "agent_manager"):
-            with self.subTest(symlinked_component=symlinked_component):
-                with tempfile.TemporaryDirectory() as tmp:
-                    root = Path(tmp).resolve()
-                    repo, home = root / "repo", root / "home"
-                    write_skill(repo, "docx", "docx")
-                    external = root / f"external-{symlinked_component}"
-
-                    if symlinked_component == "web":
-                        external.mkdir()
-                        (external / "index.html").write_text(
-                            "sensitive-external-file",
-                            encoding="utf-8",
-                        )
-                        (repo / "tools/agent_manager").mkdir(parents=True)
-                        (repo / "tools/agent_manager/web").symlink_to(external)
-                    else:
-                        (external / "web").mkdir(parents=True)
-                        (external / "web/index.html").write_text(
-                            "sensitive-external-file",
-                            encoding="utf-8",
-                        )
-                        (repo / "tools").mkdir()
-                        (repo / "tools/agent_manager").symlink_to(external)
-
-                    with running_http_server(
-                        repo,
-                        home,
-                        root / "Applications",
-                    ) as (_server, _thread, base_url):
-                        with self.assertRaises(urllib.error.HTTPError) as caught:
-                            urllib.request.urlopen(f"{base_url}/", timeout=2)
-
-                        self.assertIn(caught.exception.code, {403, 404})
-                        body = caught.exception.read().decode()
-                        self.assertEqual(
-                            caught.exception.headers.get_content_type(),
-                            "application/json",
-                        )
-                        self.assertNotIn("sensitive-external-file", body)
-
-    def test_manifest_owner_conflict_is_409_but_invalid_manifest_is_500(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            manifest = home / ".gemini/antigravity-cli/plugins/lucas-skills/plugin.json"
-            manifest.parent.mkdir(parents=True)
-            manifest.write_text('{"name":"other-owner"}\n', encoding="utf-8")
-
-            with running_http_server(
-                repo,
-                home,
-                root / "Applications",
-                lambda command: "/bin/agy" if command == "agy" else None,
-            ) as (_server, _thread, base_url):
-                request = {
-                    "skill": "docx",
-                    "tool": "antigravity",
-                    "enabled": True,
-                    "apply": True,
-                }
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(base_url, "/api/set", request)
-                self.assertEqual(caught.exception.code, 409)
-                self.assertEqual(
-                    self._error_payload(caught.exception)["code"],
-                    "target-conflict",
-                )
-
-                manifest.write_text("{\n", encoding="utf-8")
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(base_url, "/api/set", request)
-                self.assertEqual(caught.exception.code, 500)
-                self.assertEqual(
-                    self._error_payload(caught.exception)["code"],
-                    "internal-error",
-                )
-
-            self.assertFalse(
-                os.path.lexists(
-                    home / ".gemini/antigravity-cli/plugins/lucas-skills/skills/docx"
-                )
-            )
-
-    def test_trace_and_connect_are_structured_405_for_static_and_api(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            with running_http_server(repo, home, root / "Applications") as (
-                server,
-                _thread,
-                _base_url,
-            ):
-                host, port = server.server_address
-                requests = (
-                    ("TRACE", "/", "GET"),
-                    ("CONNECT", "/api/status", "GET"),
-                    ("TRACE", "/api/set", "POST"),
-                    ("CONNECT", "/api/shutdown", "POST"),
-                    ("PROPFIND", "/", "GET"),
-                )
-                for method, path, allowed in requests:
-                    with self.subTest(method=method, path=path):
-                        connection = http.client.HTTPConnection(host, port, timeout=2)
-                        connection.request(method, path)
-                        response = connection.getresponse()
-                        self.assertEqual(response.status, 405)
-                        self.assertEqual(response.headers["Allow"], allowed)
-                        self.assertEqual(
-                            response.headers.get_content_type(),
-                            "application/json",
-                        )
-                        self.assertEqual(
-                            json.loads(response.read())["code"],
-                            "method-not-allowed",
-                        )
-                        connection.close()
-
-    def test_set_preview_apply_and_invalid_skill_are_fail_closed(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            with running_http_server(
-                repo,
-                home,
-                root / "Applications",
-                lambda command: "/bin/claude" if command == "claude" else None,
-            ) as (_server, _thread, base_url):
-                preview = json.loads(
-                    self._write_request(
-                        base_url,
-                        "/api/set",
-                        {"all": True, "tool": "claude", "enabled": True, "apply": False},
-                    ).read()
-                )
-                self.assertEqual(preview["mode"], "plan")
-                self.assertEqual(len(preview["changes"]), 1)
-                self.assertFalse(os.path.lexists(home / ".claude/skills/docx"))
-
-                applied = json.loads(
-                    self._write_request(
-                        base_url,
-                        "/api/set",
-                        {"all": True, "tool": "claude", "enabled": True, "apply": True},
-                    ).read()
-                )
-                self.assertEqual(applied["mode"], "apply")
-                self.assertTrue((home / ".claude/skills/docx").is_symlink())
-
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(
-                        base_url,
-                        "/api/set",
-                        {
-                            "skill": "../evil",
-                            "tool": "claude",
-                            "enabled": True,
-                            "apply": True,
-                        },
-                    )
-                self.assertEqual(caught.exception.code, 400)
-                self.assertEqual(self._error_payload(caught.exception)["code"], "invalid-skill")
-                self.assertFalse(os.path.lexists(home / ".claude/evil"))
-
-    def test_conflicted_set_preview_returns_full_plan_then_apply_is_409(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            write_skill(repo, "pdf", "pdf")
-            occupied = home / ".claude/skills/pdf"
-            occupied.mkdir(parents=True)
-            with running_http_server(
-                repo,
-                home,
-                root / "Applications",
-                lambda command: "/bin/claude" if command == "claude" else None,
-            ) as (_server, _thread, base_url):
-                preview_response = self._write_request(
-                    base_url,
-                    "/api/set",
-                    {"all": True, "tool": "claude", "enabled": True, "apply": False},
-                )
-                self.assertEqual(preview_response.status, 200)
-                preview = json.loads(preview_response.read())
-                self.assertFalse(preview["ok"])
-                self.assertEqual(preview["code"], "target-conflict")
-                self.assertEqual(
-                    {item["action"] for item in preview["changes"]},
-                    {"create", "blocked"},
-                )
-                self.assertFalse(os.path.lexists(home / ".claude/skills/docx"))
-
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(
-                        base_url,
-                        "/api/set",
-                        {"all": True, "tool": "claude", "enabled": True, "apply": True},
-                    )
-                self.assertEqual(caught.exception.code, 409)
-                applied = self._error_payload(caught.exception)
-                self.assertEqual(applied["code"], "target-conflict")
-                self.assertEqual(
-                    {item["code"] for item in applied["results"]},
-                    {"applied", "blocked"},
-                )
-                self.assertTrue((home / ".claude/skills/docx").is_symlink())
-                self.assertTrue(occupied.is_dir())
-
-    def test_conflicted_adoption_preview_is_http_200_with_complete_plan(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            skill = write_skill(repo, "docx", "docx")
-            legacy_root = home / "legacy-antigravity"
-            legacy_root.mkdir(parents=True)
-            (legacy_root / "docx").symlink_to(skill)
-            bridge = home / ".gemini/config/plugins/custom-skills/skills"
-            bridge.parent.mkdir(parents=True)
-            bridge.symlink_to(legacy_root)
-            (home / ".gemini/config/skills/docx").mkdir(parents=True)
-            applications = root / "Applications"
-            (applications / "Antigravity.app").mkdir(parents=True)
-
-            with running_http_server(repo, home, applications) as (
-                _server,
-                _thread,
-                base_url,
-            ):
-                response = self._write_request(
-                    base_url,
-                    "/api/adopt",
-                    {"apply": False},
-                )
-                self.assertEqual(response.status, 200)
-                preview = json.loads(response.read())
-                self.assertFalse(preview["ok"])
-                self.assertEqual(preview["code"], "target-conflict")
-                self.assertEqual(
-                    [item["action"] for item in preview["changes"]["link_changes"]],
-                    ["blocked"],
-                )
-                self.assertEqual(len(preview["changes"]["bridge_removals"]), 1)
-                self.assertEqual(
-                    preview["changes"]["bridge_removals"][0]["path"],
-                    str(bridge),
-                )
-                self.assertTrue(bridge.is_symlink())
-
-    def test_target_conflict_is_409_and_preserves_occupied_target(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            occupied = home / ".claude/skills/docx"
-            occupied.mkdir(parents=True)
-            with running_http_server(
-                repo,
-                home,
-                root / "Applications",
-                lambda command: "/bin/claude" if command == "claude" else None,
-            ) as (_server, _thread, base_url):
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(
-                        base_url,
-                        "/api/set",
-                        {
-                            "skill": "docx",
-                            "tool": "claude",
-                            "enabled": True,
-                            "apply": True,
-                        },
-                    )
-                self.assertEqual(caught.exception.code, 409)
-                self.assertEqual(
-                    self._error_payload(caught.exception)["code"],
-                    "target-conflict",
-                )
-                self.assertTrue(occupied.is_dir())
-
-    def test_adopt_requires_apply_and_shutdown_stops_service(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            skill = write_skill(repo, "docx", "docx")
-            legacy = home / ".cc-switch/skills/docx"
-            legacy.parent.mkdir(parents=True)
-            legacy.symlink_to(skill)
-            target = home / ".claude/skills/docx"
-            target.parent.mkdir(parents=True)
-            target.symlink_to(legacy)
-            with running_http_server(
-                repo,
-                home,
-                root / "Applications",
-                lambda command: "/bin/claude" if command == "claude" else None,
-            ) as (_server, thread, base_url):
-                preview = json.loads(
-                    self._write_request(base_url, "/api/adopt", {"apply": False}).read()
-                )
-                self.assertEqual(preview["mode"], "plan")
-                self.assertEqual(Path(os.readlink(target)), legacy)
-                self.assertFalse((home / ".local/state/lucas-skills-manager").exists())
-
-                applied = json.loads(
-                    self._write_request(base_url, "/api/adopt", {"apply": True}).read()
-                )
-                self.assertEqual(applied["mode"], "apply")
-                self.assertEqual(target.resolve(), skill.resolve())
-
-                response = self._write_request(base_url, "/api/shutdown", {})
-                self.assertTrue(json.loads(response.read())["ok"])
-                thread.join(timeout=2)
-                self.assertFalse(thread.is_alive())
-
-    def test_serve_opens_browser_only_when_requested(self) -> None:
-        class FakeServer:
-            server_address = ("127.0.0.1", 43210)
-
-            def serve_forever(self) -> None:
-                return None
-
-            def server_close(self) -> None:
-                return None
-
-        for open_browser in (False, True):
-            with self.subTest(open_browser=open_browser), tempfile.TemporaryDirectory() as tmp:
-                root = Path(tmp).resolve()
-                output = io.StringIO()
-                argv = ["serve"] + (["--open"] if open_browser else [])
-                with (
-                    patch(
-                        "tools.agent_manager.cli.secrets.token_urlsafe",
-                        return_value="generated-token",
-                    ),
-                    patch(
-                        "tools.agent_manager.cli.create_server",
-                        return_value=FakeServer(),
-                    ) as create,
-                    patch("tools.agent_manager.cli.webbrowser.open") as browser_open,
-                ):
-                    code = main(
-                        argv,
-                        home=root / "home",
-                        repo_root=root / "repo",
-                        stdout=output,
-                        applications=root / "Applications",
-                    )
-
-                self.assertEqual(code, 0)
-                self.assertEqual(output.getvalue(), "http://127.0.0.1:43210/\n")
-                self.assertEqual(browser_open.called, open_browser)
-                create.assert_called_once()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import os
 import re
@@ -11,9 +12,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tools.agent_manager import cli as instructions_cli
 from tools.agent_manager import core, instructions
+from tools.agent_manager.cli import main
 from tools.agent_manager.instructions import (
+    InstructionBatchResult,
     InstructionPlanError,
+    InstructionResult,
     InvalidInstructionSource,
     InstructionState,
     apply_instruction_plan,
@@ -122,6 +127,184 @@ def enable_other_instruction_targets(home: Path, repo: Path, *excluded: str) -> 
     for target in build_instruction_targets(home):
         if target.key not in skipped:
             create_instruction_shape(home, repo, target.key, "enabled")
+
+
+class InstructionCliContractTests(unittest.TestCase):
+    def invoke(self, argv: list[str], repo: Path, home: Path) -> tuple[int, dict[str, object]]:
+        output = io.StringIO()
+        code = main(
+            argv,
+            home=home,
+            repo_root=repo,
+            stdout=output,
+            which=lambda _: None,
+            applications=home.parent / "Applications",
+        )
+        return code, json.loads(output.getvalue())
+
+    def test_set_preview_exposes_review_fields_without_results(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            create_instruction_parents(home, "codex")
+
+            code, payload = self.invoke(
+                ["instructions", "set", "--target", "codex", "--on", "--json"],
+                repo,
+                home,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertEqual(payload["mode"], "plan")
+            self.assertEqual(payload["changes"][0]["key"], "codex")
+            self.assertRegex(payload["fingerprint"], r"^[0-9a-f]{64}$")
+            self.assertTrue(payload["snapshot_path"].endswith(f"instructions-{payload['fingerprint']}.json"))
+            self.assertNotIn("results", payload)
+            self.assertFalse(os.path.lexists(home / ".codex/AGENTS.md"))
+
+    def test_replace_preview_and_apply_preserve_the_reviewed_plan_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            create_instruction_parents(home)
+            create_instruction_shape(home, repo, "codex", "conflict")
+            enable_other_instruction_targets(home, repo, "codex")
+
+            preview_code, preview = self.invoke(
+                ["instructions", "adopt", "--replace-existing", "--json"],
+                repo,
+                home,
+            )
+            apply_code, applied = self.invoke(
+                [
+                    "instructions", "adopt", "--replace-existing", "--apply",
+                    "--expect-fingerprint", preview["fingerprint"], "--json",
+                ],
+                repo,
+                home,
+            )
+
+            self.assertEqual((preview_code, apply_code), (0, 0))
+            self.assertEqual(applied["changes"], preview["changes"])
+            self.assertEqual(applied["fingerprint"], preview["fingerprint"])
+            self.assertEqual(applied["snapshot_path"], preview["snapshot_path"])
+            self.assertIn("results", applied)
+            self.assertTrue(direct_link(home / ".codex/AGENTS.md", repo / "AGENTS.md"))
+
+    def test_post_apply_rescan_failure_preserves_the_execution_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = build_repository(root)
+            create_instruction_parents(home, "codex")
+            preview_code, preview = self.invoke(
+                ["instructions", "set", "--target", "codex", "--on", "--json"],
+                repo,
+                home,
+            )
+            self.assertEqual(preview_code, 0)
+            target = home / ".codex/AGENTS.md"
+            result = InstructionBatchResult(
+                True,
+                (InstructionResult(True, "applied", "codex", target, "created link"),),
+                Path(preview["snapshot_path"]),
+            )
+            initial_state = instructions_cli.build_agent_state(
+                repo,
+                home,
+                lambda _: None,
+                root / "Applications",
+            )
+            output = io.StringIO()
+            with (
+                patch(
+                    "tools.agent_manager.cli.build_agent_state",
+                    side_effect=[initial_state, OSError("post scan failed")],
+                ),
+                patch(
+                    "tools.agent_manager.cli.apply_instruction_plan",
+                    return_value=result,
+                ) as apply_mock,
+            ):
+                code = main(
+                    [
+                        "instructions", "set", "--target", "codex", "--on",
+                        "--apply", "--expect-fingerprint", preview["fingerprint"], "--json",
+                    ],
+                    home=home,
+                    repo_root=repo,
+                    stdout=output,
+                    which=lambda _: None,
+                    applications=root / "Applications",
+                )
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(code, 1)
+            apply_mock.assert_called_once()
+            self.assertEqual(payload["changes"], preview["changes"])
+            self.assertEqual(payload["fingerprint"], preview["fingerprint"])
+            self.assertEqual(payload["snapshot_path"], preview["snapshot_path"])
+            self.assertEqual(payload["results"][0]["code"], "applied")
+            self.assertEqual(payload["code"], "post-apply-verification-failed")
+            self.assertIn("apply completed", payload["message"])
+            self.assertIn("post scan failed", payload["message"])
+
+    def test_text_previews_print_executable_instruction_next_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            create_instruction_parents(home)
+            create_instruction_shape(home, repo, "codex", "conflict")
+            enable_other_instruction_targets(home, repo, "codex")
+            cases = (
+                (
+                    ["instructions", "set", "--target", "shared", "--off"],
+                    "agent-manager instructions set --target shared --off --apply --expect-fingerprint ",
+                ),
+                (
+                    ["instructions", "adopt", "--replace-existing"],
+                    "agent-manager instructions adopt --replace-existing --apply --expect-fingerprint ",
+                ),
+            )
+            for argv, prefix in cases:
+                with self.subTest(argv=argv):
+                    output = io.StringIO()
+                    code = main(
+                        argv,
+                        home=home,
+                        repo_root=repo,
+                        stdout=output,
+                        which=lambda _: None,
+                        applications=root / "Applications",
+                    )
+                    self.assertEqual(code, 0)
+                    next_line = next(
+                        line for line in output.getvalue().splitlines()
+                        if line.startswith("Next: ")
+                    )
+                    self.assertTrue(next_line.startswith(f"Next: {prefix}"))
+                    self.assertRegex(next_line, r"[0-9a-f]{64}$")
+
+    def test_blocked_text_preview_prints_the_parent_fix_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = build_repository(root)
+            output = io.StringIO()
+
+            code = main(
+                ["instructions", "set", "--target", "codex", "--on"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda _: None,
+                applications=root / "Applications",
+            )
+
+            self.assertEqual(code, 1)
+            self.assertIn(
+                f"Next: mkdir -m 700 {home / '.codex'}\n",
+                output.getvalue(),
+            )
+            self.assertNotIn("repeat the command", output.getvalue())
 
 
 class AtomicInstallPrimitiveTests(unittest.TestCase):
