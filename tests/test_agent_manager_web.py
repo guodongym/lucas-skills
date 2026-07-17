@@ -1023,6 +1023,208 @@ class WebPageTests(unittest.TestCase):
         self.assertIn("detailButton.addEventListener", self.javascript)
         self.assertNotIn('row.addEventListener("click"', self.javascript)
 
+    def test_inventory_view_explains_and_filters_records(self) -> None:
+        for element_id in (
+            "inventory-summary",
+            "inventory-result-count",
+            "inventory-query",
+            "inventory-tool-filter",
+            "inventory-source-filter",
+            "inventory-status-filter",
+            "inventory-clear-filters",
+            "inventory-source-legend",
+        ):
+            self.assertIn(f'id="{element_id}"', self.page)
+        scope_buttons = [
+            attrs
+            for tag, attrs in self.parser.start_tags
+            if tag == "button" and attrs.get("data-inventory-scope")
+        ]
+        self.assertEqual(
+            {attrs["data-inventory-scope"] for attrs in scope_buttons},
+            {"managed-or-flagged", "all", "managed", "flagged"},
+        )
+        selected = [attrs for attrs in scope_buttons if attrs.get("aria-pressed") == "true"]
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0]["data-inventory-scope"], "managed-or-flagged")
+        legend = next(
+            tag
+            for tag, attrs in self.parser.start_tags
+            if attrs.get("id") == "inventory-source-legend"
+        )
+        self.assertEqual(legend, "details")
+        for heading in ("Skill", "来源", "工具", "状态", "路径", "操作"):
+            self.assertIn(f">{heading}</th>", self.page)
+
+    def test_inventory_refresh_preserves_filters_and_clear_restores_defaults(self) -> None:
+        for contract in (
+            "inventoryRecords: []",
+            'inventoryScope: "managed-or-flagged"',
+            "state.inventoryRecords = asArray(payload.inventory)",
+            "renderInventory()",
+            "resetInventoryFilters",
+            'state.inventoryScope = "managed-or-flagged"',
+            'document.getElementById("inventory-query").value = ""',
+            'document.getElementById("inventory-tool-filter").value = "all"',
+            'document.getElementById("inventory-source-filter").value = "all"',
+            'document.getElementById("inventory-status-filter").value = "all"',
+            "当前筛选下没有库存记录。",
+        ):
+            self.assertIn(contract, self.javascript)
+        for css_class in (
+            ".data-panel",
+            ".list-toolbar",
+            ".segmented-control",
+            ".status-badge",
+            ".table-action",
+            ".inventory-row-managed",
+            ".inventory-row-flagged",
+        ):
+            self.assertIn(css_class, self.css)
+        self.assertRegex(
+            self.css,
+            r"\.inventory-path-cell \.path-text \{(?:.|\n)*?display: block;",
+        )
+
+    def test_management_lists_share_alignment_contract(self) -> None:
+        for contract in (
+            "skill-identity",
+            "skill-description-clamped",
+            "route-status-button",
+            "compact-action",
+        ):
+            self.assertIn(contract, self.javascript)
+        self.assertIn('class="instruction-grid-header"', self.page)
+        for heading in ("目标", "加载位置", "覆盖工具", "状态", "操作"):
+            self.assertIn(f">{heading}<", self.page)
+        for panel in ("skills-panel", "instructions-panel", "inventory-panel"):
+            self.assertIn(panel, self.page)
+        self.assertGreaterEqual(self.page.count("data-panel"), 3)
+        for css_class in (
+            ".skill-identity",
+            ".skill-description-clamped",
+            ".route-status-button",
+            ".instruction-grid-header",
+            ".compact-action",
+        ):
+            self.assertIn(css_class, self.css)
+
+    def test_inventory_presentations_use_chinese_labels(self) -> None:
+        result = self._run_exports(
+            "(() => ({"
+            "sources: ['managed','plugin','built-in','local-copy','external-link','broken','mystery']"
+            ".map(value => AgentManagerTest.inventorySourcePresentation(value)),"
+            "flags: ['duplicate-name','broken-link','invalid-skill:missing SKILL.md','mystery']"
+            ".map(value => AgentManagerTest.inventoryFlagPresentation(value))"
+            "}))()"
+        )
+        self.assertEqual(
+            [item["label"] for item in result["sources"]],
+            [
+                "仓库受管",
+                "插件提供",
+                "工具内置",
+                "本地独立",
+                "外部链接",
+                "无效条目",
+                "其他来源",
+            ],
+        )
+        self.assertEqual(
+            [item["label"] for item in result["flags"]],
+            ["名称重复", "链接已失效", "Skill 无效", "未知标记"],
+        )
+        self.assertEqual(result["flags"][2]["raw"], "invalid-skill:missing SKILL.md")
+        self.assertEqual(result["flags"][3]["raw"], "mystery")
+
+    def test_filter_inventory_records_combines_all_filters(self) -> None:
+        records = self._inventory_filter_records()
+        result = self._run_exports(
+            "(() => { const records = "
+            f"{json.dumps(records)};"
+            "return {"
+            "defaultScope: AgentManagerTest.filterInventoryRecords(records, "
+            "{scope:'managed-or-flagged',query:'',tool:'all',source:'all',status:'all'}),"
+            "combined: AgentManagerTest.filterInventoryRecords(records, "
+            "{scope:'all',query:'shared',tool:'claude',source:'plugin',status:'flagged'}),"
+            "clean: AgentManagerTest.filterInventoryRecords(records, "
+            "{scope:'all',query:'',tool:'codex',source:'plugin',status:'clean'})"
+            "}; })()"
+        )
+        self.assertEqual(
+            [record["slug"] for record in result["defaultScope"]],
+            ["docx", "pdf", "reader"],
+        )
+        self.assertEqual([record["slug"] for record in result["combined"]], ["reader"])
+        self.assertEqual([record["slug"] for record in result["clean"]], ["creator"])
+
+    def test_inventory_summary_and_sorting(self) -> None:
+        records = self._inventory_filter_records()
+        result = self._run_exports(
+            "(() => { const records = "
+            f"{json.dumps(records)};"
+            "const visible = AgentManagerTest.filterInventoryRecords(records, "
+            "{scope:'managed-or-flagged',query:'',tool:'all',source:'all',status:'all'});"
+            "const original = records.map(record => record.slug);"
+            "const sorted = AgentManagerTest.sortInventoryRecords(records);"
+            "return {summary: AgentManagerTest.inventorySummary(records, visible),"
+            "sorted: sorted.map(record => record.slug), original,"
+            "after: records.map(record => record.slug)}; })()"
+        )
+        self.assertEqual(
+            result["summary"],
+            {"managed": 2, "flagged": 2, "total": 5, "visible": 3},
+        )
+        self.assertEqual(result["sorted"], ["pdf", "reader", "docx", "creator", "writer"])
+        self.assertEqual(result["after"], result["original"])
+
+    @staticmethod
+    def _inventory_filter_records() -> list[dict[str, object]]:
+        return [
+            {
+                "slug": "docx",
+                "name": "Word documents",
+                "source_type": "managed",
+                "tools": ["claude"],
+                "path": "/repo/skills/docx",
+                "flags": [],
+            },
+            {
+                "slug": "pdf",
+                "name": "PDF",
+                "source_type": "managed",
+                "tools": ["codex"],
+                "path": "/repo/skills/pdf",
+                "flags": ["duplicate-name"],
+            },
+            {
+                "slug": "reader",
+                "name": "Reader",
+                "source_type": "plugin",
+                "tools": ["claude"],
+                "path": "/plugins/reader",
+                "resolved_target": "/shared/reader",
+                "flags": ["broken-link"],
+            },
+            {
+                "slug": "creator",
+                "name": "Creator",
+                "source_type": "plugin",
+                "tools": ["codex"],
+                "path": "/plugins/creator",
+                "flags": [],
+            },
+            {
+                "slug": "writer",
+                "name": "Writer",
+                "source_type": "local-copy",
+                "tools": ["copilot"],
+                "path": "/local/writer",
+                "raw_target": "/shared/writer",
+                "flags": [],
+            },
+        ]
+
     def test_filter_skill_rows_combines_query_and_state_filter(self) -> None:
         rows = [
             {"slug": "docx", "name": "Word documents", "description": "Create documents", "states": ["enabled", "disabled"]},

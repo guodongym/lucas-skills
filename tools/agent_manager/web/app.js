@@ -12,6 +12,8 @@
     status: null,
     inventoryLoaded: false,
     inventoryLoading: false,
+    inventoryRecords: [],
+    inventoryScope: "managed-or-flagged",
     activeView: "overview",
     token: "",
     selectedSkills: new Set(),
@@ -49,6 +51,95 @@
           : states.includes(wantedState));
       return matchesQuery && matchesState;
     });
+  }
+
+  function inventorySourcePresentation(sourceType) {
+    const presentations = {
+      managed: ["仓库受管", "由当前仓库统一管理并链接到工具加载位置。"],
+      plugin: ["插件提供", "由已安装插件提供，不受当前仓库直接管理。"],
+      "built-in": ["工具内置", "随工具提供，不受当前仓库管理。"],
+      "local-copy": ["本地独立", "工具目录中的独立副本，未链接到当前仓库。"],
+      "external-link": ["外部链接", "链接到当前仓库之外的位置。"],
+      broken: ["无效条目", "路径或链接当前无法正常读取。"],
+    };
+    const [label, description] = presentations[sourceType] || [
+      "其他来源",
+      `服务端返回了未识别的来源类型：${sourceType || "空值"}。`,
+    ];
+    return { label, description };
+  }
+
+  function inventoryFlagPresentation(flag) {
+    const raw = String(flag || "");
+    let label = "未知标记";
+    if (raw === "duplicate-name") label = "名称重复";
+    else if (raw === "broken-link") label = "链接已失效";
+    else if (raw.startsWith("invalid-skill:")) label = "Skill 无效";
+    return { label, raw };
+  }
+
+  function inventoryRecordIsFlagged(record) {
+    return asArray(record && record.flags).length > 0
+      || (record && record.source_type) === "broken";
+  }
+
+  function inventorySummary(records, visibleRecords) {
+    const allRecords = asArray(records);
+    return {
+      managed: allRecords.filter((record) => record.source_type === "managed").length,
+      flagged: allRecords.filter(inventoryRecordIsFlagged).length,
+      total: allRecords.length,
+      visible: asArray(visibleRecords).length,
+    };
+  }
+
+  function filterInventoryRecords(records, filters) {
+    const selected = filters || {};
+    const scope = selected.scope || "managed-or-flagged";
+    const query = String(selected.query || "").trim().toLocaleLowerCase();
+    const tool = selected.tool || "all";
+    const source = selected.source || "all";
+    const status = selected.status || "all";
+    return asArray(records).filter((record) => {
+      const flagged = inventoryRecordIsFlagged(record);
+      const matchesScope = scope === "all"
+        || (scope === "managed" && record.source_type === "managed")
+        || (scope === "flagged" && flagged)
+        || (scope === "managed-or-flagged" && (
+          record.source_type === "managed" || flagged
+        ));
+      const searchable = [
+        record.name,
+        record.slug,
+        record.path,
+        record.raw_target,
+        record.resolved_target,
+      ].filter(Boolean).join(" ").toLocaleLowerCase();
+      const matchesQuery = !query || searchable.includes(query);
+      const matchesTool = tool === "all" || asArray(record.tools).includes(tool);
+      const matchesSource = source === "all" || record.source_type === source;
+      const matchesStatus = status === "all"
+        || (status === "flagged" && flagged)
+        || (status === "clean" && !flagged);
+      return matchesScope && matchesQuery && matchesTool && matchesSource && matchesStatus;
+    });
+  }
+
+  function sortInventoryRecords(records) {
+    const tier = (record) => {
+      if (inventoryRecordIsFlagged(record)) return 0;
+      if (record.source_type === "managed") return 1;
+      return 2;
+    };
+    const compareText = (left, right) => String(left || "").localeCompare(
+      String(right || ""), "zh-CN", { sensitivity: "base" },
+    );
+    return [...asArray(records)].sort((left, right) => (
+      tier(left) - tier(right)
+      || compareText(left.name || left.slug, right.name || right.slug)
+      || compareText(asArray(left.tools).join(","), asArray(right.tools).join(","))
+      || compareText(left.path, right.path)
+    ));
   }
 
   function summarizePlan(plan) {
@@ -562,6 +653,11 @@
     globalThis.AgentManagerTest = Object.freeze({
       buildTopology,
       filterSkillRows,
+      inventorySourcePresentation,
+      inventoryFlagPresentation,
+      inventorySummary,
+      filterInventoryRecords,
+      sortInventoryRecords,
       compactHomePath,
       summarizePlan,
       aggregateSkillTarget,
@@ -1328,8 +1424,9 @@
     }
     filtered.forEach((record) => {
       const row = node("tr");
-      const heading = node("th");
+      const heading = node("th", null, "skill-heading-cell");
       heading.setAttribute("scope", "row");
+      const identity = node("div", null, "skill-identity");
       const selection = node("input");
       selection.setAttribute("type", "checkbox");
       selection.setAttribute("aria-label", `选择 ${record.name || record.slug}`);
@@ -1339,19 +1436,29 @@
         else state.selectedSkills.delete(record.slug);
         renderSkillsBulkControls(rows);
       });
-      heading.appendChild(selection);
-      heading.appendChild(node("strong", record.name || record.slug));
-      heading.appendChild(node("span", record.slug, "skill-description path-text"));
-      if (record.description) heading.appendChild(node("span", record.description, "skill-description"));
+      identity.appendChild(selection);
+      const copy = node("div", null, "skill-identity-copy");
+      copy.appendChild(node("strong", record.name || record.slug));
+      copy.appendChild(node("span", record.slug, "skill-description path-text"));
+      if (record.description) {
+        const description = node(
+          "span", record.description, "skill-description skill-description-clamped",
+        );
+        description.title = record.description;
+        copy.appendChild(description);
+      }
+      identity.appendChild(copy);
+      heading.appendChild(identity);
       row.appendChild(heading);
       TOOL_FAMILIES.forEach((family) => {
         const cell = node("td");
         const aggregate = aggregateSkillTarget(record.targets, family.key);
         const [label, stateClass] = statePresentation(aggregate.state);
-        const button = node("button", null, "cell-button");
+        const button = node("button", null, "cell-button route-status-button");
         button.id = `skill-${record.slug}-${family.key}-details`;
         button.setAttribute("type", "button");
         button.appendChild(node("span", label, `state-text ${stateClass}`));
+        button.appendChild(node("span", "详情", "route-button-hint"));
         button.addEventListener("click", () => showSkillDetails(
           record, family, aggregate, label,
         ));
@@ -1388,32 +1495,38 @@
     }
     records.forEach((record) => {
       const row = node("li", null, "instruction-row");
-      const button = node("button", record.key || "未知目标");
+      const button = node("button", record.key || "未知目标", "instruction-target-button");
       button.id = `instruction-${record.key}-details`;
       button.setAttribute("type", "button");
       const path = record.path || "需要在工具设置中手动配置";
-      appendPath(row, path, "instruction-path");
-      row.appendChild(node(
+      const pathNode = appendPath(row, path, "instruction-path");
+      pathNode.setAttribute("data-label", "加载位置");
+      const coverage = node(
         "span",
         surfaceCoverageLabel(record.surfaces, true) || record.key || "—",
-      ));
+      );
+      coverage.setAttribute("data-label", "覆盖工具");
+      row.appendChild(coverage);
       const [label, stateClass] = statePresentation(record.state);
-      row.appendChild(node("span", label, `state-text ${stateClass}`));
+      const status = node("span", label, `state-text ${stateClass}`);
+      status.setAttribute("data-label", "状态");
+      row.appendChild(status);
       const actions = node("div", null, "instruction-actions");
+      actions.setAttribute("data-label", "操作");
       const enabled = instructions.source_text !== null;
       const enable = appendOperationButton(actions, "预览启用", () => previewInstruction(
         record.key, { kind: "set", on: true },
-      ));
+      ), "compact-action");
       const disable = appendOperationButton(actions, "预览停用", () => previewInstruction(
         record.key, { kind: "set", on: false },
-      ));
+      ), "compact-action");
       const replaceable = ["conflict", "broken"].includes(record.state)
         && record.message !== "target is a directory";
       const adopt = appendOperationButton(actions, "预览采用", () => previewInstruction(
         record.key,
         { kind: "adopt", replaceExisting: false },
         replaceable,
-      ));
+      ), "compact-action");
       enable.id = `instruction-${record.key}-enable`;
       disable.id = `instruction-${record.key}-disable`;
       adopt.id = `instruction-${record.key}-adopt`;
@@ -1457,10 +1570,18 @@
     asArray(instructions.manual_surfaces).forEach((record) => {
       const row = node("li", null, "instruction-row manual-instruction-row");
       row.appendChild(node("strong", "Copilot Desktop"));
-      row.appendChild(node("span", "无托管路径，仅支持手工设置", "instruction-path"));
-      row.appendChild(node("span", "手动配置", "state-text state-muted"));
-      const guidance = node("div", null, "manual-guidance");
-      const copy = node("button", "复制仓库个人约束");
+      const path = node("span", "无托管路径，仅支持手工设置", "instruction-path");
+      path.setAttribute("data-label", "加载位置");
+      row.appendChild(path);
+      const coverage = node("span", "Copilot Desktop", "instruction-coverage");
+      coverage.setAttribute("data-label", "覆盖工具");
+      row.appendChild(coverage);
+      const status = node("span", "手动配置", "state-text state-muted");
+      status.setAttribute("data-label", "状态");
+      row.appendChild(status);
+      const guidance = node("div", null, "instruction-actions manual-guidance");
+      guidance.setAttribute("data-label", "操作");
+      const copy = node("button", "复制仓库个人约束", "compact-action");
       copy.setAttribute("type", "button");
       copy.disabled = instructions.source_text === null;
       copy.addEventListener("click", async () => {
@@ -1481,6 +1602,8 @@
           "operation-error",
         ));
       }
+      const setup = node("details", null, "manual-setup");
+      setup.appendChild(node("summary", "设置步骤"));
       const steps = node("ol", null, "manual-steps");
       [
         "打开 GitHub Copilot Desktop Settings。",
@@ -1489,7 +1612,8 @@
         "保存设置。",
         "开始一个新会话。",
       ].forEach((step) => steps.appendChild(node("li", step)));
-      guidance.appendChild(steps);
+      setup.appendChild(steps);
+      guidance.appendChild(setup);
       row.appendChild(guidance);
       list.appendChild(row);
     });
@@ -1523,7 +1647,8 @@
         });
       state.inventoryLoaded = true;
       state.lastInventoryProblem = null;
-      renderInventory(asArray(payload.inventory));
+      state.inventoryRecords = asArray(payload.inventory);
+      renderInventory();
       return payload;
     } catch (error) {
       state.lastInventoryProblem = error.payload || {
@@ -1536,9 +1661,10 @@
       const row = node("tr");
       const message = error.payload && error.payload.message ? error.payload.message : error.message;
       const cell = node("td", `库存加载失败：${message} 请检查路径权限后重试。`, "empty-cell");
-      cell.setAttribute("colspan", "5");
+      cell.setAttribute("colspan", "6");
       row.appendChild(cell);
       body.appendChild(row);
+      document.getElementById("inventory-result-count").textContent = "加载失败";
       return null;
     } finally {
       state.inventoryLoading = false;
@@ -1547,47 +1673,152 @@
     }
   }
 
-  function renderInventory(records) {
+  function inventoryFiltersFromControls() {
+    return {
+      scope: state.inventoryScope,
+      query: document.getElementById("inventory-query").value,
+      tool: document.getElementById("inventory-tool-filter").value,
+      source: document.getElementById("inventory-source-filter").value,
+      status: document.getElementById("inventory-status-filter").value,
+    };
+  }
+
+  function resetInventoryFilters() {
+    state.inventoryScope = "managed-or-flagged";
+    document.getElementById("inventory-query").value = "";
+    document.getElementById("inventory-tool-filter").value = "all";
+    document.getElementById("inventory-source-filter").value = "all";
+    document.getElementById("inventory-status-filter").value = "all";
+    renderInventory();
+  }
+
+  function renderInventorySummary(summary) {
+    const container = document.getElementById("inventory-summary");
+    clearNode(container);
+    [
+      ["仓库受管", summary.managed, "summary-managed"],
+      ["需要处理", summary.flagged, "summary-flagged"],
+      ["当前结果", summary.visible, "summary-visible"],
+      ["全部库存", summary.total, "summary-total"],
+    ].forEach(([label, value, className]) => {
+      const item = node("span", null, `inventory-summary-item ${className}`);
+      item.appendChild(node("strong", value));
+      item.appendChild(node("small", label));
+      container.appendChild(item);
+    });
+  }
+
+  function inventoryToolLabel(tool) {
+    const family = TOOL_FAMILIES.find((item) => item.key === tool);
+    return family ? family.label : tool;
+  }
+
+  function inventoryStatusLabels(record) {
+    const flags = asArray(record.flags).map(inventoryFlagPresentation);
+    if (!flags.length && record.source_type === "broken") {
+      return [{ label: "路径无效", raw: "broken" }];
+    }
+    return flags;
+  }
+
+  function showInventoryDetails(record) {
+    const source = inventorySourcePresentation(record.source_type);
+    const statuses = inventoryStatusLabels(record);
+    showDetails(
+      `库存 · ${record.name || record.slug}`,
+      [
+        ["Slug", record.slug],
+        ["来源", `${source.label}（${record.source_type || "空值"}）`],
+        ["工具", asArray(record.tools).map(inventoryToolLabel).join(", ")],
+        ["路径", record.path, true],
+        ["原始目标", record.raw_target, true],
+        ["解析目标", record.resolved_target, true],
+        ["界面", asArray(record.surfaces).join(", ")],
+        ["原始标记", statuses.map((item) => item.raw).join(", ") || "无"],
+      ],
+      statuses.length
+        ? `需要处理：${statuses.map((item) => item.label).join("、")}`
+        : source.description,
+    );
+  }
+
+  function renderInventory() {
+    document.querySelectorAll("[data-inventory-scope]").forEach((button) => {
+      button.setAttribute(
+        "aria-pressed",
+        String(button.getAttribute("data-inventory-scope") === state.inventoryScope),
+      );
+    });
+    const filtered = filterInventoryRecords(
+      state.inventoryRecords,
+      inventoryFiltersFromControls(),
+    );
+    const records = sortInventoryRecords(filtered);
+    const summary = inventorySummary(state.inventoryRecords, records);
+    renderInventorySummary(summary);
+    document.getElementById("inventory-result-count").textContent = `显示 ${summary.visible} / ${summary.total} 项`;
     const body = document.getElementById("inventory-body");
     clearNode(body);
     if (!records.length) {
       const row = node("tr");
-      const cell = node("td", "全局库存为空。请确认各工具已安装并包含 Skill 目录。", "empty-cell");
-      cell.setAttribute("colspan", "5");
+      const cell = node("td", "当前筛选下没有库存记录。", "empty-cell");
+      cell.setAttribute("colspan", "6");
       row.appendChild(cell);
       body.appendChild(row);
       return;
     }
     records.forEach((record) => {
-      const row = node("tr");
+      const flagged = inventoryRecordIsFlagged(record);
+      const rowClasses = ["inventory-row"];
+      if (record.source_type === "managed") rowClasses.push("inventory-row-managed");
+      if (flagged) rowClasses.push("inventory-row-flagged");
+      const row = node("tr", null, rowClasses.join(" "));
       const heading = node("th");
       heading.setAttribute("scope", "row");
-      const detailButton = node(
-        "button",
-        record.name || record.slug,
-        "inventory-detail-button",
-      );
-      detailButton.setAttribute("type", "button");
-      detailButton.addEventListener("click", () => {
-        showDetails(
-          `库存 · ${record.name || record.slug}`,
-          [
-            ["路径", record.path, true],
-            ["原始目标", record.raw_target, true],
-            ["解析目标", record.resolved_target, true],
-            ["界面", asArray(record.surfaces).join(", ")],
-          ],
-          asArray(record.flags).length ? `标记：${record.flags.join(", ")}` : "服务端未报告异常标记。",
-        );
-      });
-      heading.appendChild(detailButton);
+      const identity = node("div", null, "inventory-identity");
+      identity.appendChild(node("strong", record.name || record.slug));
+      if (record.slug && record.slug !== record.name) {
+        identity.appendChild(node("span", record.slug, "path-text"));
+      }
+      heading.appendChild(identity);
       row.appendChild(heading);
-      row.appendChild(node("td", record.source_type || "—"));
-      row.appendChild(node("td", asArray(record.tools).join(", ") || "—"));
-      const pathCell = node("td");
+
+      const source = inventorySourcePresentation(record.source_type);
+      const sourceCell = node("td");
+      const sourceBadge = node("span", source.label, `source-badge source-${record.source_type || "unknown"}`);
+      sourceBadge.title = source.description;
+      sourceCell.appendChild(sourceBadge);
+      row.appendChild(sourceCell);
+
+      row.appendChild(node(
+        "td",
+        asArray(record.tools).map(inventoryToolLabel).join(", ") || "—",
+        "inventory-tools",
+      ));
+
+      const statusCell = node("td", null, "inventory-statuses");
+      const statuses = inventoryStatusLabels(record);
+      if (!statuses.length) {
+        statusCell.appendChild(node("span", "正常", "status-badge status-badge-healthy"));
+      } else {
+        statuses.forEach((status) => {
+          const badge = node("span", status.label, "status-badge status-badge-attention");
+          badge.title = status.raw;
+          statusCell.appendChild(badge);
+        });
+      }
+      row.appendChild(statusCell);
+
+      const pathCell = node("td", null, "inventory-path-cell");
       appendPath(pathCell, record.path, "path-text");
       row.appendChild(pathCell);
-      row.appendChild(node("td", asArray(record.flags).join(", ") || "无"));
+
+      const actionCell = node("td", null, "inventory-action-cell");
+      const detailButton = node("button", "查看详情", "inventory-detail-button table-action");
+      detailButton.setAttribute("type", "button");
+      detailButton.addEventListener("click", () => showInventoryDetails(record));
+      actionCell.appendChild(detailButton);
+      row.appendChild(actionCell);
       body.appendChild(row);
     });
   }
@@ -1629,6 +1860,18 @@
     });
     document.getElementById("refresh-button").addEventListener("click", loadStatus);
     document.getElementById("inventory-refresh-button").addEventListener("click", () => loadInventory(true));
+    document.querySelectorAll("[data-inventory-scope]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.inventoryScope = button.getAttribute("data-inventory-scope");
+        renderInventory();
+      });
+    });
+    document.getElementById("inventory-query").addEventListener("input", renderInventory);
+    ["inventory-tool-filter", "inventory-source-filter", "inventory-status-filter"]
+      .forEach((id) => document.getElementById(id).addEventListener("change", renderInventory));
+    document.getElementById("inventory-clear-filters").addEventListener(
+      "click", resetInventoryFilters,
+    );
     document.getElementById("shutdown-button").addEventListener("click", shutdownService);
     document.getElementById("skills-enable-button").addEventListener("click", () => previewSkillSelection({
       kind: "set",

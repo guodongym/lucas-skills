@@ -77,23 +77,25 @@
             </div>
             <p>选择一行可查看各工具的完整路径与服务端说明。</p>
           </div>
-          <div class="filter-row">
-            <label>搜索 Skill<input id="skill-query" type="search" placeholder="名称或 slug"></label>
-            <label>状态<select id="skill-state-filter"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="partial">部分启用</option><option value="disabled">未启用</option><option value="attention">需要处理</option></select></label>
-          </div>
-          <div id="skills-bulk-controls" class="operation-bar" hidden>
-            <span id="skills-selection-count">已选择 0 项</span>
-            <label>目标工具<select id="skills-bulk-tool"><option value="all">全部工具</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="copilot">Copilot</option><option value="antigravity">Antigravity</option></select></label>
-            <button id="skills-enable-button" type="button">预览启用</button>
-            <button id="skills-disable-button" type="button">预览停用</button>
-            <button id="skills-adopt-button" type="button">预览采用现有路由</button>
-          </div>
-          <p class="scroll-hint">表格可横向滚动以查看全部工具。</p>
-          <div class="table-scroller">
-            <table id="skills-table">
-              <thead><tr><th scope="col"><label class="select-all-label"><input id="skills-select-all" type="checkbox"> 全选 Skills</label></th><th scope="col">Claude</th><th scope="col">Codex</th><th scope="col">Copilot</th><th scope="col">Antigravity</th></tr></thead>
-              <tbody id="skills-body"><tr><td colspan="5">正在读取 Skills…</td></tr></tbody>
-            </table>
+          <div class="data-panel skills-panel">
+            <div class="filter-row">
+              <label>搜索 Skill<input id="skill-query" type="search" placeholder="名称或 slug"></label>
+              <label>状态<select id="skill-state-filter"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="partial">部分启用</option><option value="disabled">未启用</option><option value="attention">需要处理</option></select></label>
+            </div>
+            <div id="skills-bulk-controls" class="operation-bar" hidden>
+              <span id="skills-selection-count">已选择 0 项</span>
+              <label>目标工具<select id="skills-bulk-tool"><option value="all">全部工具</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="copilot">Copilot</option><option value="antigravity">Antigravity</option></select></label>
+              <button id="skills-enable-button" type="button">预览启用</button>
+              <button id="skills-disable-button" type="button">预览停用</button>
+              <button id="skills-adopt-button" type="button">预览采用现有路由</button>
+            </div>
+            <p class="scroll-hint">表格可横向滚动以查看全部工具。</p>
+            <div class="table-scroller">
+              <table id="skills-table">
+                <thead><tr><th scope="col"><label class="select-all-label"><input id="skills-select-all" type="checkbox"> 全选 Skills</label></th><th scope="col">Claude</th><th scope="col">Codex</th><th scope="col">Copilot</th><th scope="col">Antigravity</th></tr></thead>
+                <tbody id="skills-body"><tr><td colspan="5">正在读取 Skills…</td></tr></tbody>
+              </table>
+            </div>
           </div>
         </section>
 
@@ -105,7 +107,10 @@
             </div>
             <p>每条记录展示目标、覆盖范围和当前来源。</p>
           </div>
-          <ul id="instructions-list" class="instruction-list"><li>正在读取个人约束…</li></ul>
+          <div class="data-panel instructions-panel">
+            <div class="instruction-grid-header" aria-hidden="true"><span>目标</span><span>加载位置</span><span>覆盖工具</span><span>状态</span><span>操作</span></div>
+            <ul id="instructions-list" class="instruction-list"><li>正在读取个人约束…</li></ul>
+          </div>
         </section>
 
         <section id="inventory-view" class="view" data-view-panel="inventory" aria-labelledby="inventory-title" hidden>
@@ -114,13 +119,72 @@
               <span class="eyebrow">GLOBAL INVENTORY</span>
               <h2 id="inventory-title">全局库存</h2>
             </div>
-            <button id="inventory-refresh-button" type="button">刷新库存</button>
+            <p>默认聚焦当前仓库受管项和需要处理的异常，也可切换为全部工具库存。</p>
           </div>
-          <div class="table-scroller">
-            <table id="inventory-table">
-              <thead><tr><th scope="col">Skill</th><th scope="col">来源</th><th scope="col">工具</th><th scope="col">路径</th><th scope="col">标记</th></tr></thead>
-              <tbody id="inventory-body"><tr><td colspan="5">进入此视图后加载库存。</td></tr></tbody>
-            </table>
+          <div class="data-panel inventory-panel">
+            <div class="inventory-overview">
+              <div id="inventory-summary" class="inventory-summary" aria-label="库存摘要">
+                <span class="summary-placeholder">进入此视图后统计库存。</span>
+              </div>
+              <button id="inventory-refresh-button" type="button">刷新库存</button>
+            </div>
+            <div class="inventory-scope-row">
+              <div class="segmented-control" aria-label="库存范围">
+                <button type="button" data-inventory-scope="managed-or-flagged" aria-pressed="true">受管 + 异常</button>
+                <button type="button" data-inventory-scope="all" aria-pressed="false">全部库存</button>
+                <button type="button" data-inventory-scope="managed" aria-pressed="false">仅受管</button>
+                <button type="button" data-inventory-scope="flagged" aria-pressed="false">仅异常</button>
+              </div>
+              <strong id="inventory-result-count" class="result-count">等待加载</strong>
+            </div>
+            <div class="list-toolbar" aria-label="库存筛选">
+              <label class="toolbar-search">搜索
+                <input id="inventory-query" type="search" placeholder="名称、slug 或路径">
+              </label>
+              <label>工具
+                <select id="inventory-tool-filter">
+                  <option value="all">全部工具</option>
+                  <option value="claude">Claude</option>
+                  <option value="codex">Codex</option>
+                  <option value="copilot">Copilot</option>
+                  <option value="antigravity">Antigravity</option>
+                </select>
+              </label>
+              <label>来源
+                <select id="inventory-source-filter">
+                  <option value="all">全部来源</option>
+                  <option value="managed">仓库受管</option>
+                  <option value="plugin">插件提供</option>
+                  <option value="built-in">工具内置</option>
+                  <option value="local-copy">本地独立</option>
+                  <option value="external-link">外部链接</option>
+                  <option value="broken">无效条目</option>
+                </select>
+              </label>
+              <label>状态
+                <select id="inventory-status-filter">
+                  <option value="all">全部状态</option>
+                  <option value="clean">状态正常</option>
+                  <option value="flagged">需要处理</option>
+                </select>
+              </label>
+              <button id="inventory-clear-filters" type="button">清除筛选</button>
+            </div>
+            <details id="inventory-source-legend" class="source-legend">
+              <summary>这些来源分别代表什么？</summary>
+              <dl>
+                <div><dt>仓库受管</dt><dd>由当前仓库统一维护，并链接到 Agent 工具的加载位置。</dd></div>
+                <div><dt>插件提供 / 工具内置</dt><dd>由插件或工具本身提供，当前仓库只做全局展示。</dd></div>
+                <div><dt>本地独立 / 外部链接</dt><dd>不受当前仓库管理，可能是手工复制或指向其他位置。</dd></div>
+                <div><dt>无效条目</dt><dd>路径、链接或 Skill 内容无法正常读取，需要检查。</dd></div>
+              </dl>
+            </details>
+            <div class="table-scroller">
+              <table id="inventory-table">
+                <thead><tr><th scope="col">Skill</th><th scope="col">来源</th><th scope="col">工具</th><th scope="col">状态</th><th scope="col">路径</th><th scope="col">操作</th></tr></thead>
+                <tbody id="inventory-body"><tr><td colspan="6">进入此视图后加载库存。</td></tr></tbody>
+              </table>
+            </div>
           </div>
         </section>
       </main>
