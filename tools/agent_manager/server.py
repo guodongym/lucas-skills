@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import html
 import json
 import os
 import re
@@ -33,8 +34,8 @@ TOOLS = ("claude", "codex", "copilot", "antigravity")
 INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot", "antigravity")
 MAX_REQUEST_BODY = 64 * 1024
 CONTENT_SECURITY_POLICY = (
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-    "style-src 'self' 'unsafe-inline'; connect-src 'self'; "
+    "default-src 'self'; script-src 'self'; "
+    "style-src 'self'; connect-src 'self'; "
     "img-src 'self' data:; object-src 'none'; base-uri 'none'; "
     "frame-ancestors 'none'"
 )
@@ -44,6 +45,8 @@ FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
 
 READ_ROUTES = {
     "/": "_get_index",
+    "/app.css": "_get_css",
+    "/app.js": "_get_javascript",
     "/api/status": "_get_status",
     "/api/inventory": "_get_inventory",
 }
@@ -86,22 +89,22 @@ def _open_directory_chain(root_fd: int, parts: Sequence[str], flags: int) -> int
         raise
 
 
-def _read_web_index(server: "AgentManagerHTTPServer") -> str:
+def _read_web_asset(server: "AgentManagerHTTPServer", filename: str) -> bytes:
     directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     repo_fd: int | None = None
     web_fd: int | None = None
-    index_fd: int | None = None
+    asset_fd: int | None = None
     try:
         repo_fd = os.open(server.repo_root, directory_flags)
         web_fd = _open_directory_chain(repo_fd, WEB_PATH_PARTS, directory_flags)
-        index_fd = os.open("index.html", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=web_fd)
-        if not stat.S_ISREG(os.fstat(index_fd).st_mode):
-            raise FileNotFoundError("web index is not a regular file")
-        with os.fdopen(index_fd, encoding="utf-8") as stream:
-            index_fd = None
+        asset_fd = os.open(filename, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=web_fd)
+        if not stat.S_ISREG(os.fstat(asset_fd).st_mode):
+            raise FileNotFoundError("web asset is not a regular file")
+        with os.fdopen(asset_fd, "rb") as stream:
+            asset_fd = None
             return stream.read()
     finally:
-        for descriptor in (index_fd, web_fd, repo_fd):
+        for descriptor in (asset_fd, web_fd, repo_fd):
             if descriptor is not None:
                 os.close(descriptor)
 
@@ -110,33 +113,103 @@ def _failure_status(
     payload: dict[str, object],
     result: BatchResult | InstructionBatchResult,
 ) -> int:
+    business = _business()
     failures = [item for item in result.results if not item.ok]
     if not failures:
         return 200
     codes = {item.code for item in failures}
-    if "permission-denied" in codes:
-        selected_codes = {"permission-denied"}
-        code, status = "permission-denied", 403
-    elif "state-changed" in codes:
-        selected_codes = {"state-changed"}
-        code, status = "state-changed", 409
-    elif codes & {"blocked", "target-conflict", "unsupported-target"}:
-        selected_codes = {"blocked", "target-conflict", "unsupported-target"}
-        code, status = "target-conflict", 409
-    elif "requires-adopt" in codes:
-        selected_codes = {"requires-adopt"}
-        code, status = "requires-adopt", 409
+    if not isinstance(result, InstructionBatchResult):
+        if "permission-denied" in codes:
+            selected_codes = {"permission-denied"}
+            code, status = "permission-denied", 403
+        elif "state-changed" in codes:
+            selected_codes = {"state-changed"}
+            code, status = "state-changed", 409
+        elif codes & {"blocked", "target-conflict", "unsupported-target"}:
+            selected_codes = {"blocked", "target-conflict", "unsupported-target"}
+            code, status = "target-conflict", 409
+        elif "requires-adopt" in codes:
+            selected_codes = {"requires-adopt"}
+            code, status = "requires-adopt", 409
+        elif codes & {"invalid-plan", "invalid-fingerprint", "invalid-request"}:
+            selected_codes = {"invalid-plan", "invalid-fingerprint", "invalid-request"}
+            code, status = "invalid-request", 400
+        else:
+            selected_codes = codes
+            code, status = "internal-error", 500
+        failure = next(item for item in failures if item.code in selected_codes)
+        payload["code"] = code
+        payload["message"] = failure.message
+        payload["path"] = failure.path
+        return status
+    if codes & {"rollback-incomplete", "rollback-skipped", "cleanup-failed"}:
+        status = 500
+    elif "permission-denied" in codes:
+        status = 403
+    elif codes & {
+        "state-changed",
+        "blocked",
+        "target-conflict",
+        "unsupported-target",
+        "requires-adopt",
+        "incomplete-transaction",
+        "snapshot-conflict",
+    }:
+        status = 409
     elif codes & {"invalid-plan", "invalid-fingerprint", "invalid-request"}:
-        selected_codes = {"invalid-plan", "invalid-fingerprint", "invalid-request"}
-        code, status = "invalid-request", 400
+        status = 400
     else:
-        selected_codes = codes
-        code, status = "internal-error", 500
-    failure = next(item for item in failures if item.code in selected_codes)
+        status = 500
+    problem = business._batch_problem(result)
+    if problem is None:
+        return 200
+    code, failure = problem
     payload["code"] = code
-    payload["message"] = failure.message
-    payload["path"] = failure.path
+    payload["message"] = getattr(failure, "message")
+    payload["path"] = getattr(failure, "path")
     return status
+
+
+def _http_status_for_code(code: str) -> int:
+    if code == "permission-denied":
+        return 403
+    if code in {
+        "state-changed",
+        "blocked",
+        "target-conflict",
+        "unsupported-target",
+        "requires-adopt",
+        "incomplete-transaction",
+        "snapshot-conflict",
+    }:
+        return 409
+    if code in {
+        "invalid-plan",
+        "invalid-fingerprint",
+        "invalid-request",
+        "invalid-instructions",
+        "invalid-source",
+    }:
+        return 400
+    return 500
+
+
+def _instruction_error_payload(
+    server: "AgentManagerHTTPServer",
+    command: str,
+    apply: bool,
+    code: str,
+    message: str,
+) -> dict[str, object]:
+    business = _business()
+    payload = business._command_payload(
+        command,
+        "apply" if apply else "plan",
+        server.repo_root,
+        domain="instructions",
+    )
+    business._set_error(payload, code, message)
+    return payload
 
 
 def _post_rescan_failure(
@@ -522,7 +595,7 @@ class AgentManagerRequestHandler(BaseHTTPRequestHandler):
 
     def _get_index(self) -> None:
         try:
-            template = _read_web_index(self.server)
+            template = _read_web_asset(self.server, "index.html").decode("utf-8")
             if template.count("__AGENT_MANAGER_TOKEN__") != 1:
                 raise ValueError("web index must contain exactly one token placeholder")
         except FileNotFoundError:
@@ -540,10 +613,35 @@ class AgentManagerRequestHandler(BaseHTTPRequestHandler):
             self._send_problem(500, "internal-error", "failed to load web interface")
             return
         body = template.replace(
-            "__AGENT_MANAGER_TOKEN__", json.dumps(self.server.token)
+            "__AGENT_MANAGER_TOKEN__", html.escape(self.server.token, quote=True)
         ).encode("utf-8")
+        self._send_static(body, "text/html; charset=utf-8")
+
+    def _get_css(self) -> None:
+        self._get_static_asset("app.css", "text/css; charset=utf-8")
+
+    def _get_javascript(self) -> None:
+        self._get_static_asset("app.js", "text/javascript; charset=utf-8")
+
+    def _get_static_asset(self, filename: str, content_type: str) -> None:
+        try:
+            body = _read_web_asset(self.server, filename)
+        except FileNotFoundError:
+            self._send_problem(404, "not-found", "web asset is not installed")
+            return
+        except OSError as exc:
+            if exc.errno in {errno.ENOENT, errno.ENOTDIR, errno.ELOOP}:
+                self._send_problem(404, "not-found", "web asset is not installed")
+            elif exc.errno in {errno.EACCES, errno.EPERM}:
+                self._send_problem(403, "permission-denied", "web asset is not readable")
+            else:
+                self._send_problem(500, "internal-error", "failed to load web asset")
+            return
+        self._send_static(body, content_type)
+
+    def _send_static(self, body: bytes, content_type: str) -> None:
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self._security_headers()
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -596,12 +694,16 @@ class AgentManagerRequestHandler(BaseHTTPRequestHandler):
         self._send_operation(
             lambda: _handle_instruction(self.server, payload, "set"),
             "instructions",
+            command="set",
+            apply=payload["apply"],
         )
 
     def _post_instruction_adopt(self, payload: dict[str, object]) -> None:
         self._send_operation(
             lambda: _handle_instruction(self.server, payload, "adopt"),
             "instructions",
+            command="adopt",
+            apply=payload["apply"],
         )
 
     def _post_shutdown(self, payload: dict[str, object]) -> None:
@@ -613,18 +715,29 @@ class AgentManagerRequestHandler(BaseHTTPRequestHandler):
         self,
         operation: Callable[[], tuple[int, dict[str, object]]],
         domain: str,
+        *,
+        command: str | None = None,
+        apply: bool | None = None,
     ) -> None:
         try:
             status, response = operation()
             self._send_json(status, response)
-        except ValueError as exc:
-            code = getattr(exc, "code", "invalid-skill" if domain == "skills" else "invalid-instructions")
-            status = 409 if code == "state-changed" else 400
-            self._send_problem(status, code, str(exc))
-        except PermissionError as exc:
-            self._send_problem(403, "permission-denied", str(exc))
-        except Exception:
-            self._send_problem(500, "internal-error", "request failed")
+        except Exception as exc:
+            if domain == "instructions" and command is not None and apply is not None:
+                business = _business()
+                code = business._operation_error_code(domain, command, exc)
+                response = _instruction_error_payload(
+                    self.server, command, apply, code, str(exc)
+                )
+                self._send_json(_http_status_for_code(code), response)
+            elif isinstance(exc, ValueError):
+                code = getattr(exc, "code", "invalid-skill")
+                status = 409 if code == "state-changed" else 400
+                self._send_problem(status, code, str(exc))
+            elif isinstance(exc, PermissionError):
+                self._send_problem(403, "permission-denied", str(exc))
+            else:
+                self._send_problem(500, "internal-error", "request failed")
 
     def do_GET(self) -> None:
         if not self._check_host():

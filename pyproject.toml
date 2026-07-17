@@ -17,3 +17,10 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-root = ""
 module-name = "tools"
+source-include = [
+  "tools/agent_manager/web/index.html",
+  "tools/agent_manager/web/app.css",
+  "tools/agent_manager/web/app.js",
+  "tools/upstream_sync/upstream.yml",
+  "tools/upstream_sync/upstream.lock.yml",
+]

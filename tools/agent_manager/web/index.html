@@ -3,1176 +3,141 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="agent-manager-token" content="__AGENT_MANAGER_TOKEN__">
   <link rel="icon" href="data:,">
-  <title>Skills 管理</title>
-  <style>
-    :root {
-      color-scheme: light;
-      --canvas: #f3f5f8;
-      --paper: #ffffff;
-      --ink: #18212f;
-      --muted: #617084;
-      --line: #d8dee8;
-      --line-strong: #aeb9c8;
-      --accent: #2457a7;
-      --accent-soft: #edf3fc;
-      --success: #167352;
-      --success-soft: #e9f6f0;
-      --warning: #8a5a13;
-      --warning-soft: #fff5df;
-      --danger: #a33a30;
-      --danger-soft: #fbecea;
-      --shadow: 0 16px 40px rgb(38 55 77 / 8%);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--canvas);
-      color: var(--ink);
-      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    button, input, select { font: inherit; }
-
-    button, input, select, summary { outline: none; }
-
-    button:focus-visible,
-    input:focus-visible,
-    select:focus-visible,
-    summary:focus-visible {
-      box-shadow: 0 0 0 3px rgb(36 87 167 / 22%);
-    }
-
-    button {
-      min-height: 38px;
-      border: 1px solid var(--line-strong);
-      border-radius: 8px;
-      background: var(--paper);
-      color: var(--ink);
-      padding: 8px 12px;
-      cursor: pointer;
-    }
-
-    button:hover:not(:disabled) { border-color: var(--accent); }
-    button:disabled { cursor: not-allowed; opacity: 0.58; }
-
-    button.primary {
-      border-color: var(--accent);
-      background: var(--accent);
-      color: var(--paper);
-    }
-
-    button.danger { color: var(--danger); }
-
-    h1, h2, p { margin: 0; }
-
-    h1 {
-      font-family: "Avenir Next Condensed", "Segoe UI", sans-serif;
-      font-size: clamp(26px, 3vw, 36px);
-      font-weight: 700;
-      letter-spacing: -0.035em;
-      line-height: 1.05;
-    }
-
-    main {
-      width: min(1440px, calc(100% - 48px));
-      margin: 32px auto;
-    }
-
-    header, .panel {
-      border: 1px solid var(--line);
-      background: var(--paper);
-      box-shadow: var(--shadow);
-    }
-
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-      padding: 22px 24px;
-      border-radius: 14px 14px 0 0;
-    }
-
-    .eyebrow {
-      margin-bottom: 4px;
-      color: var(--accent);
-      font: 700 11px/1.2 "SFMono-Regular", Consolas, monospace;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    #repo-path {
-      max-width: min(760px, 62vw);
-      margin-top: 8px;
-      overflow: hidden;
-      font-family: "SFMono-Regular", Consolas, monospace;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .toolbar, .tabs, #summary, #surface-summary {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    #summary {
-      position: relative;
-      align-items: center;
-      min-height: 58px;
-      padding: 10px 24px;
-      border: solid var(--line);
-      border-width: 0 1px 1px;
-      background: #e9eef5;
-    }
-
-    #surface-summary {
-      padding: 10px 24px;
-      border: solid var(--line);
-      border-width: 0 1px 1px;
-      background: #f5f7fa;
-    }
-
-    #load-paths {
-      margin-top: 14px;
-      overflow: hidden;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--paper);
-      box-shadow: var(--shadow);
-    }
-
-    .load-paths-heading {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 24px;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .load-paths-heading h2 { font-size: 17px; }
-
-    #load-path-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1px;
-      background: var(--line);
-    }
-
-    .load-path-item {
-      min-width: 0;
-      padding: 13px 14px;
-      background: var(--paper);
-    }
-
-    .load-path-source {
-      grid-column: 1 / -1;
-      background: var(--accent-soft);
-    }
-
-    .load-path-meta {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .load-path-label { font-weight: 700; }
-    .load-path-scope { font: 11px/1.3 "SFMono-Regular", Consolas, monospace; }
-
-    .load-path-address {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 7px;
-    }
-
-    .load-path-value {
-      flex: 1;
-      min-width: 0;
-      overflow-wrap: anywhere;
-      font: 12px/1.45 "SFMono-Regular", Consolas, monospace;
-    }
-
-    .copy-path-button {
-      min-height: 30px;
-      flex: 0 0 auto;
-      padding: 4px 9px;
-      font-size: 12px;
-    }
-
-    .summary-item {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 6px;
-      padding-right: 14px;
-      border-right: 1px solid var(--line-strong);
-      font-family: "SFMono-Regular", Consolas, monospace;
-    }
-
-    .summary-item:last-child { border-right: 0; }
-    .summary-value { font-size: 17px; font-weight: 700; }
-    .muted { color: var(--muted); }
-
-    .tabs {
-      align-items: end;
-      margin-top: 18px;
-      padding: 0 4px;
-    }
-
-    .tabs button {
-      border-color: transparent;
-      border-radius: 7px 7px 0 0;
-      background: transparent;
-      color: var(--muted);
-    }
-
-    .tabs button.primary {
-      border-color: var(--line);
-      border-bottom-color: var(--paper);
-      background: var(--paper);
-      color: var(--accent);
-    }
-
-    .panel {
-      margin-top: -1px;
-      overflow: hidden;
-      border-radius: 0 12px 12px;
-    }
-
-    .filters {
-      align-items: center;
-      padding: 14px;
-      border-bottom: 1px solid var(--line);
-      background: #fafbfd;
-    }
-
-    .filters input {
-      flex: 1 1 260px;
-      min-width: 180px;
-    }
-
-    input, select {
-      min-height: 38px;
-      border: 1px solid var(--line-strong);
-      border-radius: 8px;
-      background: var(--paper);
-      color: var(--ink);
-      padding: 8px 10px;
-    }
-
-    .table-scroll { overflow-x: auto; }
-
-    table {
-      width: 100%;
-      min-width: 860px;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      vertical-align: top;
-    }
-
-    th {
-      background: #f5f7fa;
-      color: var(--muted);
-      font: 700 11px/1.3 "SFMono-Regular", Consolas, monospace;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    tr:last-child td { border-bottom: 0; }
-    tbody tr:hover { background: #fafcff; }
-
-    .skill-name { display: block; margin-bottom: 3px; }
-    .skill-slug, .path { font-family: "SFMono-Regular", Consolas, monospace; }
-    .path { overflow-wrap: anywhere; }
-
-    .state-button {
-      width: 100%;
-      min-width: 104px;
-      font: 700 12px/1.2 "SFMono-Regular", Consolas, monospace;
-      text-align: left;
-    }
-
-    .state-enabled { border-color: #92c9b5; background: var(--success-soft); color: var(--success); }
-    .state-disabled, .state-unavailable { background: #f3f5f7; color: var(--muted); }
-    .state-mixed, .state-legacy { border-color: #e0bd7c; background: var(--warning-soft); color: var(--warning); }
-    .state-error, .state-conflict { border-color: #dcaaa5; background: var(--danger-soft); color: var(--danger); }
-
-    .adapter-detail {
-      margin-top: 5px;
-      color: var(--muted);
-      font: 11px/1.4 "SFMono-Regular", Consolas, monospace;
-    }
-
-    details { margin-top: 7px; color: var(--muted); }
-    summary { width: fit-content; cursor: pointer; }
-    .detail-list { margin: 7px 0 0; padding-left: 18px; }
-
-    .empty-cell { padding: 32px 14px; color: var(--muted); text-align: center; }
-    .hidden { display: none; }
-
-    #message {
-      min-height: 46px;
-      margin-top: 14px;
-      padding: 12px 14px;
-      border: 1px solid transparent;
-      border-radius: 9px;
-      color: var(--muted);
-    }
-
-    #message:not(:empty) { border-color: var(--line); background: var(--paper); }
-    #message.message-error { border-color: #dcaaa5; background: var(--danger-soft); color: var(--danger); }
-    #message.message-success { border-color: #92c9b5; background: var(--success-soft); color: var(--success); }
-
-    dialog {
-      width: min(520px, calc(100% - 32px));
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      box-shadow: 0 24px 80px rgb(24 33 47 / 24%);
-      padding: 0;
-    }
-
-    dialog::backdrop { background: rgb(24 33 47 / 42%); }
-    dialog form { padding: 22px; }
-    dialog h2 { font-size: 20px; }
-    dialog pre {
-      margin: 16px 0;
-      padding: 14px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--canvas);
-      font: 13px/1.7 "SFMono-Regular", Consolas, monospace;
-      white-space: pre-wrap;
-    }
-
-    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
-
-    @media (max-width: 720px) {
-      main { width: min(100% - 24px, 1440px); margin: 12px auto 24px; }
-      header { align-items: flex-start; flex-direction: column; padding: 18px; }
-      #repo-path { max-width: calc(100vw - 60px); }
-      header .toolbar, header .toolbar button { width: 100%; }
-      #summary { padding: 10px 18px; }
-      #surface-summary {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 10px 18px;
-      }
-      #surface-summary .summary-item { padding-right: 4px; border-right: 0; }
-      .load-paths-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
-      #load-path-list { grid-template-columns: minmax(0, 1fr); }
-      .filters { align-items: stretch; flex-direction: column; }
-      .filters input { flex: 0 0 auto; width: 100%; }
-      .filters select, .filters button { width: 100%; }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
-    }
-  </style>
+  <link rel="stylesheet" href="/app.css">
+  <title>Agent 路由控制台</title>
+  <script src="/app.js" defer></script>
 </head>
 <body>
-  <main>
-    <header>
-      <div>
-        <p class="eyebrow">Local load control</p>
-        <h1>Skills 管理</h1>
-        <div id="repo-path" class="muted">正在读取仓库…</div>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Agent 路由控制台导航">
+      <div class="product-mark">
+        <span class="product-kicker">LOCAL ROUTING</span>
+        <strong>Agent Manager</strong>
       </div>
-      <div class="toolbar">
-        <button id="rescan-button" type="button">重新扫描</button>
-        <button id="adopt-button" type="button">迁移旧链接</button>
-        <button id="shutdown-button" type="button" class="danger">关闭服务</button>
-      </div>
-    </header>
+      <nav class="primary-nav" aria-label="控制台视图">
+        <button type="button" data-view="overview" aria-current="page">总览</button>
+        <button type="button" data-view="skills">Skills</button>
+        <button type="button" data-view="instructions">个人约束</button>
+        <button type="button" data-view="inventory">全局库存</button>
+      </nav>
+      <p class="sidebar-note">状态来自本次扫描，不在浏览器推断。</p>
+    </aside>
 
-    <section id="summary" aria-label="统计">
-      <span class="muted">正在读取状态…</span>
-    </section>
-
-    <section id="surface-summary" aria-label="工具端安装状态">
-      <span class="muted">正在读取 Desktop / CLI 安装状态…</span>
-    </section>
-
-    <section id="load-paths" aria-labelledby="load-paths-title">
-      <div class="load-paths-heading">
+    <div class="workspace">
+      <header class="repository-bar">
         <div>
-          <p class="eyebrow">Managed roots</p>
-          <h2 id="load-paths-title">Skill 加载位置</h2>
+          <span class="eyebrow">配置来源</span>
+          <h1 id="repository-name">lucas-skills</h1>
+          <p id="repository-path" class="path-text">正在读取仓库…</p>
         </div>
-        <p class="muted">受管工具目录均直接指向当前仓库 Skill。</p>
-      </div>
-      <div id="load-path-list">
-        <span class="muted">正在读取加载位置…</span>
-      </div>
-    </section>
-
-    <nav class="tabs" aria-label="视图切换">
-      <button type="button" data-view="managed-view" class="primary" aria-selected="true">仓库 Skills</button>
-      <button type="button" data-view="inventory-view" aria-selected="false">全局概览</button>
-    </nav>
-
-    <section id="managed-view" class="panel" aria-label="仓库 Skills">
-      <div class="toolbar filters">
-        <input id="managed-search" type="search" placeholder="搜索仓库 Skill" aria-label="搜索仓库 Skill">
-        <select id="managed-filter" aria-label="筛选仓库状态">
-          <option value="all">全部状态</option>
-          <option value="enabled">已启用</option>
-          <option value="disabled">未启用</option>
-          <option value="mixed">部分启用</option>
-          <option value="conflict">冲突</option>
-          <option value="error">异常</option>
-        </select>
-        <button id="enable-all-button" type="button">全部启用</button>
-        <button id="disable-all-button" type="button">全部停用</button>
-      </div>
-      <div class="table-scroll" tabindex="0" aria-label="仓库 Skill 加载矩阵，可横向滚动">
-        <table id="managed-table"></table>
-      </div>
-    </section>
-
-    <section id="inventory-view" class="panel hidden" aria-label="全局 Skill 概览">
-      <div class="toolbar filters">
-        <input id="inventory-search" type="search" placeholder="搜索全局 Skill" aria-label="搜索全局 Skill">
-        <select id="inventory-filter" aria-label="筛选来源">
-          <option value="all">全部来源</option>
-          <option value="managed">当前仓库</option>
-          <option value="external-link">外部软链</option>
-          <option value="local-copy">本地副本</option>
-          <option value="built-in">内置</option>
-          <option value="plugin">插件</option>
-          <option value="broken">损坏</option>
-          <option value="duplicate-name">重名</option>
-        </select>
-      </div>
-      <div class="table-scroll" tabindex="0" aria-label="全局 Skill 只读清单，可横向滚动">
-        <table id="inventory-table"></table>
-      </div>
-    </section>
-
-    <dialog id="confirm-dialog">
-      <form method="dialog">
-        <h2 id="confirm-title"></h2>
-        <pre id="confirm-body"></pre>
-        <div class="dialog-actions">
-          <button value="cancel">取消</button>
-          <button id="confirm-apply" value="confirm" class="primary">确认</button>
+        <div class="repository-actions">
+          <p id="scanned-at" class="scan-time">最近扫描：读取中</p>
+          <button id="refresh-button" type="button">重新扫描</button>
+          <button id="shutdown-button" type="button">关闭服务</button>
         </div>
-      </form>
-    </dialog>
+      </header>
 
-    <div id="message" role="status" aria-live="polite"></div>
-  </main>
+      <main id="main-content" tabindex="-1">
+        <section id="overview-view" class="view" data-view-panel="overview" aria-labelledby="overview-title">
+          <div class="view-heading">
+            <div>
+              <span class="eyebrow">ROUTING BOARD</span>
+              <h2 id="overview-title">仓库源 → Agent 加载位置</h2>
+            </div>
+            <p>实线表示 Skills，虚线表示个人约束。状态同时使用文字标注。</p>
+          </div>
+          <div id="status-summary" class="status-summary" aria-label="状态摘要">
+            <p class="loading-copy">正在读取路由状态…</p>
+          </div>
+          <section class="topology-section" aria-labelledby="topology-title">
+            <h3 id="topology-title" class="sr-only">Agent 路由拓扑</h3>
+            <figure id="topology-board" class="topology-board" aria-labelledby="topology-title">
+              <svg id="topology-lines" class="topology-lines" viewBox="0 0 1000 370" preserveAspectRatio="none" aria-hidden="true"></svg>
+              <p class="loading-copy">正在构建拓扑…</p>
+            </figure>
+          </section>
+          <section class="attention-section" aria-labelledby="attention-title">
+            <div class="section-heading">
+              <h3 id="attention-title">需要处理</h3>
+              <span id="attention-count" class="count-label">读取中</span>
+            </div>
+            <ul id="attention-list" class="attention-list">
+              <li>正在检查冲突与异常…</li>
+            </ul>
+          </section>
+        </section>
 
-  <script>window.AGENT_MANAGER_TOKEN = __AGENT_MANAGER_TOKEN__;</script>
-  <script>
-    "use strict";
+        <section id="skills-view" class="view" data-view-panel="skills" aria-labelledby="skills-title" hidden>
+          <div class="view-heading">
+            <div>
+              <span class="eyebrow">SKILL ROUTES</span>
+              <h2 id="skills-title">Skills 加载矩阵</h2>
+            </div>
+            <p>选择一行可查看各工具的完整路径与服务端说明。</p>
+          </div>
+          <div class="filter-row">
+            <label>搜索 Skill<input id="skill-query" type="search" placeholder="名称或 slug"></label>
+            <label>状态<select id="skill-state-filter"><option value="all">全部状态</option><option value="enabled">已启用</option><option value="partial">部分启用</option><option value="disabled">未启用</option><option value="attention">需要处理</option></select></label>
+          </div>
+          <div id="skills-bulk-controls" class="operation-bar" hidden>
+            <span id="skills-selection-count">已选择 0 项</span>
+            <label>目标工具<select id="skills-bulk-tool"><option value="all">全部工具</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="copilot">Copilot</option><option value="antigravity">Antigravity</option></select></label>
+            <button id="skills-enable-button" type="button">预览启用</button>
+            <button id="skills-disable-button" type="button">预览停用</button>
+            <button id="skills-adopt-button" type="button">预览采用现有路由</button>
+          </div>
+          <p class="scroll-hint">表格可横向滚动以查看全部工具。</p>
+          <div class="table-scroller">
+            <table id="skills-table">
+              <thead><tr><th scope="col"><label class="select-all-label"><input id="skills-select-all" type="checkbox"> 全选 Skills</label></th><th scope="col">Claude</th><th scope="col">Codex</th><th scope="col">Copilot</th><th scope="col">Antigravity</th></tr></thead>
+              <tbody id="skills-body"><tr><td colspan="5">正在读取 Skills…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
 
-    const state = { status: null, inventory: null, busy: false };
-    const TOOL_ADAPTERS = {
-      claude: ["claude-shared"],
-      codex: ["codex-shared"],
-      copilot: ["copilot-shared"],
-      antigravity: ["antigravity-desktop", "antigravity-cli"],
-    };
-    const TOOL_SURFACES = {
-      claude: ["claude-desktop", "claude-cli"],
-      codex: ["codex-desktop", "codex-cli"],
-      copilot: ["copilot-desktop", "copilot-cli"],
-      antigravity: ["antigravity-desktop", "antigravity-cli"],
-    };
-    const TOOLS = Object.keys(TOOL_ADAPTERS);
-    const TOOL_LABELS = {
-      claude: "Claude",
-      codex: "Codex",
-      copilot: "Copilot",
-      antigravity: "Antigravity",
-    };
-    const ADAPTER_PATH_LABELS = {
-      "claude-shared": ["Claude", "Desktop + CLI"],
-      "codex-shared": ["Codex", "Desktop + CLI"],
-      "copilot-shared": ["Copilot", "Desktop + CLI"],
-      "antigravity-desktop": ["Antigravity Desktop", "Desktop"],
-      "antigravity-cli": ["Antigravity CLI", "agy"],
-    };
-    const STATE_LABELS = {
-      enabled: "已启用",
-      disabled: "未启用",
-      mixed: "部分启用",
-      legacy: "旧链接",
-      conflict: "冲突",
-      error: "异常",
-      unavailable: "未安装",
-    };
-    const ACTION_BUTTON_IDS = [
-      "rescan-button",
-      "adopt-button",
-      "shutdown-button",
-      "enable-all-button",
-      "disable-all-button",
-    ];
+        <section id="instructions-view" class="view" data-view-panel="instructions" aria-labelledby="instructions-title" hidden>
+          <div class="view-heading">
+            <div>
+              <span class="eyebrow">INSTRUCTION ROUTES</span>
+              <h2 id="instructions-title">个人约束加载位置</h2>
+            </div>
+            <p>每条记录展示目标、覆盖范围和当前来源。</p>
+          </div>
+          <ul id="instructions-list" class="instruction-list"><li>正在读取个人约束…</li></ul>
+        </section>
 
-    function surfaceMap(payload) {
-      return new Map((payload.surfaces || []).map((surface) => [surface.key, surface]));
-    }
+        <section id="inventory-view" class="view" data-view-panel="inventory" aria-labelledby="inventory-title" hidden>
+          <div class="view-heading">
+            <div>
+              <span class="eyebrow">GLOBAL INVENTORY</span>
+              <h2 id="inventory-title">全局库存</h2>
+            </div>
+            <button id="inventory-refresh-button" type="button">刷新库存</button>
+          </div>
+          <div class="table-scroller">
+            <table id="inventory-table">
+              <thead><tr><th scope="col">Skill</th><th scope="col">来源</th><th scope="col">工具</th><th scope="col">路径</th><th scope="col">标记</th></tr></thead>
+              <tbody id="inventory-body"><tr><td colspan="5">进入此视图后加载库存。</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
 
-    function toolSurfaceRows(payload, tool) {
-      const surfaces = surfaceMap(payload);
-      return TOOL_SURFACES[tool].map((key) => ({
-        key,
-        label: key.endsWith("-desktop") ? "Desktop" : "CLI",
-        installed: Boolean(surfaces.get(key)?.installed),
-      }));
-    }
+  <aside id="details-drawer" class="details-drawer" aria-labelledby="drawer-title" hidden>
+    <div class="drawer-heading"><h2 id="drawer-title">路由详情</h2><button id="drawer-close-button" type="button" aria-label="关闭详情">关闭</button></div>
+    <div id="drawer-body"><p>选择一条记录查看服务端详情。</p></div>
+  </aside>
 
-    function toolSurfaceText(payload, tool) {
-      return toolSurfaceRows(payload, tool)
-        .map((surface) => `${surface.label}: ${surface.installed ? "已安装" : "未安装"}`)
-        .join(" · ");
-    }
+  <dialog id="confirmation-dialog" aria-labelledby="confirmation-title">
+    <h2 id="confirmation-title">确认变更</h2>
+    <div id="confirmation-body"></div>
+    <div class="dialog-actions"><button type="button" data-dialog-close>取消</button><button id="danger-apply-button" type="button">确认替换并应用</button></div>
+  </dialog>
 
-    function surfaceKeysText(keys) {
-      return (keys || []).map((key) => {
-        const tool = key.replace(/-(desktop|cli)$/, "");
-        const surface = key.endsWith("-desktop") ? "Desktop" : "CLI";
-        return `${TOOL_LABELS[tool] || tool} ${surface}`;
-      }).join(", ") || "-";
-    }
-
-    function compactHomePath(path, home) {
-      if (!home || !path.startsWith(`${home}/`)) return path;
-      return `~/${path.slice(home.length + 1)}`;
-    }
-
-    function loadPathRows(payload) {
-      const source = `${payload.repo_root}/skills`;
-      return [
-        {
-          key: "repository",
-          label: "统一来源",
-          scope: "仓库 Skills",
-          path: source,
-          display_path: source,
-        },
-        ...(payload.skills?.adapters || []).map((adapter) => {
-          const [label, scope] = ADAPTER_PATH_LABELS[adapter.key] || [adapter.key, ""];
-          return {
-            key: adapter.key,
-            label,
-            scope,
-            path: adapter.root,
-            display_path: compactHomePath(adapter.root, adapter.home),
-          };
-        }),
-      ];
-    }
-
-    async function api(path, options = {}) {
-      const response = await fetch(path, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          "X-Agent-Manager-Token": window.AGENT_MANAGER_TOKEN,
-          ...(options.headers || {}),
-        },
-      });
-      let payload;
-      try {
-        payload = await response.json();
-      } catch (cause) {
-        throw new Error(`服务返回了无效响应（HTTP ${response.status}）`, { cause });
-      }
-      if (!response.ok) {
-        const error = new Error(payload.message || `HTTP ${response.status}`);
-        error.payload = payload;
-        error.status = response.status;
-        throw error;
-      }
-      return payload;
-    }
-
-    async function loadStatus() {
-      state.status = await api("/api/status");
-      renderSummary(state.status);
-      renderLoadPaths(state.status);
-      renderManaged(state.status);
-    }
-
-    async function loadInventory() {
-      state.inventory = await api("/api/inventory");
-      renderInventory(state.inventory);
-    }
-
-    async function refreshData() {
-      setBusy(true);
-      showMessage("正在重新扫描仓库和全局目录…");
-      try {
-        await Promise.all([loadStatus(), loadInventory()]);
-        showMessage("扫描完成。", "success");
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    async function setSkill(slug, tool, enabled) {
-      setBusy(true);
-      showMessage(`正在${enabled ? "启用" : "停用"} ${slug} / ${TOOL_LABELS[tool]}…`);
-      try {
-        const result = await api("/api/skills/set", {
-          method: "POST",
-          body: JSON.stringify({ skill: slug, all: false, tool, on: enabled, apply: true }),
-        });
-        await Promise.all([loadStatus(), loadInventory()]);
-        showOperationResult(enabled ? "启用完成" : "停用完成", result);
-      } catch (error) {
-        if (error.payload?.results) await refreshAfterPartialFailure(error);
-        throw error;
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    async function setAll(enabled) {
-      setBusy(true);
-      showMessage(`正在预览${enabled ? "全部启用" : "全部停用"}…`);
-      try {
-        const request = { skill: null, all: true, tool: "all", on: enabled };
-        const preview = await api("/api/skills/set", {
-          method: "POST",
-          body: JSON.stringify({ ...request, apply: false }),
-        });
-        if (!await confirmPlan(enabled ? "全部启用" : "全部停用", preview)) {
-          showMessage("已取消，未应用变更。");
-          return;
-        }
-        showMessage(`正在应用${enabled ? "全部启用" : "全部停用"}…`);
-        const result = await api("/api/skills/set", {
-          method: "POST",
-          body: JSON.stringify({ ...request, apply: true }),
-        });
-        await Promise.all([loadStatus(), loadInventory()]);
-        showOperationResult(enabled ? "全部启用完成" : "全部停用完成", result);
-      } catch (error) {
-        if (error.payload?.results) await refreshAfterPartialFailure(error);
-        throw error;
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    async function previewAdoption() {
-      setBusy(true);
-      showMessage("正在预览迁移旧链接…");
-      try {
-        const preview = await api("/api/skills/adopt", {
-          method: "POST",
-          body: JSON.stringify({ apply: false }),
-        });
-        if (!await confirmPlan("迁移旧链接", preview)) {
-          showMessage("已取消，未迁移旧链接。");
-          return;
-        }
-        showMessage("正在迁移旧链接…");
-        const result = await api("/api/skills/adopt", {
-          method: "POST",
-          body: JSON.stringify({ apply: true }),
-        });
-        await Promise.all([loadStatus(), loadInventory()]);
-        showOperationResult("迁移完成", result);
-      } catch (error) {
-        if (error.payload?.results) await refreshAfterPartialFailure(error);
-        throw error;
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    async function shutdown() {
-      setBusy(true);
-      showMessage("正在关闭服务…");
-      try {
-        await api("/api/shutdown", { method: "POST", body: "{}" });
-        showMessage("服务已关闭，可以关闭此页面。", "success");
-      } catch (error) {
-        setBusy(false);
-        throw error;
-      }
-    }
-
-    async function refreshAfterPartialFailure(operationError) {
-      try {
-        await Promise.all([loadStatus(), loadInventory()]);
-      } catch (refreshError) {
-        operationError.message = `${operationError.message}；刷新状态失败：${refreshError.message}`;
-      }
-    }
-
-    function element(tag, text = "", className = "") {
-      const node = document.createElement(tag);
-      node.textContent = text;
-      if (className) node.className = className;
-      return node;
-    }
-
-    function clear(node) { node.replaceChildren(); }
-
-    function targetMap(payload, slug) {
-      return new Map(
-        (payload.skills?.targets || [])
-          .filter((item) => item.slug === slug)
-          .map((item) => [item.adapter_key, item]),
-      );
-    }
-
-    function toolState(payload, slug, tool) {
-      const targets = targetMap(payload, slug);
-      const states = TOOL_ADAPTERS[tool].map(
-        (key) => targets.get(key)?.state || "unavailable",
-      );
-      if (states.some((value) => value === "conflict")) return "conflict";
-      if (states.some((value) => value === "error")) return "error";
-      const active = states.filter((value) => value !== "unavailable");
-      if (active.length === 0) return "unavailable";
-      if (active.every((value) => value === "enabled")) return "enabled";
-      if (active.every((value) => value === "disabled")) return "disabled";
-      return "mixed";
-    }
-
-    function summaryItem(label, value, className = "") {
-      const item = element("span", "", `summary-item ${className}`.trim());
-      item.append(element("span", label, "muted"), element("strong", String(value), "summary-value"));
-      return item;
-    }
-
-    function fallbackCopyText(text) {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.setAttribute("readonly", "");
-      textarea.setAttribute("aria-hidden", "true");
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.append(textarea);
-      textarea.focus();
-      textarea.select();
-      try {
-        return document.execCommand("copy");
-      } finally {
-        textarea.remove();
-      }
-    }
-
-    async function copyRootPath(
-      path,
-      clipboard = navigator.clipboard,
-      fallback = fallbackCopyText,
-    ) {
-      try {
-        if (!clipboard?.writeText) throw new Error("当前浏览器不支持复制路径");
-        await clipboard.writeText(path);
-        showMessage(`已复制路径：${path}`, "success");
-        return;
-      } catch {
-        if (!fallback(path)) {
-          showMessage(`浏览器阻止自动复制，请手动复制：${path}`);
-          return;
-        }
-      }
-      showMessage(`已复制路径：${path}`, "success");
-    }
-
-    function renderLoadPaths(payload) {
-      const list = document.getElementById("load-path-list");
-      clear(list);
-      for (const row of loadPathRows(payload)) {
-        const item = element(
-          "article",
-          "",
-          `load-path-item${row.key === "repository" ? " load-path-source" : ""}`,
-        );
-        const meta = element("div", "", "load-path-meta");
-        meta.append(
-          element("strong", row.label, "load-path-label"),
-          element("span", row.scope, "load-path-scope muted"),
-        );
-        const address = element("div", "", "load-path-address");
-        const path = element("code", row.display_path, "load-path-value");
-        path.title = row.path;
-        const copy = element("button", "复制", "copy-path-button");
-        copy.type = "button";
-        copy.setAttribute("aria-label", `复制 ${row.label} 路径`);
-        copy.addEventListener("click", () => copyRootPath(row.path).catch(showError));
-        address.append(path, copy);
-        item.append(meta, address);
-        list.append(item);
-      }
-    }
-
-    function renderSummary(payload) {
-      const summary = document.getElementById("summary");
-      clear(summary);
-      summary.append(summaryItem("仓库", payload.skills.records.length));
-      for (const tool of TOOLS) {
-        const count = payload.skills.records.filter(
-          (skill) => toolState(payload, skill.slug, tool) === "enabled",
-        ).length;
-        summary.append(summaryItem(TOOL_LABELS[tool], count));
-      }
-      const states = payload.skills.records.flatMap(
-        (skill) => TOOLS.map((tool) => toolState(payload, skill.slug, tool)),
-      );
-      summary.append(
-        summaryItem("冲突", states.filter((value) => value === "conflict").length, "state-conflict"),
-        summaryItem("异常", states.filter((value) => value === "error").length, "state-error"),
-      );
-      const issueCount = (payload.skills.issues || []).length;
-      if (issueCount) summary.append(summaryItem("仓库问题", issueCount, "state-error"));
-      const surfaceSummary = document.getElementById("surface-summary");
-      clear(surfaceSummary);
-      for (const tool of TOOLS) {
-        for (const surface of toolSurfaceRows(payload, tool)) {
-          surfaceSummary.append(summaryItem(
-            `${TOOL_LABELS[tool]} ${surface.label}`,
-            surface.installed ? "已安装" : "未安装",
-            surface.installed ? "state-enabled" : "state-unavailable",
-          ));
-        }
-      }
-      document.getElementById("repo-path").textContent = payload.repo_root;
-      document.getElementById("repo-path").title = payload.repo_root;
-    }
-
-    function appendHeader(table, labels) {
-      const head = element("thead");
-      const row = element("tr");
-      for (const label of labels) row.append(element("th", label));
-      head.append(row);
-      table.append(head);
-    }
-
-    function appendEmptyBody(table, columnCount, message) {
-      const body = element("tbody");
-      const row = element("tr");
-      const cell = element("td", message, "empty-cell");
-      cell.colSpan = columnCount;
-      row.append(cell);
-      body.append(row);
-      table.append(body);
-    }
-
-    function appendSkillDetails(identity, skill) {
-      const disclosure = element("details");
-      disclosure.append(element("summary", "Skill 详情"));
-      const list = element("ul", "", "detail-list");
-      list.append(
-        element("li", `目录：${skill.slug}`),
-        element("li", `路径：${skill.path}`),
-        element("li", `警告：${(skill.warnings || []).join(", ") || "无"}`),
-      );
-      disclosure.append(list);
-      identity.append(disclosure);
-    }
-
-    function appendTargetDetails(cell, details) {
-      if (!details.length) return;
-      const disclosure = element("details");
-      disclosure.append(element("summary", "目标详情"));
-      const list = element("ul", "", "detail-list");
-      for (const item of details) {
-        list.append(element("li", `${item.adapter_key} · ${item.state} · ${item.message}`));
-      }
-      disclosure.append(list);
-      cell.append(disclosure);
-    }
-
-    function renderManaged(payload) {
-      if (!payload) return;
-      const query = document.getElementById("managed-search").value.trim().toLowerCase();
-      const filter = document.getElementById("managed-filter").value;
-      const table = document.getElementById("managed-table");
-      clear(table);
-      appendHeader(table, ["Skill", "Claude", "Codex", "Copilot", "Antigravity"]);
-      const body = element("tbody");
-      let visible = 0;
-      for (const skill of payload.skills.records) {
-        const states = Object.fromEntries(
-          TOOLS.map((tool) => [tool, toolState(payload, skill.slug, tool)]),
-        );
-        if (
-          query
-          && !`${skill.slug} ${skill.name} ${skill.description}`.toLowerCase().includes(query)
-        ) continue;
-        if (filter !== "all" && !Object.values(states).includes(filter)) continue;
-
-        visible += 1;
-        const row = element("tr");
-        const identity = element("td");
-        identity.append(
-          element("strong", skill.name, "skill-name"),
-          element("div", skill.slug, "skill-slug muted"),
-          element("div", skill.description, "muted"),
-        );
-        appendSkillDetails(identity, skill);
-        row.append(identity);
-
-        const targets = targetMap(payload, skill.slug);
-        for (const tool of TOOLS) {
-          const cell = element("td");
-          const details = TOOL_ADAPTERS[tool]
-            .map((key) => targets.get(key))
-            .filter(Boolean);
-          const button = element(
-            "button",
-            STATE_LABELS[states[tool]] || states[tool],
-            `state-button state-${states[tool]}`,
-          );
-          button.type = "button";
-          button.title = details
-            .map((item) => `${item.adapter_key}: ${item.state} (${item.message})`)
-            .join("\n");
-          button.setAttribute(
-            "aria-label",
-            `${skill.name} / ${TOOL_LABELS[tool]}：${STATE_LABELS[states[tool]] || states[tool]}`,
-          );
-          button.disabled = ["unavailable", "conflict", "error"].includes(states[tool])
-            || details.some((item) => item.state === "legacy")
-            || state.busy;
-          button.addEventListener(
-            "click",
-            () => setSkill(skill.slug, tool, states[tool] !== "enabled").catch(showError),
-          );
-          cell.append(button);
-          cell.append(element("div", toolSurfaceText(payload, tool), "adapter-detail"));
-          appendTargetDetails(cell, details);
-          row.append(cell);
-        }
-        body.append(row);
-      }
-      if (visible) table.append(body);
-      else appendEmptyBody(table, 5, "没有符合当前搜索和筛选条件的仓库 Skill。");
-    }
-
-    function renderInventory(payload) {
-      if (!payload) return;
-      const records = payload.inventory || [];
-      const query = document.getElementById("inventory-search").value.trim().toLowerCase();
-      const filter = document.getElementById("inventory-filter").value;
-      const table = document.getElementById("inventory-table");
-      clear(table);
-      const caption = element(
-        "caption",
-        `只读视图 · ${records.length} 条记录 · ${(payload.issues || []).length} 个问题`,
-        "muted",
-      );
-      table.append(caption);
-      appendHeader(table, ["名称", "来源", "工具", "端", "路径", "原始链接", "解析目标", "状态"]);
-      const body = element("tbody");
-      let visible = 0;
-      for (const record of records) {
-        const flags = record.flags || [];
-        const searchable = `${record.slug} ${record.name} ${record.description}`.toLowerCase();
-        if (query && !searchable.includes(query)) continue;
-        if (filter !== "all" && filter !== record.source_type && !flags.includes(filter)) continue;
-
-        visible += 1;
-        const row = element("tr");
-        const identity = element("td");
-        identity.append(
-          element("strong", record.name, "skill-name"),
-          element("div", record.description, "muted"),
-        );
-        row.append(identity);
-        const values = [
-          record.source_type,
-          (record.tools || []).join(", ") || "-",
-          surfaceKeysText(record.surfaces),
-          record.path,
-          record.raw_target || "-",
-          record.resolved_target || "-",
-          flags.join(", ") || "正常",
-        ];
-        values.forEach((value, index) => {
-          row.append(element("td", String(value), index >= 3 && index <= 5 ? "path" : ""));
-        });
-        body.append(row);
-      }
-      if (visible) table.append(body);
-      else appendEmptyBody(table, 8, "没有符合当前搜索和筛选条件的全局 Skill。");
-    }
-
-    function switchView(viewId) {
-      for (const id of ["managed-view", "inventory-view"]) {
-        document.getElementById(id).classList.toggle("hidden", id !== viewId);
-      }
-      document.querySelectorAll("[data-view]").forEach((button) => {
-        const selected = button.dataset.view === viewId;
-        button.classList.toggle("primary", selected);
-        button.setAttribute("aria-selected", String(selected));
-      });
-    }
-
-    function setBusy(busy) {
-      state.busy = busy;
-      document.querySelector("main").setAttribute("aria-busy", String(busy));
-      for (const id of ACTION_BUTTON_IDS) document.getElementById(id).disabled = busy;
-      document.querySelectorAll(".state-button").forEach((button) => {
-        if (busy) button.disabled = true;
-      });
-      if (!busy && state.status) renderManaged(state.status);
-    }
-
-    function showMessage(text, kind = "") {
-      const message = document.getElementById("message");
-      message.textContent = text;
-      message.className = kind ? `message-${kind}` : "";
-    }
-
-    function operationCounts(payload) {
-      const results = payload?.results || [];
-      return {
-        applied: results.filter((item) => item.ok && item.code === "applied").length,
-        skipped: results.filter(
-          (item) => item.ok && ["no-op", "unavailable"].includes(item.code),
-        ).length,
-        failed: results.filter((item) => !item.ok).length,
-      };
-    }
-
-    function showOperationResult(title, payload) {
-      const counts = operationCounts(payload);
-      showMessage(
-        `${title}：应用 ${counts.applied}，跳过 ${counts.skipped}，失败 ${counts.failed}。`,
-        counts.failed ? "error" : "success",
-      );
-    }
-
-    function showError(error) {
-      const counts = operationCounts(error.payload);
-      const partial = error.payload?.results
-        ? `；应用 ${counts.applied}，跳过 ${counts.skipped}，失败 ${counts.failed}`
-        : "";
-      showMessage(`操作失败：${error.message}${partial}`, "error");
-    }
-
-    function planItems(payload) {
-      if (Array.isArray(payload.changes)) return payload.changes;
-      if (payload.changes && typeof payload.changes === "object") {
-        return [
-          ...(payload.changes.link_changes || []),
-          ...(payload.changes.container_changes || []),
-          ...(payload.changes.bridge_removals || []),
-        ];
-      }
-      return Array.isArray(payload.results) ? payload.results : [];
-    }
-
-    function planItemText(item) {
-      const action = item.action || item.code
-        || (item.links ? "container" : item.legacy_root ? "bridge-remove" : "change");
-      const identity = [item.slug || "*", item.adapter_key || "-"]
-        .filter(Boolean)
-        .join(" / ");
-      const path = item.target || item.root || item.path || "-";
-      const reason = item.reason || item.message || "";
-      return `- ${action} · ${identity} · ${path}${reason ? ` · ${reason}` : ""}`;
-    }
-
-    function confirmPlan(title, payload) {
-      const changes = planItems(payload);
-      const changed = changes.filter((item) => {
-        const action = item.action || item.code;
-        return ["create", "remove", "applied"].includes(action) || !action;
-      }).length;
-      const skipped = changes.filter(
-        (item) => ["no-op", "unavailable"].includes(item.action || item.code),
-      ).length;
-      const conflicts = changes.filter(
-        (item) => ["blocked", "conflict", "target-conflict"].includes(item.action || item.code),
-      ).length;
-      const requiresAdopt = changes.filter(
-        (item) => (item.action || item.code) === "requires-adopt",
-      ).length;
-      const details = changes.map(planItemText);
-      document.getElementById("confirm-title").textContent = title;
-      document.getElementById("confirm-body").textContent = [
-        `变更 ${changed}`,
-        `跳过 ${skipped}`,
-        `冲突 ${conflicts}`,
-        `需接管 ${requiresAdopt}`,
-        "",
-        ...(details.length ? details : ["- 无计划项"]),
-      ].join("\n");
-      const dialog = document.getElementById("confirm-dialog");
-      dialog.returnValue = "cancel";
-      dialog.showModal();
-      return new Promise((resolve) => {
-        dialog.addEventListener(
-          "close",
-          () => resolve(dialog.returnValue === "confirm"),
-          { once: true },
-        );
-      });
-    }
-
-    document.getElementById("rescan-button").addEventListener(
-      "click",
-      () => refreshData().catch(showError),
-    );
-    document.getElementById("adopt-button").addEventListener(
-      "click",
-      () => previewAdoption().catch(showError),
-    );
-    document.getElementById("shutdown-button").addEventListener(
-      "click",
-      () => shutdown().catch(showError),
-    );
-    document.getElementById("enable-all-button").addEventListener(
-      "click",
-      () => setAll(true).catch(showError),
-    );
-    document.getElementById("disable-all-button").addEventListener(
-      "click",
-      () => setAll(false).catch(showError),
-    );
-    document.getElementById("managed-search").addEventListener(
-      "input",
-      () => renderManaged(state.status),
-    );
-    document.getElementById("managed-filter").addEventListener(
-      "change",
-      () => renderManaged(state.status),
-    );
-    document.getElementById("inventory-search").addEventListener(
-      "input",
-      () => renderInventory(state.inventory),
-    );
-    document.getElementById("inventory-filter").addEventListener(
-      "change",
-      () => renderInventory(state.inventory),
-    );
-
-    const viewButtons = Array.from(document.querySelectorAll("[data-view]"));
-    viewButtons.forEach((button, index) => {
-      button.addEventListener("click", () => switchView(button.dataset.view));
-      button.addEventListener("keydown", (event) => {
-        if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
-        event.preventDefault();
-        const offset = event.key === "ArrowRight" ? 1 : -1;
-        const next = viewButtons[(index + offset + viewButtons.length) % viewButtons.length];
-        switchView(next.dataset.view);
-        next.focus();
-      });
-    });
-
-    refreshData().catch(showError);
-  </script>
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

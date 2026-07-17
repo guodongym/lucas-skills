@@ -42,6 +42,7 @@ class InstructionTarget:
 @dataclass(frozen=True)
 class InstructionStatus:
     key: str
+    surfaces: tuple[str, ...]
     state: InstructionState
     path: Path
     source: Path
@@ -253,6 +254,7 @@ def _status(
     except OSError:
         return InstructionStatus(
             target.key,
+            target.surfaces,
             InstructionState.BROKEN,
             target.path,
             source,
@@ -297,7 +299,8 @@ def _status(
             except OSError:
                 direct_snapshot = None
             if (
-                resolved_target == source
+                direct_target == source
+                and resolved_target == source
                 and direct_snapshot is not None
                 and direct_snapshot.kind == "file"
             ):
@@ -315,6 +318,7 @@ def _status(
 
     return InstructionStatus(
         target.key,
+        target.surfaces,
         state,
         target.path,
         source,
@@ -601,9 +605,13 @@ def _build_instruction_plan(
     ).encode("utf-8")
     fingerprint = hashlib.sha256(canonical).hexdigest()
     has_writes = any(change.action in _WRITE_ACTIONS for change in frozen_changes)
+    applyable = not any(
+        change.action in {"blocked", "unsupported-target"}
+        for change in frozen_changes
+    )
     snapshot_path = (
         _absolute(state_dir) / "snapshots" / f"instructions-{fingerprint}.json"
-        if has_writes
+        if has_writes and applyable
         else None
     )
     return InstructionPlan(
@@ -1192,6 +1200,12 @@ class _RollbackOutcome:
     recovery_paths: tuple[Path, ...]
 
 
+@dataclass(frozen=True)
+class _CleanupOutcome:
+    messages: tuple[str, ...]
+    recovery_paths: tuple[Path, ...]
+
+
 class _InstructionApplyFailure(RuntimeError):
     def __init__(self, entry: _AppliedInstruction, cause: Exception):
         super().__init__(str(cause))
@@ -1232,7 +1246,7 @@ def _open_parent(
         parent_fd = os.open(parent_name, _DIRECTORY_FLAGS, dir_fd=home_fd)
         if not _parent_identity_matches(home_fd, parent_name, parent_fd, identity):
             raise OSError(f"instruction parent changed while opening: {home / parent_name}")
-    except BaseException as exc:
+    except BaseException:
         if parent_fd is not None:
             os.close(parent_fd)
         raise
@@ -1473,28 +1487,43 @@ def _verify_applied_batch(
 def _cleanup_committed(
     entries: list[_AppliedInstruction],
     home_fd: int,
-) -> list[str]:
-    messages: list[str] = []
+) -> dict[str, _CleanupOutcome]:
+    outcomes: dict[str, _CleanupOutcome] = {}
     for entry in entries:
+        messages: list[str] = []
+        recovery_paths: set[Path] = set()
         error = _applied_entry_error(entry, home_fd)
         if error is not None:
             if entry.backup_name is not None:
-                error += f"; recovery retained at {entry.parent / entry.backup_name}"
+                recovery_path = entry.parent / entry.backup_name
+                error += f"; recovery retained at {recovery_path}"
+                recovery_paths.add(recovery_path)
+            else:
+                recovery_paths.add(entry.change.target)
             messages.append(f"{entry.change.key}: cleanup verification failed: {error}")
-            continue
-        if entry.backup_name is not None:
+        else:
+            if entry.backup_name is not None:
+                try:
+                    os.unlink(entry.backup_name, dir_fd=entry.parent_fd)
+                    entry.backup_name = None
+                except OSError as exc:
+                    recovery_path = entry.parent / entry.backup_name
+                    recovery_paths.add(recovery_path)
+                    messages.append(f"backup retained at {recovery_path}: {exc}")
             try:
-                os.unlink(entry.backup_name, dir_fd=entry.parent_fd)
-                entry.backup_name = None
+                os.fsync(entry.parent_fd)
             except OSError as exc:
-                messages.append(
-                    f"backup retained at {entry.parent / entry.backup_name}: {exc}"
+                recovery_paths.add(
+                    entry.parent / entry.backup_name
+                    if entry.backup_name is not None
+                    else entry.change.target
                 )
-        try:
-            os.fsync(entry.parent_fd)
-        except OSError as exc:
-            messages.append(f"parent fsync failed for {entry.parent}: {exc}")
-    return messages
+                messages.append(f"parent fsync failed for {entry.parent}: {exc}")
+        if messages:
+            outcomes[entry.change.key] = _CleanupOutcome(
+                tuple(messages), tuple(sorted(recovery_paths))
+            )
+    return outcomes
 
 
 def _batch_error(
@@ -1510,6 +1539,17 @@ def _batch_error(
         (InstructionResult(False, code, key, path, message),),
         snapshot_path,
     )
+
+
+def _caused_by_permission_error(exc: BaseException) -> bool:
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        if isinstance(current, PermissionError):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def _validate_plan_shape(plan: InstructionPlan, home: Path) -> None:
@@ -1560,7 +1600,11 @@ def _validate_plan_shape(plan: InstructionPlan, home: Path) -> None:
     if not seen:
         raise InstructionPlanError("invalid-plan", "instruction plan has no targets")
     has_writes = any(change.action in _WRITE_ACTIONS for change in plan.changes)
-    if has_writes:
+    applyable = not any(
+        change.action in {"blocked", "unsupported-target"}
+        for change in plan.changes
+    )
+    if has_writes and applyable:
         if (
             plan.snapshot_path is None
             or plan.snapshot_path.name != f"instructions-{plan.fingerprint}.json"
@@ -1568,7 +1612,9 @@ def _validate_plan_shape(plan: InstructionPlan, home: Path) -> None:
         ):
             raise InstructionPlanError("invalid-plan", "snapshot path is not fingerprint-derived")
     elif plan.snapshot_path is not None:
-        raise InstructionPlanError("invalid-plan", "no-write plan must not have a snapshot path")
+        raise InstructionPlanError(
+            "invalid-plan", "non-applyable or no-write plan must not have a snapshot path"
+        )
 
 
 def _recompute_plan(plan: InstructionPlan, home: Path) -> InstructionPlan:
@@ -1683,15 +1729,24 @@ def apply_instruction_plan(
         return _batch_error(exc.code, str(exc), plan.snapshot_path or home, plan.snapshot_path)
     except (OSError, RuntimeError, ValueError) as exc:
         return _batch_error(
-            "snapshot-failed", str(exc), plan.snapshot_path or home, plan.snapshot_path
+            "permission-denied" if _caused_by_permission_error(exc) else "snapshot-failed",
+            str(exc),
+            plan.snapshot_path or home,
+            plan.snapshot_path,
         )
 
     try:
         home_fd = os.open(home, _DIRECTORY_FLAGS)
     except OSError as exc:
-        return _batch_error("apply-failed", str(exc), home, plan.snapshot_path)
+        return _batch_error(
+            "permission-denied" if _caused_by_permission_error(exc) else "apply-failed",
+            str(exc),
+            home,
+            plan.snapshot_path,
+        )
     entries: list[_AppliedInstruction] = []
     failed_change: InstructionChange | None = None
+    batch_failure_path: Path | None = None
     failure: BaseException | None = None
     try:
         for change in writes:
@@ -1709,15 +1764,18 @@ def apply_instruction_plan(
         try:
             _mark_snapshot_committed(plan, prepared_stage)
         except _SnapshotCommitFailure:
-            failed_change = writes[-1]
+            failed_change = None
+            batch_failure_path = plan.snapshot_path
             raise
         except Exception as exc:
-            failed_change = writes[-1]
+            failed_change = None
+            batch_failure_path = plan.snapshot_path
             raise OSError(f"commit marker failed: {exc}") from exc
     except Exception as exc:
         failure = exc
 
     if failure is not None:
+        permission_denied = _caused_by_permission_error(failure)
         recovery_required = (
             isinstance(failure, _SnapshotCommitFailure)
             and failure.recovery_state == _SnapshotRecoveryState.RECOVERY_REQUIRED
@@ -1783,7 +1841,7 @@ def apply_instruction_plan(
                 results.append(
                     InstructionResult(
                         False,
-                        "apply-failed",
+                        "permission-denied" if permission_denied else "apply-failed",
                         change.key,
                         change.target,
                         message,
@@ -1812,28 +1870,55 @@ def apply_instruction_plan(
                         result_recovery_paths,
                     )
                 )
+        if batch_failure_path is not None:
+            results.append(
+                InstructionResult(
+                    False,
+                    "permission-denied" if permission_denied else "apply-failed",
+                    "*",
+                    batch_failure_path,
+                    message,
+                    tuple(sorted(set(recovery_paths))),
+                )
+            )
         for entry in entries:
             os.close(entry.parent_fd)
         os.close(home_fd)
         return InstructionBatchResult(False, tuple(results), plan.snapshot_path)
 
-    cleanup_messages = _cleanup_committed(entries, home_fd)
-    results = tuple(
-        InstructionResult(
-            not cleanup_messages,
-            "applied" if not cleanup_messages else "cleanup-failed",
-            change.key,
-            change.target,
-            change.reason if not cleanup_messages else "; ".join(cleanup_messages),
-        )
-        if change.action in _WRITE_ACTIONS
-        else InstructionResult(True, "no-op", change.key, change.target, change.reason)
-        for change in plan.changes
-    )
+    cleanup_outcomes = _cleanup_committed(entries, home_fd)
+    results: list[InstructionResult] = []
+    for change in plan.changes:
+        cleanup = cleanup_outcomes.get(change.key)
+        if cleanup is not None:
+            results.append(
+                InstructionResult(
+                    False,
+                    "cleanup-failed",
+                    change.key,
+                    change.target,
+                    "; ".join(cleanup.messages),
+                    cleanup.recovery_paths,
+                )
+            )
+        elif change.action in _WRITE_ACTIONS:
+            results.append(
+                InstructionResult(
+                    True, "applied", change.key, change.target, change.reason
+                )
+            )
+        else:
+            results.append(
+                InstructionResult(
+                    True, "no-op", change.key, change.target, change.reason
+                )
+            )
     for entry in entries:
         os.close(entry.parent_fd)
     os.close(home_fd)
-    return InstructionBatchResult(not cleanup_messages, results, plan.snapshot_path)
+    return InstructionBatchResult(
+        not cleanup_outcomes, tuple(results), plan.snapshot_path
+    )
 
 
 def scan_incomplete_transactions(state_dir: Path) -> tuple[IncompleteTransaction, ...]:

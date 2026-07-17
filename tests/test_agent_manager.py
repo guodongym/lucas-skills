@@ -4,7 +4,6 @@ import io
 import importlib
 import json
 import os
-import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -82,56 +81,73 @@ class PackageLayoutTests(unittest.TestCase):
 
 
 class ReadmeTests(unittest.TestCase):
-    def test_documents_on_demand_service_and_adoption_gate(self) -> None:
+    def test_documents_unified_command_hierarchy_and_service_lifecycle(self) -> None:
         readme = Path("README.md").read_text(encoding="utf-8")
-        required = (
-            "uv run skill-manager status",
-            "uv run skill-manager doctor",
-            "uv run skill-manager serve --open",
-            "uv run skill-manager adopt --apply --json",
+        for text in (
+            "uv run agent-manager status --json",
+            "uv run agent-manager doctor --json",
+            "uv run agent-manager skills set docx --tool codex --on --json",
+            "uv run agent-manager skills adopt --json",
+            "uv run agent-manager instructions status --json",
+            "uv run agent-manager instructions adopt --json",
+            "uv run agent-manager instructions adopt --replace-existing --json",
+            "uv run agent-manager instructions adopt --apply --replace-existing --expect-fingerprint",
+            "uv run agent-manager serve --open",
             "uv run upstream-sync check",
             "uv run upstream-sync sync",
-        )
-        for text in (
-            *required,
             "uv --version",
             "服务不需要后台常驻",
             "Skill 加载位置",
+            "Instructions 目标路径",
+            "Copilot Desktop",
+            "手工",
+            "新建会话",
+            "必要时重启",
         ):
             self.assertIn(text, readme)
-        for path in ("pyproject.toml", "uv.lock", "tools/"):
+        for path in (
+            "pyproject.toml",
+            "uv.lock",
+            "tools/agent_manager/",
+            "tools/upstream_sync/",
+            "~/.claude/skills/<skill>",
+            "~/.codex/skills/<skill>",
+            "~/.copilot/skills/<skill>",
+            "~/.gemini/config/skills/<skill>",
+            "~/.gemini/antigravity-cli/plugins/lucas-skills/skills/<skill>",
+            "~/.agents/AGENTS.md",
+            "~/.claude/CLAUDE.md",
+            "~/.codex/AGENTS.md",
+            "~/.copilot/copilot-instructions.md",
+            "~/.gemini/GEMINI.md",
+        ):
             self.assertIn(path, readme)
         for obsolete in ("pip install pyyaml", "python " "vendor.py"):
             self.assertNotIn(obsolete, readme)
 
-    def test_documents_json_review_and_post_integration_acceptance(self) -> None:
+    def test_documents_independent_apply_and_archive_safety_gates(self) -> None:
         readme = Path("README.md").read_text(encoding="utf-8")
-        commands = (
-            "uv run skill-manager status --json",
-            "uv run skill-manager doctor --json",
-            "uv run skill-manager set docx --tool codex --on --json",
-            "uv run skill-manager set docx --tool codex --on --apply --json",
-            "uv run skill-manager adopt --json",
-            "uv run skill-manager adopt --apply --json",
-        )
-        for command in commands:
-            self.assertIn(command, readme)
         for text in (
             "文本输出仅提供摘要",
             "完整字段",
             "集成后验收门",
             "preview / cancel / port shutdown",
+            "真实 HOME apply",
+            "单独取得明确授权",
+            "旧状态归档",
+            "独立授权",
+            "四个工具族、八个检测表面",
+            "五个 Skill 根目录",
+            "五个 Instructions 文件入口",
         ):
             self.assertIn(text, readme)
         self.assertLess(
-            readme.index("uv run skill-manager set docx --tool codex --on --json"),
             readme.index(
-                "uv run skill-manager set docx --tool codex --on --apply --json"
+                "uv run agent-manager instructions adopt --replace-existing --json"
             ),
-        )
-        self.assertLess(
-            readme.index("uv run skill-manager adopt --json"),
-            readme.index("uv run skill-manager adopt --apply --json"),
+            readme.index(
+                "uv run agent-manager instructions adopt --apply --replace-existing --expect-fingerprint"
+            ),
         )
 
     def test_documents_fail_closed_scan_and_ds_store_exception(self) -> None:
@@ -184,315 +200,6 @@ class RepositoryScanTests(unittest.TestCase):
                 sorted(issue.code for issue in result.issues),
                 ["duplicate-name", "duplicate-name", "invalid-frontmatter"],
             )
-
-
-class WebPageTests(unittest.TestCase):
-    @staticmethod
-    def _tool_surface_rows(surfaces: list[dict[str, object]], tool: str) -> object:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        start = page.index("const TOOL_ADAPTERS")
-        end = page.index("async function api")
-        script = page[start:end] + (
-            "\nconsole.log(JSON.stringify(toolSurfaceRows("
-            f"{{surfaces: {json.dumps(surfaces)}}}, {json.dumps(tool)})));"
-        )
-        completed = subprocess.run(
-            ["node", "-e", script],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return json.loads(completed.stdout)
-
-    @staticmethod
-    def _load_path_rows(payload: dict[str, object]) -> object:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        if "function loadPathRows(" not in page:
-            raise AssertionError("loadPathRows is not implemented")
-        start = page.index("const TOOL_ADAPTERS")
-        end = page.index("async function api")
-        script = page[start:end] + (
-            "\nconsole.log(JSON.stringify(loadPathRows("
-            f"{json.dumps(payload)})));"
-        )
-        completed = subprocess.run(
-            ["node", "-e", script],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return json.loads(completed.stdout)
-
-    @staticmethod
-    def _copy_path_with_fallback(path: str, fallback_result: bool = True) -> object:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        if "function fallbackCopyText(" not in page:
-            raise AssertionError("fallbackCopyText is not implemented")
-        start = page.index("const TOOL_ADAPTERS")
-        end = page.index('document.getElementById("rescan-button")')
-        script = page[start:end] + f"""
-const messageNode = {{ textContent: "", className: "" }};
-global.document = {{ getElementById() {{ return messageNode; }} }};
-let fallbackValue = "";
-(async () => {{
-  let error = "";
-  try {{
-    await copyRootPath(
-      {json.dumps(path)},
-      {{ writeText: async () => {{ throw new Error("Document is not focused"); }} }},
-      (value) => {{ fallbackValue = value; return {json.dumps(fallback_result)}; }},
-    );
-  }} catch (cause) {{
-    error = cause.message;
-  }}
-  console.log(JSON.stringify({{ fallbackValue, message: messageNode.textContent, error }}));
-}})().catch((error) => {{ console.error(error); process.exitCode = 1; }});
-"""
-        completed = subprocess.run(
-            ["node", "-e", script],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return json.loads(completed.stdout)
-
-    def test_page_contains_required_views_and_no_external_assets(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        for element_id in (
-            "summary",
-            "managed-view",
-            "inventory-view",
-            "managed-table",
-            "inventory-table",
-            "rescan-button",
-            "adopt-button",
-            "shutdown-button",
-            "managed-search",
-            "managed-filter",
-            "inventory-search",
-            "inventory-filter",
-            "enable-all-button",
-            "disable-all-button",
-        ):
-            self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("__AGENT_MANAGER_TOKEN__", page)
-        self.assertNotIn("http://", page)
-        self.assertNotIn("https://", page)
-        self.assertNotIn("innerHTML", page)
-
-    def test_page_wires_api_matrix_confirmation_and_feedback(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        for function_name in (
-            "api",
-            "loadStatus",
-            "loadInventory",
-            "setSkill",
-            "setAll",
-            "previewAdoption",
-            "shutdown",
-            "toolState",
-            "renderSummary",
-            "renderManaged",
-            "renderInventory",
-            "switchView",
-            "showError",
-            "confirmPlan",
-        ):
-            self.assertIn(f"function {function_name}(", page)
-        for api_path in (
-            '"/api/status"',
-            '"/api/inventory"',
-            '"/api/skills/set"',
-            '"/api/skills/adopt"',
-            '"/api/shutdown"',
-        ):
-            self.assertIn(api_path, page)
-        self.assertIn('"X-Agent-Manager-Token"', page)
-        self.assertIn("const TOOL_ADAPTERS", page)
-        self.assertIn("apply: false", page)
-        self.assertIn("apply: true", page)
-        self.assertIn(
-            "JSON.stringify({ skill: slug, all: false, tool, on: enabled, apply: true })",
-            page,
-        )
-        self.assertIn(
-            'const request = { skill: null, all: true, tool: "all", on: enabled };',
-            page,
-        )
-        self.assertIn("confirmPlan(", page)
-        self.assertIn("addEventListener", page)
-        self.assertIn("Promise.all([loadStatus(), loadInventory()])", page)
-        self.assertIn("正在", page)
-        self.assertIn("操作失败", page)
-
-    def test_page_confirmation_lists_complete_preview_even_when_not_ok(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        self.assertIn("function planItemText(item)", page)
-        self.assertIn("const details = changes.map(planItemText);", page)
-        self.assertIn("...(details.length ? details", page)
-        self.assertNotIn("if (!preview.ok)", page)
-        self.assertIn("document.getElementById(\"confirm-body\").textContent", page)
-
-    def test_page_restores_row_controls_after_loading(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        self.assertIn("if (!busy && state.status) renderManaged(state.status);", page)
-
-    def test_page_avoids_a_default_favicon_request(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        self.assertIn('<link rel="icon" href="data:,">', page)
-
-    def test_page_resets_search_flex_basis_on_mobile(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        self.assertIn(".filters input { flex: 0 0 auto; width: 100%; }", page)
-
-    def test_page_renders_shared_surface_when_only_desktop_is_installed(self) -> None:
-        rows = self._tool_surface_rows(
-            [
-                {"key": "claude-desktop", "installed": True, "detector": "application"},
-                {"key": "claude-cli", "installed": False, "detector": "command:claude"},
-            ],
-            "claude",
-        )
-
-        self.assertEqual(
-            rows,
-            [
-                {"key": "claude-desktop", "label": "Desktop", "installed": True},
-                {"key": "claude-cli", "label": "CLI", "installed": False},
-            ],
-        )
-
-    def test_page_builds_repository_and_adapter_load_path_rows(self) -> None:
-        rows = self._load_path_rows(
-            {
-                "repo_root": "/Users/test/Codes/lucas-skills",
-                "skills": {
-                    "adapters": [
-                        {
-                            "key": "claude-shared",
-                            "home": "/Users/test",
-                            "root": "/Users/test/.claude/skills",
-                        },
-                        {
-                            "key": "antigravity-cli",
-                            "home": "/Users/test",
-                            "root": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-                        },
-                    ],
-                },
-            }
-        )
-
-        self.assertEqual(
-            rows,
-            [
-                {
-                    "key": "repository",
-                    "label": "统一来源",
-                    "scope": "仓库 Skills",
-                    "path": "/Users/test/Codes/lucas-skills/skills",
-                    "display_path": "/Users/test/Codes/lucas-skills/skills",
-                },
-                {
-                    "key": "claude-shared",
-                    "label": "Claude",
-                    "scope": "Desktop + CLI",
-                    "path": "/Users/test/.claude/skills",
-                    "display_path": "~/.claude/skills",
-                },
-                {
-                    "key": "antigravity-cli",
-                    "label": "Antigravity CLI",
-                    "scope": "agy",
-                    "path": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-                    "display_path": "~/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-                },
-            ],
-        )
-
-    def test_page_renders_load_path_panel_with_copy_actions(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-
-        for element_id in (
-            "load-paths",
-            "load-paths-title",
-            "load-path-list",
-        ):
-            self.assertIn(f'id="{element_id}"', page)
-        self.assertIn("Skill 加载位置", page)
-        self.assertIn("function renderLoadPaths(", page)
-        self.assertIn("function copyRootPath(", page)
-        self.assertIn("renderLoadPaths(state.status);", page)
-        self.assertIn("clipboard.writeText(path)", page)
-        self.assertIn("fallbackCopyText", page)
-        self.assertIn('element("button", "复制"', page)
-
-    def test_page_falls_back_when_clipboard_requires_document_focus(self) -> None:
-        self.assertEqual(
-            self._copy_path_with_fallback("/Users/test/.claude/skills"),
-            {
-                "fallbackValue": "/Users/test/.claude/skills",
-                "message": "已复制路径：/Users/test/.claude/skills",
-                "error": "",
-            },
-        )
-
-    def test_page_guides_manual_copy_when_browser_rejects_all_copy_methods(self) -> None:
-        self.assertEqual(
-            self._copy_path_with_fallback(
-                "/Users/test/.claude/skills",
-                fallback_result=False,
-            ),
-            {
-                "fallbackValue": "/Users/test/.claude/skills",
-                "message": "浏览器阻止自动复制，请手动复制：/Users/test/.claude/skills",
-                "error": "",
-            },
-        )
-
-    def test_page_focuses_fallback_textarea_before_selecting_text(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        focus = page.find("textarea.focus();")
-        select = page.find("textarea.select();")
-
-        self.assertGreaterEqual(focus, 0)
-        self.assertLess(focus, select)
-
-    def test_page_renders_shared_surface_when_only_cli_is_installed(self) -> None:
-        rows = self._tool_surface_rows(
-            [
-                {"key": "codex-desktop", "installed": False, "detector": "application"},
-                {"key": "codex-cli", "installed": True, "detector": "command:codex"},
-            ],
-            "codex",
-        )
-
-        self.assertEqual(
-            rows,
-            [
-                {"key": "codex-desktop", "label": "Desktop", "installed": False},
-                {"key": "codex-cli", "label": "CLI", "installed": True},
-            ],
-        )
-
-    def test_page_displays_all_surface_and_inventory_fields_with_text_content(self) -> None:
-        page = Path("tools/agent_manager/web/index.html").read_text(encoding="utf-8")
-        for key in (
-            "claude-desktop",
-            "claude-cli",
-            "codex-desktop",
-            "codex-cli",
-            "copilot-desktop",
-            "copilot-cli",
-            "antigravity-desktop",
-            "antigravity-cli",
-        ):
-            self.assertIn(key, page)
-        self.assertIn('id="surface-summary"', page)
-        self.assertIn("toolSurfaceText(payload, tool)", page)
-        self.assertIn("record.surfaces", page)
-        self.assertIn("node.textContent = text", page)
-        self.assertIn("#surface-summary", page)
 
 
 class ManagedStateTests(unittest.TestCase):

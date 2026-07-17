@@ -42,7 +42,7 @@ def build_repository(root: Path) -> tuple[Path, Path]:
     (repo / "pyproject.toml").write_text("[project]\nname = 'fixture'\n", encoding="utf-8")
     (repo / "skills").mkdir()
     (repo / "AGENTS.md").write_bytes(SOURCE_BYTES)
-    return repo, home
+    return repo.resolve(), home.resolve()
 
 
 def status_for(scan, key: str):
@@ -161,6 +161,38 @@ class InstructionCliContractTests(unittest.TestCase):
             self.assertTrue(payload["snapshot_path"].endswith(f"instructions-{payload['fingerprint']}.json"))
             self.assertNotIn("results", payload)
             self.assertFalse(os.path.lexists(home / ".codex/AGENTS.md"))
+
+    def test_status_json_retains_exact_instruction_surface_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, home = build_repository(Path(tmp))
+
+            code, payload = self.invoke(
+                ["instructions", "status", "--json"], repo, home
+            )
+
+        self.assertEqual(code, 0)
+        surfaces = {
+            target["key"]: target.get("surfaces")
+            for target in payload["instructions"]["targets"]
+        }
+        self.assertEqual(
+            surfaces,
+            {
+                "shared": [
+                    "claude-desktop",
+                    "claude-cli",
+                    "codex-desktop",
+                    "codex-cli",
+                    "copilot-cli",
+                    "antigravity-desktop",
+                    "antigravity-cli",
+                ],
+                "claude": ["claude-desktop", "claude-cli"],
+                "codex": ["codex-desktop", "codex-cli"],
+                "copilot": ["copilot-cli"],
+                "antigravity": ["antigravity-desktop", "antigravity-cli"],
+            },
+        )
 
     def test_replace_preview_and_apply_preserve_the_reviewed_plan_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -363,6 +395,24 @@ class AtomicInstallPrimitiveTests(unittest.TestCase):
 
 
 class InstructionPlanTests(unittest.TestCase):
+    def test_set_off_blocks_link_through_an_intermediate_directory_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            alias = root / "repo-alias"
+            alias.symlink_to(repo, target_is_directory=True)
+            target = home / ".codex/AGENTS.md"
+            target.parent.mkdir()
+            target.symlink_to(alias / "AGENTS.md")
+
+            plan = plan_instruction_set(
+                scan_instructions(repo, home), ["codex"], False, root / "state"
+            )
+
+        self.assertEqual(plan.changes[0].action, "blocked")
+        self.assertEqual(plan.changes[0].reason, "only a direct managed link can be removed")
+        self.assertIsNone(plan.snapshot_path)
+
     def test_missing_parent_is_blocked_and_apply_never_enters_mkdir_swap_race(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -574,6 +624,7 @@ class InstructionPlanTests(unittest.TestCase):
             root = Path(tmp)
             repo, home = build_repository(root)
             target = create_instruction_shape(home, repo, "codex", "conflict")
+            enable_other_instruction_targets(home, repo, "codex")
             target.write_bytes(b"\xff\x00rules\n")
             before = filesystem_manifest(root)
             scan = scan_instructions(repo, home)
@@ -602,6 +653,56 @@ class InstructionPlanTests(unittest.TestCase):
             )
 
         self.assertIsNone(plan.snapshot_path)
+
+    def test_blocked_mixed_plan_is_stable_and_does_not_publish_snapshot_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            create_instruction_parents(home, "shared")
+            create_instruction_shape(home, repo, "codex", "conflict")
+            enable_other_instruction_targets(home, repo, "shared", "codex")
+            scan = scan_instructions(repo, home)
+
+            left = plan_instruction_adoption(
+                scan, root / "state", replace_existing=False
+            )
+            right = plan_instruction_adoption(
+                scan, root / "state", replace_existing=False
+            )
+
+            self.assertEqual(left.fingerprint, right.fingerprint)
+            self.assertEqual(
+                {change.key: change.action for change in left.changes},
+                {
+                    "shared": "create",
+                    "claude": "no-op",
+                    "codex": "blocked",
+                    "copilot": "no-op",
+                    "antigravity": "no-op",
+                },
+            )
+            self.assertIsNone(left.snapshot_path)
+            home_before = filesystem_manifest(home)
+            result = apply_instruction_plan(
+                left, home, expected_fingerprint=left.fingerprint
+            )
+            self.assertFalse(result.ok)
+            self.assertIsNone(result.snapshot_path)
+            self.assertEqual(
+                [(item.key, item.code, item.path) for item in result.results],
+                [
+                    (
+                        change.key,
+                        "blocked" if change.key == "codex" else "not-applied",
+                        change.target,
+                    )
+                    for change in left.changes
+                ],
+            )
+            self.assertTrue(all(not item.ok for item in result.results))
+            self.assertEqual(filesystem_manifest(home), home_before)
+            self.assertFalse((home / ".agents/AGENTS.md").exists())
+            self.assertFalse((root / "state").exists())
 
     def test_rejects_unknown_duplicate_and_invalid_source_with_stable_codes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -767,7 +868,7 @@ class InstructionApplyTests(unittest.TestCase):
             self.assertTrue(
                 all(target.path.is_symlink() for target in build_instruction_targets(home))
             )
-            write_results = [item for item in result.results if item.code != "no-op"]
+            write_results = [item for item in result.results if item.key != "*"]
             self.assertEqual(
                 {item.code for item in write_results},
                 {"rollback-skipped"},
@@ -775,6 +876,10 @@ class InstructionApplyTests(unittest.TestCase):
             self.assertTrue(
                 all(item.recovery_paths == recovery_paths for item in write_results)
             )
+            batch_failure = next(item for item in result.results if item.key == "*")
+            self.assertEqual(batch_failure.code, "apply-failed")
+            self.assertEqual(batch_failure.path, plan.snapshot_path)
+            self.assertEqual(batch_failure.recovery_paths, recovery_paths)
 
     def test_committed_recovery_cleanup_failure_still_rolls_back_home(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -891,6 +996,57 @@ class InstructionApplyTests(unittest.TestCase):
                     self.assertEqual(len(backups), 1)
                     messages = " ".join(item.message for item in result.results)
                     self.assertIn(str(backups[0]), messages)
+
+    def test_cleanup_failure_is_attributed_only_to_its_transaction_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            shared = create_instruction_shape(home, repo, "shared", "conflict")
+            claude = create_instruction_shape(home, repo, "claude", "conflict")
+            enable_other_instruction_targets(home, repo, "shared", "claude")
+            plan = plan_instruction_adoption(
+                scan_instructions(repo, home), root / "state", replace_existing=True
+            )
+            real_unlink = os.unlink
+            shared_parent_inode = shared.parent.stat().st_ino
+            failed = False
+
+            def fail_shared_backup(path, *args, dir_fd=None, **kwargs):
+                nonlocal failed
+                is_shared_backup = (
+                    not failed
+                    and str(path).endswith(".backup")
+                    and dir_fd is not None
+                    and os.fstat(dir_fd).st_ino == shared_parent_inode
+                )
+                if is_shared_backup:
+                    failed = True
+                    raise OSError("shared backup cleanup denied")
+                return real_unlink(path, *args, dir_fd=dir_fd, **kwargs)
+
+            with patch(
+                "tools.agent_manager.instructions.os.unlink",
+                side_effect=fail_shared_backup,
+            ):
+                result = apply_instruction_plan(
+                    plan, home, expected_fingerprint=plan.fingerprint
+                )
+
+            by_key = {item.key: item for item in result.results}
+            shared_backups = tuple(shared.parent.glob(".agent-manager-*.backup"))
+            claude_backups = tuple(claude.parent.glob(".agent-manager-*.backup"))
+
+            self.assertFalse(result.ok)
+            self.assertTrue(failed)
+            self.assertEqual(by_key["shared"].code, "cleanup-failed")
+            self.assertTrue(by_key["claude"].ok)
+            self.assertEqual(by_key["claude"].code, "applied")
+            self.assertEqual(by_key["claude"].recovery_paths, ())
+            self.assertEqual(by_key["shared"].recovery_paths, shared_backups)
+            self.assertIn("shared backup cleanup denied", by_key["shared"].message)
+            self.assertEqual(claude_backups, ())
+            self.assertTrue(direct_link(shared, repo / "AGENTS.md"))
+            self.assertTrue(direct_link(claude, repo / "AGENTS.md"))
 
     def test_committed_directory_fsync_failure_restores_prepared_before_home_rollback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1151,6 +1307,57 @@ class InstructionApplyTests(unittest.TestCase):
                 self.assertEqual(result.results[0].code, "snapshot-failed")
                 self.assertEqual(filesystem_manifest(home), before)
                 self.assertTrue(target.is_file())
+
+    def test_snapshot_permission_failure_is_permission_denied_before_home_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _repo, home, target, plan = self.build_single_write_plan(root, "create")
+            before = filesystem_manifest(home)
+
+            with patch(
+                "tools.agent_manager.instructions._ensure_snapshot_directory",
+                side_effect=PermissionError("snapshot directory denied"),
+            ):
+                result = apply_instruction_plan(
+                    plan, home, expected_fingerprint=plan.fingerprint
+                )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(len(result.results), 1)
+            self.assertEqual(result.results[0].key, "*")
+            self.assertEqual(result.results[0].code, "permission-denied")
+            self.assertEqual(result.results[0].path, plan.snapshot_path)
+            self.assertIn("snapshot directory denied", result.results[0].message)
+            self.assertEqual(filesystem_manifest(home), before)
+            self.assertFalse(target.exists())
+            self.assertFalse(plan.snapshot_path.exists())
+
+    def test_snapshot_commit_permission_failure_is_attributed_to_snapshot_after_rollback(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _repo, home, target, plan = self.build_single_write_plan(root, "create")
+            before = filesystem_manifest(home)
+
+            with patch(
+                "tools.agent_manager.instructions._mark_snapshot_committed",
+                side_effect=PermissionError("snapshot commit denied"),
+            ):
+                result = apply_instruction_plan(
+                    plan, home, expected_fingerprint=plan.fingerprint
+                )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(
+                [(item.key, item.code, item.path) for item in result.results],
+                [
+                    ("codex", "rolled-back", target),
+                    ("*", "permission-denied", plan.snapshot_path),
+                ],
+            )
+            self.assertEqual(filesystem_manifest(home), before)
+            self.assertEqual(json.loads(plan.snapshot_path.read_text())["phase"], "prepared")
 
     def test_existing_prepared_and_committed_snapshots_are_never_overwritten(self) -> None:
         cases = (
@@ -1465,9 +1672,13 @@ class InstructionApplyTests(unittest.TestCase):
                 )
 
             shared = next(item for item in result.results if item.key == "shared")
+            self.assertFalse(result.ok)
             self.assertTrue(parent.is_dir())
-            self.assertEqual(shared.code, "apply-failed")
+            self.assertEqual(shared.code, "permission-denied")
+            self.assertEqual(shared.path, home / ".agents/AGENTS.md")
+            self.assertIn("pre-existing parent open failed", shared.message)
             self.assertEqual(shared.recovery_paths, ())
+            self.assertFalse(shared.path.exists())
 
     def test_parent_replaced_by_external_symlink_is_not_followed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1531,8 +1742,15 @@ class InstructionApplyTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertEqual(filesystem_manifest(home), before)
             codex = next(item for item in result.results if item.key == "codex")
-            self.assertEqual(codex.code, "apply-failed")
+            self.assertEqual(codex.code, "rolled-back")
             self.assertEqual(codex.recovery_paths, ())
+            batch_failure = next(item for item in result.results if item.key == "*")
+            self.assertEqual(batch_failure.code, "apply-failed")
+            self.assertEqual(batch_failure.path, plan.snapshot_path)
+            problem = instructions_cli._batch_problem(result)
+            self.assertIsNotNone(problem)
+            self.assertEqual(problem[0], "apply-failed")
+            self.assertIs(problem[1], batch_failure)
             self.assertEqual(json.loads(plan.snapshot_path.read_text())["phase"], "prepared")
 
     def test_repeated_apply_via_fresh_plan_is_idempotent(self) -> None:
@@ -1688,6 +1906,58 @@ class InstructionTargetTests(unittest.TestCase):
 
 
 class InstructionClassificationTests(unittest.TestCase):
+    def test_classifies_intermediate_directory_symlink_as_indirect_for_raw_target_forms(self) -> None:
+        for relative in (False, True):
+            with self.subTest(relative=relative), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                repo, home = build_repository(root)
+                alias = root / "repo-alias"
+                alias.symlink_to(repo, target_is_directory=True)
+                target = home / ".codex/AGENTS.md"
+                target.parent.mkdir()
+                raw_target = (
+                    os.path.relpath(alias / "AGENTS.md", target.parent)
+                    if relative
+                    else str(alias / "AGENTS.md")
+                )
+                target.symlink_to(raw_target)
+
+                status = status_for(scan_instructions(repo, home), "codex")
+
+                self.assertEqual(status.state, InstructionState.INDIRECT_LINK)
+                self.assertEqual(status.raw_target, raw_target)
+                self.assertEqual(status.resolved_target, (repo / "AGENTS.md").resolve())
+                self.assertEqual(status.message, "link resolves through another entry")
+
+    def test_adopt_normalizes_intermediate_directory_symlink_to_direct_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            enable_other_instruction_targets(home, repo, "codex")
+            alias = root / "repo-alias"
+            alias.symlink_to(repo, target_is_directory=True)
+            target = home / ".codex/AGENTS.md"
+            target.parent.mkdir()
+            target.symlink_to(alias / "AGENTS.md")
+            plan = plan_instruction_adoption(
+                scan_instructions(repo, home), root / "state", replace_existing=False
+            )
+
+            result = apply_instruction_plan(
+                plan, home, expected_fingerprint=plan.fingerprint
+            )
+
+            self.assertTrue(result.ok)
+            self.assertEqual(
+                next(change for change in plan.changes if change.key == "codex").action,
+                "replace",
+            )
+            self.assertEqual(os.readlink(target), str((repo / "AGENTS.md").resolve()))
+            self.assertEqual(
+                status_for(scan_instructions(repo, home), "codex").state,
+                InstructionState.ENABLED,
+            )
+
     def test_classifies_direct_absolute_link_as_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo, home = build_repository(Path(tmp))

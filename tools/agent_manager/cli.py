@@ -415,13 +415,88 @@ def _repository_issue_message(issues: Sequence[ScanIssue]) -> str:
     )
 
 
-def _batch_code(result: BatchResult | InstructionBatchResult) -> str | None:
+def _operation_error_code(
+    domain: str | None,
+    command: str,
+    exc: Exception,
+) -> str:
+    if isinstance(exc, PermissionError):
+        return "permission-denied"
+    if isinstance(exc, ValueError):
+        if domain == "skills" and command == "set":
+            return "invalid-skill"
+        if domain == "skills" and command == "adopt":
+            return "adoption-failed"
+        if domain == "instructions":
+            return getattr(exc, "code", "invalid-instructions")
+        return "internal-error"
+    if isinstance(exc, (OSError, RuntimeError)):
+        return (
+            "adoption-failed"
+            if domain == "skills" and command == "adopt"
+            else "verification-failed"
+        )
+    return "internal-error"
+
+
+def _batch_problem(
+    result: BatchResult | InstructionBatchResult,
+) -> tuple[str, object] | None:
     failures = [item for item in result.results if not item.ok]
     if not failures:
         return None
-    if len(failures) != len(result.results):
-        return "partial-failure"
-    return failures[0].code
+    if isinstance(result, InstructionBatchResult):
+        recovery_failure = next(
+            (
+                item
+                for item in failures
+                if item.code
+                in {"rollback-incomplete", "rollback-skipped", "cleanup-failed"}
+            ),
+            None,
+        )
+        if recovery_failure is not None:
+            return recovery_failure.code, recovery_failure
+        permission_failure = next(
+            (item for item in failures if item.code == "permission-denied"),
+            None,
+        )
+        if permission_failure is not None:
+            return "permission-denied", permission_failure
+        batch_execution_failure = next(
+            (
+                item
+                for item in failures
+                if item.key == "*" and item.code in {"apply-failed", "snapshot-failed"}
+            ),
+            None,
+        )
+        if batch_execution_failure is not None:
+            return batch_execution_failure.code, batch_execution_failure
+    if isinstance(result, InstructionBatchResult) and any(
+        item.code == "not-applied" for item in failures
+    ):
+        conflict = next(
+            (
+                item
+                for item in failures
+                if item.code in {"blocked", "unsupported-target"}
+            ),
+            None,
+        )
+        if conflict is not None:
+            return "target-conflict", conflict
+    code = (
+        "partial-failure"
+        if len(failures) != len(result.results)
+        else failures[0].code
+    )
+    return code, failures[0]
+
+
+def _batch_code(result: BatchResult | InstructionBatchResult) -> str | None:
+    problem = _batch_problem(result)
+    return problem[0] if problem is not None else None
 
 
 def _add_batch(
@@ -430,11 +505,11 @@ def _add_batch(
 ) -> None:
     payload["ok"] = result.ok
     payload["results"] = result.results
-    code = _batch_code(result)
-    if code is not None:
+    problem = _batch_problem(result)
+    if problem is not None:
+        code, failure = problem
         payload["code"] = code
-        failure = next(item for item in result.results if not item.ok)
-        payload["message"] = failure.message
+        payload["message"] = getattr(failure, "message")
 
 
 def _adoption_changes(plan: AdoptionPlan) -> dict[str, object]:
@@ -782,27 +857,8 @@ def main(
         _add_batch(payload, instruction_result)
         _write_payload(stdout, state, "apply", payload, args.json)
         return 0 if instruction_result.ok else 1
-    except ValueError as exc:
-        if domain == "skills" and command == "set":
-            code = "invalid-skill"
-        elif domain == "skills" and command == "adopt":
-            code = "adoption-failed"
-        elif domain == "instructions":
-            code = getattr(exc, "code", "invalid-instructions")
-        else:
-            code = "internal-error"
-        _set_error(payload, code, str(exc))
-    except PermissionError as exc:
-        _set_error(payload, "permission-denied", str(exc))
-    except (OSError, RuntimeError) as exc:
-        code = (
-            "adoption-failed"
-            if domain == "skills" and command == "adopt"
-            else "verification-failed"
-        )
-        _set_error(payload, code, str(exc))
     except Exception as exc:
-        _set_error(payload, "internal-error", str(exc))
+        _set_error(payload, _operation_error_code(domain, command, exc), str(exc))
 
     if args.json:
         json.dump(to_jsonable(payload), stdout, ensure_ascii=False, indent=2)

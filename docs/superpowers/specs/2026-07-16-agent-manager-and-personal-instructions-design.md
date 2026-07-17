@@ -1,7 +1,7 @@
 # Agent Manager 重构与全局个人约束管理设计
 
 - 日期：2026-07-16
-- 状态：已按初审 findings 修订，待复审
+- 状态：已实现并通过分支验证
 - 结论：把现有 `skill-manager` 直接重构为唯一入口 `agent-manager`，在保留 Skill 管理能力的同时，将仓库根 `AGENTS.md` 作为全局个人约束唯一来源，安全管理 Claude、Codex、GitHub Copilot CLI、Antigravity 和通用 Agent 入口；同步重做本地 Web UI，使其成为可快速判断连接健康度并安全执行变更的 Agent 路由控制台。
 
 ## 1. 背景与当前事实
