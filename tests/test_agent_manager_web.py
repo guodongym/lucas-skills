@@ -155,6 +155,10 @@ class WebPageTests(unittest.TestCase):
         )
         self.assertTrue(all(attrs.get("type") == "button" for attrs in nav_controls))
 
+    def test_skill_details_guidance_names_the_status_cell_entry_point(self) -> None:
+        self.assertIn("点击工具状态格查看完整路径、说明和操作。", self.page)
+        self.assertNotIn("选择一行可查看各工具的完整路径与服务端说明。", self.page)
+
     def test_shell_is_self_contained_and_server_strings_are_not_inserted_as_html(self) -> None:
         for source in (self.page, self.css):
             self.assertNotIn("http://", source)
@@ -188,9 +192,11 @@ class WebPageTests(unittest.TestCase):
             self.css,
             r"\.route-channel \{(?:.|\n)*?min-width: 0;",
         )
-        self.assertIn(".route-roots li { min-width: 0; }", self.css)
+        self.assertIn(".route-list::before {", self.css)
+        self.assertIn(".route-node::before { border-top: 2px solid var(--route);", self.css)
+        self.assertIn(".route-node::after { border-top: 2px dashed var(--muted);", self.css)
 
-    def test_routing_board_is_semantic_content_with_decorative_svg(self) -> None:
+    def test_routing_board_is_semantic_content_without_decorative_svg(self) -> None:
         topology = next(
             (tag, attrs)
             for tag, attrs in self.parser.start_tags
@@ -198,21 +204,149 @@ class WebPageTests(unittest.TestCase):
         )
         self.assertEqual(topology[0], "figure")
         self.assertNotEqual(topology[1].get("role"), "img")
-        svg = next(
-            attrs
-            for tag, attrs in self.parser.start_tags
-            if tag == "svg" and attrs.get("id") == "topology-lines"
-        )
-        self.assertEqual(svg.get("aria-hidden"), "true")
+        self.assertNotIn("topology-lines", self.page)
         self.assertIn('node("ul", null, "route-list")', self.javascript)
-        self.assertIn('node("li", null, "route-node")', self.javascript)
+        self.assertIn("route-node-skills-attention", self.javascript)
+        self.assertIn("route-node-instructions-attention", self.javascript)
         self.assertIn('setAttribute("aria-label"', self.javascript)
 
-    def test_topology_draws_distinct_long_skill_and_instruction_routes(self) -> None:
-        self.assertIn("route-line-skills", self.javascript)
-        self.assertIn("route-line-instructions", self.javascript)
-        self.assertIn(".route-line-instructions", self.css)
-        self.assertIn("stroke-dasharray", self.css)
+    def test_server_messages_render_with_chinese_labels(self) -> None:
+        cases = {
+            "direct repository link": "已直接链接到仓库",
+            "target differs from repository source": "内容与仓库源不一致",
+            "link resolves through another entry": "经其他入口间接链接到仓库",
+            "surface not installed": "未检测到该工具",
+            "unmapped server message": "unmapped server message",
+        }
+        for raw, expected in cases.items():
+            with self.subTest(raw=raw):
+                self.assertEqual(
+                    self._run_exports(
+                        f"AgentManagerTest.messageLabel({json.dumps(raw)})"
+                    ),
+                    expected,
+                )
+
+    def test_attention_entries_are_deduplicated_with_view_links(self) -> None:
+        self.assertNotIn(
+            'records.push({ label: payload.code || "状态异常", message: payload.message });',
+            self.javascript,
+        )
+        self.assertIn('view: "instructions"', self.javascript)
+        self.assertIn('view: "skills"', self.javascript)
+        self.assertIn(
+            "if (!records.some((record) => record.message === topMessage))",
+            self.javascript,
+        )
+
+    def test_instruction_row_actions_match_server_semantics_per_state(self) -> None:
+        cases = {
+            "enabled": (["disable"], None),
+            "missing": (["enable"], None),
+            "indirect-link": (["adopt"], None),
+            "matching-copy": (["adopt"], None),
+            "conflict": (["resolve"], None),
+            "broken": (["resolve"], None),
+            "manual": ([], None),
+        }
+        for state, (kinds, note) in cases.items():
+            with self.subTest(state=state):
+                result = self._run_exports(
+                    "AgentManagerTest.instructionRowActions("
+                    f"{json.dumps(state)}, 'link cannot be resolved')"
+                )
+                self.assertEqual([a["kind"] for a in result["actions"]], kinds)
+                self.assertEqual(result["note"], note)
+
+    def test_instruction_row_actions_block_unsupported_targets(self) -> None:
+        for message, note in (
+            ("target is a directory", "目录不支持接管"),
+            ("target is a special file", "特殊文件不支持接管"),
+        ):
+            with self.subTest(message=message):
+                result = self._run_exports(
+                    "AgentManagerTest.instructionRowActions("
+                    f"'conflict', {json.dumps(message)})"
+                )
+                self.assertEqual(result["actions"], [])
+                self.assertEqual(result["note"], note)
+
+    def test_duplicate_groups_fall_back_to_slug_when_name_is_missing(self) -> None:
+        result = self._run_exports(
+            "AgentManagerTest.inventorySummary(["
+            "{slug:'a',name:null,source_type:'plugin',flags:['duplicate-name']},"
+            "{slug:'a',name:null,source_type:'plugin',flags:['duplicate-name']},"
+            "{slug:'b',name:'b',source_type:'plugin',flags:[]}"
+            "], [])"
+        )
+        self.assertEqual(result["duplicateGroups"], 1)
+        self.assertEqual(result["flagged"], 2)
+
+    def test_inventory_refresh_failure_preserves_cached_records(self) -> None:
+        self.assertEqual(
+            self._run_exports("typeof AgentManagerTest.inventoryFailureMode"),
+            "function",
+        )
+        self.assertEqual(
+            self._run_exports("AgentManagerTest.inventoryFailureMode(true)"),
+            "stale",
+        )
+        self.assertEqual(
+            self._run_exports("AgentManagerTest.inventoryFailureMode(false)"),
+            "empty",
+        )
+        self.assertIn(
+            'if (inventoryFailureMode(state.inventoryLoaded) === "stale")',
+            self.javascript,
+        )
+        self.assertIn("以下为上次成功扫描的结果", self.javascript)
+        self.assertIn("（数据可能过期）", self.javascript)
+        self.assertIn("inventory-name-repeat-prefix", self.javascript)
+
+    def test_switching_views_closes_the_details_drawer(self) -> None:
+        switch_view = self.javascript.split("function switchView(view) {", 1)[1]
+        self.assertIn("closeDrawer();", switch_view.split("}", 3)[0])
+
+    def test_topology_targets_attention_color_to_the_matching_channel(self) -> None:
+        self.assertEqual(
+            self._run_exports(
+                "typeof AgentManagerTest.routeNodeClass"
+            ),
+            "function",
+        )
+        cases = (
+            (
+                "{skills:{status:'attention'},instructions:{status:'muted'}}",
+                "route-node route-node-skills-attention",
+            ),
+            (
+                "{skills:{status:'healthy'},instructions:{status:'attention'}}",
+                "route-node route-node-instructions-attention",
+            ),
+            (
+                "{skills:{status:'attention'},instructions:{status:'attention'}}",
+                "route-node route-node-skills-attention route-node-instructions-attention",
+            ),
+        )
+        for route, expected in cases:
+            with self.subTest(route=route):
+                self.assertEqual(
+                    self._run_exports(
+                        f"AgentManagerTest.routeNodeClass({route})"
+                    ),
+                    expected,
+                )
+        self.assertIn(".route-node::before { border-top: 2px solid var(--route);", self.css)
+        self.assertIn(".route-node::after { border-top: 2px dashed var(--muted);", self.css)
+        self.assertIn(
+            ".route-node-skills-attention::before { border-top-color: var(--attention); }",
+            self.css,
+        )
+        self.assertIn(
+            ".route-node-instructions-attention::after { border-top-color: var(--attention); }",
+            self.css,
+        )
+        self.assertIn(".route-channel.line-dashed::before { border-top-style: dashed; }", self.css)
 
     def test_bootstrap_exposes_server_truth_renderers_and_guarded_write_routes(self) -> None:
         for function_name in (
@@ -424,12 +558,16 @@ class WebPageTests(unittest.TestCase):
             },
         )
         for stable_id in (
-            "instruction-${record.key}-enable",
-            "instruction-${record.key}-disable",
-            "instruction-${record.key}-adopt",
+            "instruction-${record.key}-${action.id}",
             "skill-${record.slug}-${family.key}-details",
         ):
             self.assertIn(stable_id, self.javascript)
+        self.assertIn(
+            "button.title = `查看 ${record.name || record.slug} · ${family.label} 详情`",
+            self.javascript,
+        )
+        for action_id in ('id: "enable"', 'id: "disable"', 'id: "adopt"'):
+            self.assertIn(action_id, self.javascript)
 
     def test_apply_outcome_model_keeps_execution_results_separate_from_reviewed_preview(self) -> None:
         model = self._run_exports(
@@ -696,7 +834,7 @@ class WebPageTests(unittest.TestCase):
         )
         for contract in (
             "renderApplyOutcomeDrawer(settled.outcome)",
-            'node("h3", "先前审核的预览")',
+            'node("h3", "已确认的变更计划")',
             'node("h3", "已执行结果")',
             'node("h3", "后续验证失败")',
             'node("h3", "后续刷新失败")',
@@ -1069,6 +1207,10 @@ class WebPageTests(unittest.TestCase):
             'document.getElementById("inventory-source-filter").value = "all"',
             'document.getElementById("inventory-status-filter").value = "all"',
             "当前筛选下没有库存记录。",
+            "全局库存为空。请确认各工具已安装，并在扫描后重试。",
+            "库存摘要不可用：最近一次刷新失败",
+            "inventory-name-repeat",
+            "组重名",
         ):
             self.assertIn(contract, self.javascript)
         for css_class in (
@@ -1173,7 +1315,7 @@ class WebPageTests(unittest.TestCase):
         )
         self.assertEqual(
             result["summary"],
-            {"managed": 2, "flagged": 2, "total": 5, "visible": 3},
+            {"managed": 2, "flagged": 2, "duplicateGroups": 1, "total": 5, "visible": 3},
         )
         self.assertEqual(result["sorted"], ["pdf", "reader", "docx", "creator", "writer"])
         self.assertEqual(result["after"], result["original"])

@@ -22,7 +22,6 @@
         <button type="button" data-view="instructions">个人约束</button>
         <button type="button" data-view="inventory">全局库存</button>
       </nav>
-      <p class="sidebar-note">状态来自本次扫描，不在浏览器推断。</p>
     </aside>
 
     <div class="workspace">
@@ -54,7 +53,6 @@
           <section class="topology-section" aria-labelledby="topology-title">
             <h3 id="topology-title" class="sr-only">Agent 路由拓扑</h3>
             <figure id="topology-board" class="topology-board" aria-labelledby="topology-title">
-              <svg id="topology-lines" class="topology-lines" viewBox="0 0 1000 370" preserveAspectRatio="none" aria-hidden="true"></svg>
               <p class="loading-copy">正在构建拓扑…</p>
             </figure>
           </section>
@@ -75,7 +73,7 @@
               <span class="eyebrow">SKILL ROUTES</span>
               <h2 id="skills-title">Skills 加载矩阵</h2>
             </div>
-            <p>选择一行可查看各工具的完整路径与服务端说明。</p>
+            <p>点击工具状态格查看完整路径、说明和操作。</p>
           </div>
           <div class="data-panel skills-panel">
             <div class="filter-row">
@@ -85,9 +83,9 @@
             <div id="skills-bulk-controls" class="operation-bar" hidden>
               <span id="skills-selection-count">已选择 0 项</span>
               <label>目标工具<select id="skills-bulk-tool"><option value="all">全部工具</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="copilot">Copilot</option><option value="antigravity">Antigravity</option></select></label>
-              <button id="skills-enable-button" type="button">预览启用</button>
-              <button id="skills-disable-button" type="button">预览停用</button>
-              <button id="skills-adopt-button" type="button">预览采用现有路由</button>
+              <button id="skills-enable-button" type="button">启用所选</button>
+              <button id="skills-disable-button" type="button">停用所选</button>
+              <button id="skills-adopt-button" type="button">接管旧链接</button>
             </div>
             <p class="scroll-hint">表格可横向滚动以查看全部工具。</p>
             <div class="table-scroller">
@@ -108,7 +106,7 @@
             <p>每条记录展示目标、覆盖范围和当前来源。</p>
           </div>
           <div class="data-panel instructions-panel">
-            <div class="instruction-grid-header" aria-hidden="true"><span>目标</span><span>加载位置</span><span>覆盖工具</span><span>状态</span><span>操作</span></div>
+            <div class="instruction-grid-header"><span>目标</span><span>加载位置</span><span>覆盖工具</span><span>状态</span><span>操作</span></div>
             <ul id="instructions-list" class="instruction-list"><li>正在读取个人约束…</li></ul>
           </div>
         </section>

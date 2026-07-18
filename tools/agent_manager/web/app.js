@@ -8,6 +8,34 @@
     { key: "antigravity", label: "Antigravity" },
   ];
   const ATTENTION_STATES = new Set(["conflict", "error", "broken", "legacy"]);
+  const MESSAGE_LABELS = {
+    "direct repository link": "已直接链接到仓库",
+    "recognized legacy link": "旧结构链接，可接管为直链",
+    "whole-directory link requires adoption": "整目录旧链接，需要接管",
+    "broken symlink": "链接已损坏",
+    "surface not installed": "未检测到该工具",
+    "target differs from repository source": "内容与仓库源不一致",
+    "target does not exist": "目标不存在",
+    "target is a directory": "目标是目录，不支持接管",
+    "target is a special file": "目标是特殊文件，不支持接管",
+    "file content matches repository source": "内容与仓库源一致（普通文件副本）",
+    "link resolves through another entry": "经其他入口间接链接到仓库",
+    "link resolves to another source": "链接指向其他来源",
+    "link cannot be resolved": "链接无法解析",
+    "already in requested state": "已处于目标状态",
+    "already a direct repository link": "已是仓库直链",
+    "create direct repository link": "创建仓库直链",
+    "remove direct repository link": "移除仓库直链",
+    "adopt existing instruction entry": "接管现有入口为仓库直链",
+    "replace conflicting instruction entry": "替换冲突入口（原文件保存到快照）",
+    "symlink belongs to another source": "链接指向其他来源",
+    "target is not a symlink": "目标不是软链",
+    "target root is a broken symlink": "目标根目录链接已损坏",
+    "target root is an unmanaged symlink": "目标根目录是未受管链接",
+    "target root is not a directory": "目标根目录不是目录",
+    "configure repository instructions manually in Copilot Desktop Settings":
+      "需在 Copilot Desktop 设置中手动配置",
+  };
   const state = {
     status: null,
     inventoryLoaded: false,
@@ -85,12 +113,23 @@
 
   function inventorySummary(records, visibleRecords) {
     const allRecords = asArray(records);
+    const flaggedRecords = allRecords.filter(inventoryRecordIsFlagged);
+    const duplicateGroups = new Set(
+      flaggedRecords
+        .filter((record) => asArray(record.flags).includes("duplicate-name"))
+        .map((record) => record.name || record.slug),
+    ).size;
     return {
       managed: allRecords.filter((record) => record.source_type === "managed").length,
-      flagged: allRecords.filter(inventoryRecordIsFlagged).length,
+      flagged: flaggedRecords.length,
+      duplicateGroups,
       total: allRecords.length,
       visible: asArray(visibleRecords).length,
     };
+  }
+
+  function inventoryFailureMode(hasLoadedInventory) {
+    return hasLoadedInventory ? "stale" : "empty";
   }
 
   function filterInventoryRecords(records, filters) {
@@ -649,13 +688,28 @@
     });
   }
 
+  function routeNodeClass(route) {
+    const classes = ["route-node"];
+    if (route.skills && route.skills.status === "attention") {
+      classes.push("route-node-skills-attention");
+    }
+    if (route.instructions && route.instructions.status === "attention") {
+      classes.push("route-node-instructions-attention");
+    }
+    return classes.join(" ");
+  }
+
   if (globalThis.__AGENT_MANAGER_TEST__ === true) {
     globalThis.AgentManagerTest = Object.freeze({
       buildTopology,
+      routeNodeClass,
+      messageLabel,
+      instructionRowActions,
       filterSkillRows,
       inventorySourcePresentation,
       inventoryFlagPresentation,
       inventorySummary,
+      inventoryFailureMode,
       filterInventoryRecords,
       sortInventoryRecords,
       compactHomePath,
@@ -723,8 +777,34 @@
     return presentations[value] || [value || "未知", "state-muted"];
   }
 
+  function messageLabel(message) {
+    const text = String(message == null ? "" : message);
+    return MESSAGE_LABELS[text] || text;
+  }
+
+  function instructionRowActions(state, message) {
+    const note = {
+      "target is a directory": "目录不支持接管",
+      "target is a special file": "特殊文件不支持接管",
+    }[String(message == null ? "" : message)] || null;
+    const actions = [];
+    if (state === "missing") {
+      actions.push({ kind: "enable", id: "enable", label: "启用" });
+    }
+    if (state === "enabled") {
+      actions.push({ kind: "disable", id: "disable", label: "停用" });
+    }
+    if (state === "indirect-link" || state === "matching-copy") {
+      actions.push({ kind: "adopt", id: "adopt", label: "转为直链" });
+    }
+    if ((state === "conflict" || state === "broken") && !note) {
+      actions.push({ kind: "resolve", id: "adopt", label: "处理冲突" });
+    }
+    return { actions, note };
+  }
+
   function exactMessage(record) {
-    return record && record.message ? String(record.message) : "服务端未返回补充说明。";
+    return record && record.message ? messageLabel(record.message) : "服务端未返回补充说明。";
   }
 
   function showToast(message) {
@@ -756,7 +836,7 @@
     previousDialogFocus = document.activeElement;
     const body = document.getElementById("confirmation-body");
     clearNode(body);
-    body.appendChild(node("p", "仅以下服务端替换预览可被应用。请核对所有路径与快照。", "attention-copy"));
+    body.appendChild(node("p", "将执行以下替换。请核对所有路径与快照位置。", "attention-copy"));
     appendChangeList(body, model.changes);
     appendDetail(body, "计划指纹", model.fingerprint);
     appendDetail(body, "快照位置", model.snapshotPath || "服务端未要求快照");
@@ -780,7 +860,7 @@
     parent.appendChild(wrapper);
   }
 
-  function showDetails(title, fields, message) {
+  function showDetails(title, fields, message, rawMessage) {
     openDrawer({
       title,
       render(body) {
@@ -801,7 +881,9 @@
           list.appendChild(description);
         });
         list.appendChild(node("dt", "服务端说明"));
-        list.appendChild(node("dd", message));
+        const messageNode = node("dd", message);
+        if (rawMessage && rawMessage !== message) messageNode.title = rawMessage;
+        list.appendChild(messageNode);
         body.appendChild(list);
       },
     });
@@ -881,7 +963,7 @@
     returnFocus = document.activeElement,
   ) {
     openDrawer({
-      title: payload.mode === "apply" ? "应用结果" : "服务端变更预览",
+      title: payload.mode === "apply" ? "执行结果" : "确认变更",
       render(body) {
         if (problem) body.appendChild(node("p", formatProblem(problem), "operation-error"));
         if (refreshProblem) {
@@ -902,7 +984,7 @@
             .includes(change.action)
         ));
         const actions = node("div", null, "operation-actions");
-        const applyButton = node("button", "应用此预览");
+        const applyButton = node("button", "确认执行");
         applyButton.setAttribute("type", "button");
         applyButton.disabled = blocked;
         applyButton.addEventListener("click", applyPreview);
@@ -913,7 +995,7 @@
           && request.path === "/api/instructions/adopt"
           && request.body.replace_existing === false
         ) {
-          const replacement = node("button", "预览替换现有文件", "danger-button");
+          const replacement = node("button", "替换现有文件…", "danger-button");
           replacement.setAttribute("type", "button");
           replacement.addEventListener("click", () => previewInstruction(
             null,
@@ -925,7 +1007,7 @@
         if (blocked) {
           body.appendChild(node(
             "p",
-            "此服务端预览包含阻塞项，不能应用。请按上方错误处理后重新预览。",
+            "以下变更包含阻塞项，无法执行。请先处理上方问题后重试。",
             "operation-error",
           ));
         }
@@ -1054,7 +1136,7 @@
         ? (outcome.refreshProblem ? "应用完成，刷新失败" : "应用完成")
         : "应用结果需要处理",
       render(body) {
-        body.appendChild(node("h3", "先前审核的预览"));
+        body.appendChild(node("h3", "已确认的变更计划"));
         appendChangeList(body, outcome.reviewedChanges);
         body.appendChild(node("h3", "已执行结果"));
         appendResultList(body, outcome.results);
@@ -1206,14 +1288,18 @@
     const summaryNode = document.getElementById("status-summary");
     clearNode(summaryNode);
     [
-      ["Skills（至少一处）", `${summary.skills_enabled || 0} / ${summary.skills_total || 0}`],
-      ["个人约束", `${summary.instructions_enabled || 0} / ${summary.instructions_total || 0}`],
-      ["冲突", summary.conflicts || 0],
-      ["扫描问题", summary.issues || 0],
-    ].forEach(([label, value]) => {
+      ["Skills（至少一处）", `${summary.skills_enabled || 0} / ${summary.skills_total || 0}`, false],
+      ["个人约束", `${summary.instructions_enabled || 0} / ${summary.instructions_total || 0}`, false],
+      ["冲突", summary.conflicts || 0, (summary.conflicts || 0) > 0],
+      ["扫描问题", summary.issues || 0, (summary.issues || 0) > 0],
+    ].forEach(([label, value, needsAttention]) => {
       const item = node("div", null, "status-item");
       item.appendChild(node("span", label, "status-label"));
-      item.appendChild(node("strong", value, "status-value"));
+      item.appendChild(node(
+        "strong",
+        value,
+        `status-value${needsAttention ? " status-value-attention" : ""}`,
+      ));
       summaryNode.appendChild(item);
     });
     renderTopology(payload);
@@ -1223,24 +1309,6 @@
   function renderTopology(payload) {
     const board = document.getElementById("topology-board");
     clearNode(board);
-    const lines = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    lines.setAttribute("class", "topology-lines");
-    lines.setAttribute("viewBox", "0 0 1000 370");
-    lines.setAttribute("preserveAspectRatio", "none");
-    lines.setAttribute("aria-hidden", "true");
-    [55, 140, 230, 315].forEach((targetY) => {
-      [
-        ["route-line-skills", -4],
-        ["route-line-instructions", 4],
-      ].forEach(([lineClass, offset]) => {
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("class", `route-line ${lineClass}`);
-        path.setAttribute("d", `M 190 185 C 360 185, 350 ${targetY + offset}, 540 ${targetY + offset}`);
-        lines.appendChild(path);
-      });
-    });
-    board.appendChild(lines);
-
     const source = node("div", null, "source-node");
     source.appendChild(node("strong", "lucas-skills"));
     appendPath(source, payload.repo_root || "仓库路径不可用", "route-path");
@@ -1248,7 +1316,11 @@
 
     const list = node("ul", null, "route-list");
     buildTopology(payload).forEach((route) => {
-      const routeNode = node("li", null, "route-node");
+      const routeNode = node(
+        "li",
+        null,
+        routeNodeClass(route),
+      );
       const toolNode = node("div", null, "route-tool");
       toolNode.appendChild(node("h3", route.label));
       toolNode.appendChild(node(
@@ -1258,9 +1330,9 @@
       ));
       routeNode.appendChild(toolNode);
       [
-        ["Skills", route.skills],
-        ["个人约束", route.instructions],
-      ].forEach(([kind, channel]) => {
+        ["Skills", route.skills, "skills"],
+        ["个人约束", route.instructions, "instructions"],
+      ].forEach(([kind, channel, view]) => {
         const channelNode = node(
           "section",
           null,
@@ -1269,24 +1341,23 @@
         channelNode.setAttribute("aria-label", `${route.label} ${kind}：${channel.statusLabel}`);
         channelNode.appendChild(node("span", kind, "route-kind"));
         channelNode.appendChild(node("strong", channel.statusLabel, "route-status"));
-        const roots = node("ul", null, "route-roots");
-        if (!channel.roots.length) {
-          roots.appendChild(node("li", "未发现加载位置", "route-path"));
-        } else {
-          channel.roots.forEach((root) => {
-            const rootNode = node("li");
-            appendPath(rootNode, root.displayPath, "route-path");
-            rootNode.lastChild.title = root.fullPath || "";
-            if (root.coverageLabel) {
-              rootNode.appendChild(node("span", root.coverageLabel, "route-coverage"));
-            }
-            root.messages.forEach((message) => {
-              rootNode.appendChild(node("span", message, "route-message"));
-            });
-            roots.appendChild(rootNode);
-          });
+        if (channel.status !== "healthy") {
+          const notes = channel.messages
+            .map((message) => messageLabel(message))
+            .filter((message, index, all) => message && all.indexOf(message) === index);
+          if (notes.length) {
+            const note = node("span", notes.join("；"), "route-note");
+            note.title = channel.messages.join("\n");
+            channelNode.appendChild(note);
+          }
         }
-        channelNode.appendChild(roots);
+        if (channel.status === "attention") {
+          const go = node("button", "处理", "compact-action attention-action");
+          go.setAttribute("type", "button");
+          go.setAttribute("aria-label", `处理 ${route.label} ${kind} 异常`);
+          go.addEventListener("click", () => switchView(view));
+          channelNode.appendChild(go);
+        }
         routeNode.appendChild(channelNode);
       });
       list.appendChild(routeNode);
@@ -1302,25 +1373,45 @@
         message: formatProblem(state.operationError),
       });
     }
-    if (payload.ok === false && payload.message) {
-      records.push({ label: payload.code || "状态异常", message: payload.message });
-    }
     asArray(payload.skills && payload.skills.issues).forEach((issue) => {
-      records.push({ label: issue.code || "Skill 扫描问题", message: exactMessage(issue) });
+      records.push({
+        label: `Skill 扫描 · ${issue.code || "问题"}`,
+        message: exactMessage(issue),
+        view: "skills",
+      });
     });
     asArray(payload.skills && payload.skills.targets)
       .filter((target) => ATTENTION_STATES.has(target.state))
       .forEach((target) => {
-        records.push({ label: `${target.slug} · ${target.tool}`, message: exactMessage(target) });
+        const family = TOOL_FAMILIES.find((item) => item.key === target.tool);
+        records.push({
+          label: `Skill · ${target.slug} · ${family ? family.label : target.tool}`,
+          message: exactMessage(target),
+          view: "skills",
+        });
       });
     asArray(payload.instructions && payload.instructions.issues).forEach((issue) => {
-      records.push({ label: issue.code || "个人约束扫描问题", message: exactMessage(issue) });
+      records.push({
+        label: `个人约束扫描 · ${issue.code || "问题"}`,
+        message: exactMessage(issue),
+        view: "instructions",
+      });
     });
     asArray(payload.instructions && payload.instructions.targets)
       .filter((target) => ATTENTION_STATES.has(target.state))
       .forEach((target) => {
-        records.push({ label: target.key, message: exactMessage(target) });
+        records.push({
+          label: `个人约束 · ${target.key}`,
+          message: exactMessage(target),
+          view: "instructions",
+        });
       });
+    if (payload.ok === false && payload.message) {
+      const topMessage = messageLabel(payload.message);
+      if (!records.some((record) => record.message === topMessage)) {
+        records.push({ label: payload.code || "状态异常", message: topMessage });
+      }
+    }
     return records;
   }
 
@@ -1335,8 +1426,17 @@
     }
     attention.forEach((record) => {
       const item = node("li", null, "attention-copy");
-      item.appendChild(node("strong", `${record.label}：`));
-      item.appendChild(node("span", record.message));
+      const copy = node("div", null, "attention-record");
+      copy.appendChild(node("strong", record.label));
+      copy.appendChild(node("span", record.message));
+      item.appendChild(copy);
+      if (record.view) {
+        const go = node("button", "查看", "compact-action attention-action");
+        go.setAttribute("type", "button");
+        go.setAttribute("aria-label", `查看 ${record.label}`);
+        go.addEventListener("click", () => switchView(record.view));
+        item.appendChild(go);
+      }
       list.appendChild(item);
     });
   }
@@ -1378,28 +1478,45 @@
   }
 
   function showSkillDetails(record, family, aggregate, label) {
-    state.selectedSkills.add(record.slug);
-    renderSkillsBulkControls(skillRows(state.status || {}));
     openDrawer({
       title: `${record.name || record.slug} · ${family.label}`,
       render(body) {
-        const fields = [["状态", label]];
+        if (record.description) {
+          const description = node("p", record.description, "plan-copy");
+          description.title = record.description;
+          body.appendChild(description);
+        }
+        appendDetail(body, "状态", label);
         aggregate.records.forEach((target) => {
           const suffix = target.adapter_key || family.key;
-          fields.push([`加载位置 · ${suffix}`, target.path]);
-          fields.push([`原始目标 · ${suffix}`, target.raw_target]);
-          fields.push([`解析目标 · ${suffix}`, target.resolved_target]);
+          appendDetail(body, `加载位置 · ${suffix}`, target.path);
+          if (target.raw_target) {
+            appendDetail(body, `链接指向 · ${suffix}`, target.raw_target);
+          }
+          if (target.resolved_target && target.resolved_target !== target.raw_target) {
+            appendDetail(body, `实际解析 · ${suffix}`, target.resolved_target);
+          }
         });
-        fields.forEach(([fieldLabel, value]) => appendDetail(body, fieldLabel, value));
-        body.appendChild(node("p", aggregate.message, "plan-copy"));
+        const note = node(
+          "p",
+          aggregate.messages.map((message) => messageLabel(message)).join("；")
+            || "服务端未返回补充说明。",
+          "plan-copy",
+        );
+        note.title = aggregate.message;
+        body.appendChild(note);
         const actions = node("div", null, "operation-actions");
-        appendOperationButton(actions, "预览启用", () => previewSkillSelection({
-          kind: "set", skill: record.slug, tool: family.key, on: true,
-        }));
-        appendOperationButton(actions, "预览停用", () => previewSkillSelection({
-          kind: "set", skill: record.slug, tool: family.key, on: false,
-        }));
-        body.appendChild(actions);
+        if (aggregate.state !== "enabled" && aggregate.state !== "unavailable") {
+          appendOperationButton(actions, "启用", () => previewSkillSelection({
+            kind: "set", skill: record.slug, tool: family.key, on: true,
+          }));
+        }
+        if (aggregate.state !== "disabled" && aggregate.state !== "unavailable") {
+          appendOperationButton(actions, "停用", () => previewSkillSelection({
+            kind: "set", skill: record.slug, tool: family.key, on: false,
+          }));
+        }
+        if (actions.childNodes.length) body.appendChild(actions);
       },
     });
   }
@@ -1439,7 +1556,9 @@
       identity.appendChild(selection);
       const copy = node("div", null, "skill-identity-copy");
       copy.appendChild(node("strong", record.name || record.slug));
-      copy.appendChild(node("span", record.slug, "skill-description path-text"));
+      if (record.name && record.name !== record.slug) {
+        copy.appendChild(node("span", record.slug, "skill-description path-text"));
+      }
       if (record.description) {
         const description = node(
           "span", record.description, "skill-description skill-description-clamped",
@@ -1457,8 +1576,12 @@
         const button = node("button", null, "cell-button route-status-button");
         button.id = `skill-${record.slug}-${family.key}-details`;
         button.setAttribute("type", "button");
+        button.setAttribute(
+          "aria-label",
+          `${record.name || record.slug} · ${family.label}：${label}，查看详情`,
+        );
+        button.title = `查看 ${record.name || record.slug} · ${family.label} 详情`;
         button.appendChild(node("span", label, `state-text ${stateClass}`));
-        button.appendChild(node("span", "详情", "route-button-hint"));
         button.addEventListener("click", () => showSkillDetails(
           record, family, aggregate, label,
         ));
@@ -1513,26 +1636,32 @@
       row.appendChild(status);
       const actions = node("div", null, "instruction-actions");
       actions.setAttribute("data-label", "操作");
-      const enabled = instructions.source_text !== null;
-      const enable = appendOperationButton(actions, "预览启用", () => previewInstruction(
-        record.key, { kind: "set", on: true },
-      ), "compact-action");
-      const disable = appendOperationButton(actions, "预览停用", () => previewInstruction(
-        record.key, { kind: "set", on: false },
-      ), "compact-action");
-      const replaceable = ["conflict", "broken"].includes(record.state)
-        && record.message !== "target is a directory";
-      const adopt = appendOperationButton(actions, "预览采用", () => previewInstruction(
-        record.key,
-        { kind: "adopt", replaceExisting: false },
-        replaceable,
-      ), "compact-action");
-      enable.id = `instruction-${record.key}-enable`;
-      disable.id = `instruction-${record.key}-disable`;
-      adopt.id = `instruction-${record.key}-adopt`;
-      [enable, disable, adopt].forEach((control) => {
-        control.disabled = !enabled;
-        if (!enabled) control.title = "仓库说明来源不可用";
+      const sourceReady = instructions.source_text !== null;
+      const plannedActions = instructionRowActions(record.state, record.message);
+      const controls = plannedActions.actions.map((action) => {
+        const handlers = {
+          enable: () => previewInstruction(record.key, { kind: "set", on: true }),
+          disable: () => previewInstruction(record.key, { kind: "set", on: false }),
+          adopt: () => previewInstruction(record.key, { kind: "adopt", replaceExisting: false }),
+          resolve: () => previewInstruction(
+            record.key, { kind: "adopt", replaceExisting: false }, true,
+          ),
+        };
+        const control = appendOperationButton(
+          actions,
+          action.label,
+          handlers[action.kind],
+          action.kind === "resolve" ? "compact-action danger-action" : "compact-action",
+        );
+        control.id = `instruction-${record.key}-${action.id}`;
+        return control;
+      });
+      if (plannedActions.note) {
+        actions.appendChild(node("span", plannedActions.note, "route-note"));
+      }
+      controls.forEach((control) => {
+        control.disabled = !sourceReady;
+        if (!sourceReady) control.title = "仓库说明来源不可用";
       });
       row.appendChild(actions);
       if (
@@ -1557,11 +1686,14 @@
             ["原始类型", instructionOriginalType(record)],
             ["目标路径", record.path, true],
             ["来源", record.source, true],
-            ["目标 SHA-256", record.target_sha256],
-            ["原始目标", record.raw_target, true],
-            ["解析目标", record.resolved_target, true],
+            ...(record.target_sha256 ? [["目标 SHA-256", record.target_sha256]] : []),
+            ...(record.raw_target ? [["链接指向", record.raw_target, true]] : []),
+            ...(record.resolved_target && record.resolved_target !== record.raw_target
+              ? [["实际解析", record.resolved_target, true]]
+              : []),
           ],
           exactMessage(record),
+          record.message,
         );
       });
       row.insertBefore(button, row.firstChild);
@@ -1656,6 +1788,10 @@
         code: "inventory-refresh-failed",
         message: error.message,
       };
+      if (inventoryFailureMode(state.inventoryLoaded) === "stale") {
+        renderInventory();
+        return null;
+      }
       const body = document.getElementById("inventory-body");
       clearNode(body);
       const row = node("tr");
@@ -1665,6 +1801,13 @@
       row.appendChild(cell);
       body.appendChild(row);
       document.getElementById("inventory-result-count").textContent = "加载失败";
+      const summaryContainer = document.getElementById("inventory-summary");
+      clearNode(summaryContainer);
+      summaryContainer.appendChild(node(
+        "p",
+        "库存摘要不可用：最近一次刷新失败，以下操作前请先重试刷新。",
+        "attention-copy",
+      ));
       return null;
     } finally {
       state.inventoryLoading = false;
@@ -1695,9 +1838,12 @@
   function renderInventorySummary(summary) {
     const container = document.getElementById("inventory-summary");
     clearNode(container);
+    const flaggedLabel = summary.duplicateGroups > 0
+      ? `需要处理 · ${summary.duplicateGroups} 组重名`
+      : "需要处理";
     [
       ["仓库受管", summary.managed, "summary-managed"],
-      ["需要处理", summary.flagged, "summary-flagged"],
+      [flaggedLabel, summary.flagged, "summary-flagged"],
       ["当前结果", summary.visible, "summary-visible"],
       ["全部库存", summary.total, "summary-total"],
     ].forEach(([label, value, className]) => {
@@ -1749,6 +1895,9 @@
         String(button.getAttribute("data-inventory-scope") === state.inventoryScope),
       );
     });
+    const staleNotice = state.lastInventoryProblem
+      ? "以下为上次成功扫描的结果；最近一次刷新失败，请重试刷新。"
+      : null;
     const filtered = filterInventoryRecords(
       state.inventoryRecords,
       inventoryFiltersFromControls(),
@@ -1756,17 +1905,31 @@
     const records = sortInventoryRecords(filtered);
     const summary = inventorySummary(state.inventoryRecords, records);
     renderInventorySummary(summary);
-    document.getElementById("inventory-result-count").textContent = `显示 ${summary.visible} / ${summary.total} 项`;
+    if (staleNotice) {
+      document.getElementById("inventory-summary").appendChild(
+        node("p", staleNotice, "attention-copy"),
+      );
+    }
+    document.getElementById("inventory-result-count").textContent = staleNotice
+      ? `显示 ${summary.visible} / ${summary.total} 项（数据可能过期）`
+      : `显示 ${summary.visible} / ${summary.total} 项`;
     const body = document.getElementById("inventory-body");
     clearNode(body);
     if (!records.length) {
       const row = node("tr");
-      const cell = node("td", "当前筛选下没有库存记录。", "empty-cell");
+      const cell = node(
+        "td",
+        state.inventoryRecords.length
+          ? "当前筛选下没有库存记录。"
+          : "全局库存为空。请确认各工具已安装，并在扫描后重试。",
+        "empty-cell",
+      );
       cell.setAttribute("colspan", "6");
       row.appendChild(cell);
       body.appendChild(row);
       return;
     }
+    let previousDuplicateName = null;
     records.forEach((record) => {
       const flagged = inventoryRecordIsFlagged(record);
       const rowClasses = ["inventory-row"];
@@ -1776,7 +1939,22 @@
       const heading = node("th");
       heading.setAttribute("scope", "row");
       const identity = node("div", null, "inventory-identity");
-      identity.appendChild(node("strong", record.name || record.slug));
+      const duplicateName = asArray(record.flags).includes("duplicate-name")
+        ? record.name || record.slug
+        : null;
+      const groupedContinuation = duplicateName !== null
+        && duplicateName === previousDuplicateName;
+      previousDuplicateName = duplicateName;
+      const nameNode = node(
+        "strong",
+        "",
+        groupedContinuation ? "inventory-name-repeat" : "",
+      );
+      if (groupedContinuation) {
+        nameNode.appendChild(node("span", "同名 · ", "inventory-name-repeat-prefix"));
+      }
+      nameNode.appendChild(document.createTextNode(record.name || record.slug));
+      identity.appendChild(nameNode);
       if (record.slug && record.slug !== record.name) {
         identity.appendChild(node("span", record.slug, "path-text"));
       }
@@ -1839,6 +2017,7 @@
   }
 
   function switchView(view) {
+    closeDrawer();
     state.activeView = view;
     document.querySelectorAll("[data-view-panel]").forEach((panel) => {
       panel.hidden = panel.getAttribute("data-view-panel") !== view;
