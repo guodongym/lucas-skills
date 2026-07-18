@@ -170,12 +170,23 @@ class WebPageTests(unittest.TestCase):
             self.assertIn(primitive, self.javascript)
 
     def test_visual_system_matches_approved_tokens_and_accessibility_contracts(self) -> None:
-        for color in ("#F4F6F8", "#171A1F", "#69717D", "#2563EB", "#16825D", "#B86B12"):
+        for color in (
+            "#0052D9", "#366EF4", "#F2F3FF",
+            "#F3F3F3", "#E7E7E7", "#DCDCDC", "#181818", "#4B4B4B", "#5E5E5E",
+            "#2BA471", "#006C45", "#E3F9E9",
+            "#E37318", "#954500", "#FFF1E9",
+            "#D54941", "#B11F1F", "#FFF0ED",
+            "#EEEEEE", "#0B1F3A",
+        ):
             self.assertIn(color, self.css)
+        for retired in ("#F4F6F8", "#171A1F", "#69717D", "#2563EB", "#16825D", "#B86B12"):
+            self.assertNotIn(retired, self.css)
         for typeface in ("Avenir Next", "system-ui", "SFMono-Regular"):
             self.assertIn(typeface, self.css)
         for contract in (
             ":focus-visible",
+            "@media (max-width: 1160px)",
+            "@media (max-width: 800px)",
             "@media (max-width: 720px)",
             "@media (prefers-reduced-motion: reduce)",
             "thead th",
@@ -186,15 +197,34 @@ class WebPageTests(unittest.TestCase):
             "180ms",
         ):
             self.assertIn(contract, self.css)
+        for shadow_token in ("--shadow-1:", "--shadow-2:", "--shadow-3:"):
+            self.assertIn(shadow_token, self.css)
+        self.assertRegex(
+            self.css,
+            r"\.status-value \{[^}]*font-size: 36px;",
+        )
+        self.assertIn("font-variant-numeric: tabular-nums", self.css)
         self.assertNotIn("backdrop-filter", self.css)
         self.assertIn("scroll-hint", self.css)
         self.assertRegex(
             self.css,
             r"\.route-channel \{(?:.|\n)*?min-width: 0;",
         )
+        self.assertRegex(
+            self.css,
+            r"\.source-node \{[^}]*min-width: 0;",
+        )
+        self.assertRegex(
+            self.css,
+            r"\.repository-bar \{[^}]*flex-wrap: wrap;",
+        )
+        self.assertRegex(
+            self.css,
+            r"@media \(max-width: 800px\) \{[^@]*\.route-node \{ grid-template-columns: 1fr; \}",
+        )
         self.assertIn(".route-list::before {", self.css)
-        self.assertIn(".route-node::before { border-top: 2px solid var(--route);", self.css)
-        self.assertIn(".route-node::after { border-top: 2px dashed var(--muted);", self.css)
+        self.assertIn(".route-node::before { border-top: 2px solid var(--panel-line-ok);", self.css)
+        self.assertIn(".route-node::after { border-top: 2px dashed var(--panel-line-ok);", self.css)
 
     def test_routing_board_is_semantic_content_without_decorative_svg(self) -> None:
         topology = next(
@@ -206,9 +236,86 @@ class WebPageTests(unittest.TestCase):
         self.assertNotEqual(topology[1].get("role"), "img")
         self.assertNotIn("topology-lines", self.page)
         self.assertIn('node("ul", null, "route-list")', self.javascript)
-        self.assertIn("route-node-skills-attention", self.javascript)
-        self.assertIn("route-node-instructions-attention", self.javascript)
+        self.assertIn("route-node-${channel}-${status}", self.javascript)
         self.assertIn('setAttribute("aria-label"', self.javascript)
+
+    def test_navigation_icons_are_inline_svg_with_semantic_generation(self) -> None:
+        icons = self._run_exports("AgentManagerTest.NAV_ICONS")
+        self.assertEqual(
+            set(icons),
+            {"overview", "skills", "instructions", "inventory"},
+        )
+        self.assertTrue(all(isinstance(d, str) and d for d in icons.values()))
+        self.assertIn(
+            'document.createElementNS("http://www.w3.org/2000/svg"',
+            self.javascript,
+        )
+        self.assertIn('svg.setAttribute("aria-hidden", "true")', self.javascript)
+
+    def test_button_hierarchy_defines_primary_text_and_solid_danger(self) -> None:
+        self.assertIn('node("button", "确认执行", "primary-action")', self.javascript)
+        for contract in (".primary-action {", "#danger-apply-button {", ".text-action {"):
+            self.assertIn(contract, self.css)
+        self.assertRegex(self.css, r"\.primary-action \{[^}]*background: var\(--brand\);")
+        self.assertRegex(
+            self.css,
+            r"#danger-apply-button \{[^}]*background: var\(--error-text\);",
+        )
+        self.assertIn('class="text-action"', self.page)
+
+    def test_repository_path_shortens_home_prefix_with_full_title(self) -> None:
+        self.assertEqual(
+            self._run_exports(
+                "AgentManagerTest.repositoryHome("
+                "{skills:{adapters:[{home:'/Users/test'},{home:'/Users/other'}]}})"
+            ),
+            "/Users/test",
+        )
+        self.assertEqual(self._run_exports("AgentManagerTest.repositoryHome({})"), "")
+        self.assertIn(
+            "appendRepositoryPath(payload.repo_root, repositoryHome(payload))",
+            self.javascript,
+        )
+        self.assertIn("target.textContent = compactHomePath(path, home)", self.javascript)
+
+    def test_state_presentation_separates_error_states_from_pending_states(self) -> None:
+        cases = {
+            "enabled": ["已启用", "state-enabled"],
+            "partial": ["部分启用", "state-partial"],
+            "conflict": ["冲突", "state-attention"],
+            "legacy": ["旧链接", "state-attention"],
+            "error": ["异常", "state-error"],
+            "broken": ["链接损坏", "state-error"],
+            "disabled": ["未启用", "state-muted"],
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(
+                    self._run_exports(
+                        f"AgentManagerTest.statePresentation({json.dumps(value)})"
+                    ),
+                    expected,
+                )
+
+    def test_status_badges_use_light_backgrounds_with_deep_text(self) -> None:
+        for contract in (
+            ".state-enabled { background: var(--success-light); color: var(--success-text); }",
+            ".state-attention { background: var(--warning-light); color: var(--warning-text); }",
+            ".state-error { background: var(--error-light); color: var(--error-text); }",
+            ".state-partial { background: var(--warning-light); color: var(--warning-text); }",
+            ".state-muted { background: var(--neutral-light); color: var(--muted); }",
+            ".status-badge-healthy { background: var(--success-light); color: var(--success-text); }",
+            ".status-badge-attention { background: var(--warning-light); color: var(--warning-text); }",
+            ".source-managed { background: var(--brand-light); color: var(--brand); }",
+            ".source-broken { background: var(--error-light); color: var(--error-text); }",
+        ):
+            self.assertIn(contract, self.css)
+        self.assertRegex(self.css, r"\.state-text \{[^}]*border-radius: 3px;")
+        self.assertRegex(self.css, r"\.state-text \{[^}]*font-size: 12px;")
+        self.assertRegex(
+            self.css,
+            r"\.route-status-button:hover[^{]*\{[^}]*box-shadow: var\(--shadow-1\);",
+        )
 
     def test_server_messages_render_with_chinese_labels(self) -> None:
         cases = {
@@ -216,6 +323,7 @@ class WebPageTests(unittest.TestCase):
             "target differs from repository source": "内容与仓库源不一致",
             "link resolves through another entry": "经其他入口间接链接到仓库",
             "surface not installed": "未检测到该工具",
+            "target is absent": "目标不存在",
             "unmapped server message": "unmapped server message",
         }
         for raw, expected in cases.items():
@@ -238,6 +346,89 @@ class WebPageTests(unittest.TestCase):
             "if (!records.some((record) => record.message === topMessage))",
             self.javascript,
         )
+
+    def test_attention_records_carry_jump_anchors_only_for_target_rows(self) -> None:
+        payload = {
+            "ok": True,
+            "skills": {
+                "issues": [
+                    {
+                        "code": "scan-issue",
+                        "message": "broken skill dir",
+                        "path": "/repo/skills/broken",
+                    }
+                ],
+                "targets": [
+                    {
+                        "slug": "docx",
+                        "tool": "codex",
+                        "state": "conflict",
+                        "message": "target differs from repository source",
+                    },
+                    {
+                        "slug": "pdf",
+                        "tool": "codex",
+                        "state": "enabled",
+                        "message": "direct repository link",
+                    },
+                ],
+            },
+            "instructions": {
+                "issues": [
+                    {
+                        "code": "source-missing",
+                        "message": "instruction source missing",
+                        "path": "/repo/AGENTS.md",
+                    }
+                ],
+                "targets": [
+                    {"key": "codex", "state": "broken", "message": "broken symlink"},
+                ],
+            },
+        }
+        records = self._run_exports(
+            f"AgentManagerTest.collectAttention({json.dumps(payload)})"
+        )
+        by_label = {record["label"]: record for record in records}
+        self.assertNotIn("view", by_label["Skill 扫描 · scan-issue"])
+        self.assertNotIn("view", by_label["个人约束扫描 · source-missing"])
+        self.assertEqual(
+            by_label["Skill 扫描 · scan-issue"]["path"], "/repo/skills/broken"
+        )
+        self.assertEqual(
+            by_label["个人约束扫描 · source-missing"]["path"], "/repo/AGENTS.md"
+        )
+        self.assertIn(
+            'appendPath(copy, record.path, "path-text attention-path")',
+            self.javascript,
+        )
+        skill_record = by_label["Skill · docx · Codex"]
+        self.assertEqual(skill_record["view"], "skills")
+        self.assertEqual(skill_record["slug"], "docx")
+        instruction_record = by_label["个人约束 · codex"]
+        self.assertEqual(instruction_record["view"], "instructions")
+        self.assertEqual(instruction_record["key"], "codex")
+
+    def test_attention_jump_presets_filters_and_highlights_landing_row(self) -> None:
+        self.assertIn("function jumpToAttentionTarget(", self.javascript)
+        self.assertIn(
+            'document.getElementById("skill-state-filter").value = "attention"',
+            self.javascript,
+        )
+        self.assertIn(
+            'document.getElementById("skill-query").value = record.slug || ""',
+            self.javascript,
+        )
+        self.assertIn("jump-highlight", self.javascript)
+        self.assertIn("scrollIntoView", self.javascript)
+        self.assertIn("jumpToAttentionTarget(record)", self.javascript)
+        self.assertIn(".jump-highlight", self.css)
+
+    def test_nonzero_summary_numbers_anchor_to_the_attention_list(self) -> None:
+        self.assertIn("function focusAttentionList(", self.javascript)
+        self.assertIn('addEventListener("click", focusAttentionList)', self.javascript)
+        self.assertIn("查看需要处理列表", self.javascript)
+        self.assertIn(".status-value-button", self.css)
 
     def test_instruction_row_actions_match_server_semantics_per_state(self) -> None:
         cases = {
@@ -317,7 +508,7 @@ class WebPageTests(unittest.TestCase):
         cases = (
             (
                 "{skills:{status:'attention'},instructions:{status:'muted'}}",
-                "route-node route-node-skills-attention",
+                "route-node route-node-skills-attention route-node-instructions-muted",
             ),
             (
                 "{skills:{status:'healthy'},instructions:{status:'attention'}}",
@@ -326,6 +517,10 @@ class WebPageTests(unittest.TestCase):
             (
                 "{skills:{status:'attention'},instructions:{status:'attention'}}",
                 "route-node route-node-skills-attention route-node-instructions-attention",
+            ),
+            (
+                "{skills:{status:'partial'},instructions:{status:'healthy'}}",
+                "route-node route-node-skills-partial",
             ),
         )
         for route, expected in cases:
@@ -336,17 +531,51 @@ class WebPageTests(unittest.TestCase):
                     ),
                     expected,
                 )
-        self.assertIn(".route-node::before { border-top: 2px solid var(--route);", self.css)
-        self.assertIn(".route-node::after { border-top: 2px dashed var(--muted);", self.css)
+        self.assertIn(".route-node::before { border-top: 2px solid var(--panel-line-ok);", self.css)
+        self.assertIn(".route-node::after { border-top: 2px dashed var(--panel-line-ok);", self.css)
         self.assertIn(
-            ".route-node-skills-attention::before { border-top-color: var(--attention); }",
+            ".route-node-skills-attention::before { border-top-color: var(--panel-line-warn); }",
             self.css,
         )
         self.assertIn(
-            ".route-node-instructions-attention::after { border-top-color: var(--attention); }",
+            ".route-node-instructions-attention::after { border-top-color: var(--panel-line-warn); }",
+            self.css,
+        )
+        self.assertIn(
+            ".route-node-skills-muted::before { border-top-color: var(--panel-muted); }",
+            self.css,
+        )
+        self.assertIn(
+            ".route-node-instructions-muted::after { border-top-color: var(--panel-muted); }",
+            self.css,
+        )
+        self.assertIn(
+            ".route-node-skills-partial::before { border-top-color: var(--panel-line-warn); }",
+            self.css,
+        )
+        self.assertIn(
+            ".route-node-instructions-partial::after { border-top-color: var(--panel-line-warn); }",
             self.css,
         )
         self.assertIn(".route-channel.line-dashed::before { border-top-style: dashed; }", self.css)
+
+    def test_topology_panel_is_dark_with_dedicated_focus_and_badge_tokens(self) -> None:
+        self.assertRegex(self.css, r"\.topology-board \{[^}]*background: var\(--panel-deep\);")
+        self.assertRegex(self.css, r"\.topology-board \{[^}]*border-radius: 12px;")
+        self.assertRegex(self.css, r"\.topology-board \{[^}]*padding: 32px;")
+        self.assertRegex(
+            self.css,
+            r"\.topology-board :focus-visible \{[^}]*"
+            r"outline: 2px solid var\(--focus-ring-dark\);",
+        )
+        for contract in (
+            ".route-channel.status-healthy { color: var(--panel-line-ok); }",
+            ".route-channel.status-attention { color: var(--panel-line-warn); }",
+            ".route-channel.status-muted { color: var(--panel-muted); }",
+            "rgba(86, 192, 141, 0.16)",
+            "rgba(250, 149, 80, 0.16)",
+        ):
+            self.assertIn(contract, self.css)
 
     def test_bootstrap_exposes_server_truth_renderers_and_guarded_write_routes(self) -> None:
         for function_name in (

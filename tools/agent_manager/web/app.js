@@ -8,6 +8,12 @@
     { key: "antigravity", label: "Antigravity" },
   ];
   const ATTENTION_STATES = new Set(["conflict", "error", "broken", "legacy"]);
+  const NAV_ICONS = {
+    overview: "M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z",
+    skills: "M12 2 2 7l10 5 10-5-10-5zM2 12l10 5 10-5M2 17l10 5 10-5",
+    instructions: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM14 2v6h6M9 13h6M9 17h6",
+    inventory: "M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 8zM3.3 7l8.7 5 8.7-5M12 22V12",
+  };
   const MESSAGE_LABELS = {
     "direct repository link": "已直接链接到仓库",
     "recognized legacy link": "旧结构链接，可接管为直链",
@@ -16,6 +22,7 @@
     "surface not installed": "未检测到该工具",
     "target differs from repository source": "内容与仓库源不一致",
     "target does not exist": "目标不存在",
+    "target is absent": "目标不存在",
     "target is a directory": "目标是目录，不支持接管",
     "target is a special file": "目标是特殊文件，不支持接管",
     "file content matches repository source": "内容与仓库源一致（普通文件副本）",
@@ -61,6 +68,11 @@
     if (path === normalizedHome) return "~";
     if (path.startsWith(`${normalizedHome}/`)) return `~${path.slice(normalizedHome.length)}`;
     return path;
+  }
+
+  function repositoryHome(payload) {
+    const adapters = asArray(payload && payload.skills && payload.skills.adapters);
+    return (adapters.length && adapters[0].home) || "";
   }
 
   function filterSkillRows(rows, query, stateFilter) {
@@ -690,20 +702,24 @@
 
   function routeNodeClass(route) {
     const classes = ["route-node"];
-    if (route.skills && route.skills.status === "attention") {
-      classes.push("route-node-skills-attention");
-    }
-    if (route.instructions && route.instructions.status === "attention") {
-      classes.push("route-node-instructions-attention");
-    }
+    ["skills", "instructions"].forEach((channel) => {
+      const status = route[channel] && route[channel].status;
+      if (status && status !== "healthy") {
+        classes.push(`route-node-${channel}-${status}`);
+      }
+    });
     return classes.join(" ");
   }
 
   if (globalThis.__AGENT_MANAGER_TEST__ === true) {
     globalThis.AgentManagerTest = Object.freeze({
+      NAV_ICONS,
       buildTopology,
       routeNodeClass,
       messageLabel,
+      statePresentation,
+      repositoryHome,
+      collectAttention,
       instructionRowActions,
       filterSkillRows,
       inventorySourcePresentation,
@@ -771,8 +787,8 @@
       manual: ["手动配置", "state-muted"],
       legacy: ["旧链接", "state-attention"],
       conflict: ["冲突", "state-attention"],
-      broken: ["链接损坏", "state-attention"],
-      error: ["异常", "state-attention"],
+      broken: ["链接损坏", "state-error"],
+      error: ["异常", "state-error"],
     };
     return presentations[value] || [value || "未知", "state-muted"];
   }
@@ -984,7 +1000,7 @@
             .includes(change.action)
         ));
         const actions = node("div", null, "operation-actions");
-        const applyButton = node("button", "确认执行");
+        const applyButton = node("button", "确认执行", "primary-action");
         applyButton.setAttribute("type", "button");
         applyButton.disabled = blocked;
         applyButton.addEventListener("click", applyPreview);
@@ -1257,7 +1273,7 @@
       state.lastStatusProblem = null;
       state.status = payload;
       document.getElementById("repository-name").textContent = "lucas-skills";
-      appendRepositoryPath(payload.repo_root);
+      appendRepositoryPath(payload.repo_root, repositoryHome(payload));
       document.getElementById("scanned-at").textContent = `最近扫描：${payload.scanned_at || "未提供"}`;
       renderOverview(payload);
       renderSkills(payload);
@@ -1277,9 +1293,9 @@
     }
   }
 
-  function appendRepositoryPath(path) {
+  function appendRepositoryPath(path, home) {
     const target = document.getElementById("repository-path");
-    target.textContent = path || "仓库路径不可用";
+    target.textContent = compactHomePath(path, home) || "仓库路径不可用";
     target.title = path || "";
   }
 
@@ -1295,11 +1311,19 @@
     ].forEach(([label, value, needsAttention]) => {
       const item = node("div", null, "status-item");
       item.appendChild(node("span", label, "status-label"));
-      item.appendChild(node(
-        "strong",
-        value,
-        `status-value${needsAttention ? " status-value-attention" : ""}`,
-      ));
+      if (needsAttention) {
+        const valueButton = node(
+          "button",
+          value,
+          "status-value status-value-attention status-value-button",
+        );
+        valueButton.setAttribute("type", "button");
+        valueButton.setAttribute("aria-label", `${label} ${value} 项，查看需要处理列表`);
+        valueButton.addEventListener("click", focusAttentionList);
+        item.appendChild(valueButton);
+      } else {
+        item.appendChild(node("strong", value, "status-value"));
+      }
       summaryNode.appendChild(item);
     });
     renderTopology(payload);
@@ -1355,7 +1379,7 @@
           const go = node("button", "处理", "compact-action attention-action");
           go.setAttribute("type", "button");
           go.setAttribute("aria-label", `处理 ${route.label} ${kind} 异常`);
-          go.addEventListener("click", () => switchView(view));
+          go.addEventListener("click", () => jumpToAttentionTarget({ view }));
           channelNode.appendChild(go);
         }
         routeNode.appendChild(channelNode);
@@ -1377,7 +1401,7 @@
       records.push({
         label: `Skill 扫描 · ${issue.code || "问题"}`,
         message: exactMessage(issue),
-        view: "skills",
+        path: issue.path,
       });
     });
     asArray(payload.skills && payload.skills.targets)
@@ -1388,13 +1412,14 @@
           label: `Skill · ${target.slug} · ${family ? family.label : target.tool}`,
           message: exactMessage(target),
           view: "skills",
+          slug: target.slug,
         });
       });
     asArray(payload.instructions && payload.instructions.issues).forEach((issue) => {
       records.push({
         label: `个人约束扫描 · ${issue.code || "问题"}`,
         message: exactMessage(issue),
-        view: "instructions",
+        path: issue.path,
       });
     });
     asArray(payload.instructions && payload.instructions.targets)
@@ -1404,6 +1429,7 @@
           label: `个人约束 · ${target.key}`,
           message: exactMessage(target),
           view: "instructions",
+          key: target.key,
         });
       });
     if (payload.ok === false && payload.message) {
@@ -1413,6 +1439,35 @@
       }
     }
     return records;
+  }
+
+  function highlightJumpTarget(element) {
+    if (!element) return;
+    const target = element.closest("tr, li") || element;
+    target.classList.add("jump-highlight");
+    target.scrollIntoView({ block: "center" });
+    window.setTimeout(() => target.classList.remove("jump-highlight"), 1600);
+  }
+
+  function jumpToAttentionTarget(record) {
+    switchView(record.view);
+    if (record.view === "skills") {
+      document.getElementById("skill-state-filter").value = "attention";
+      document.getElementById("skill-query").value = record.slug || "";
+      if (state.status) renderSkills(state.status);
+      if (record.slug) {
+        highlightJumpTarget(document.querySelector(`[id^="skill-${record.slug}-"]`));
+      }
+    } else if (record.view === "instructions" && record.key) {
+      highlightJumpTarget(document.getElementById(`instruction-${record.key}-details`));
+    }
+  }
+
+  function focusAttentionList() {
+    const list = document.getElementById("attention-list");
+    list.setAttribute("tabindex", "-1");
+    list.focus({ preventScroll: true });
+    list.scrollIntoView({ block: "start" });
   }
 
   function renderAttention(payload) {
@@ -1429,12 +1484,15 @@
       const copy = node("div", null, "attention-record");
       copy.appendChild(node("strong", record.label));
       copy.appendChild(node("span", record.message));
+      if (record.path) {
+        appendPath(copy, record.path, "path-text attention-path");
+      }
       item.appendChild(copy);
       if (record.view) {
         const go = node("button", "查看", "compact-action attention-action");
         go.setAttribute("type", "button");
         go.setAttribute("aria-label", `查看 ${record.label}`);
-        go.addEventListener("click", () => switchView(record.view));
+        go.addEventListener("click", () => jumpToAttentionTarget(record));
         item.appendChild(go);
       }
       list.appendChild(item);
@@ -2030,11 +2088,29 @@
     document.getElementById("main-content").focus();
   }
 
+  function navIcon(view) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "16");
+    svg.setAttribute("height", "16");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", NAV_ICONS[view] || "");
+    svg.appendChild(path);
+    return svg;
+  }
+
   function bootstrap() {
     const tokenMeta = document.querySelector('meta[name="agent-manager-token"]');
     state.token = tokenMeta ? tokenMeta.getAttribute("content") || "" : "";
     if (tokenMeta) tokenMeta.remove();
     document.querySelectorAll("[data-view]").forEach((button) => {
+      button.insertBefore(navIcon(button.getAttribute("data-view")), button.firstChild);
       button.addEventListener("click", () => switchView(button.getAttribute("data-view")));
     });
     document.getElementById("refresh-button").addEventListener("click", loadStatus);
