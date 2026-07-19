@@ -286,7 +286,8 @@ class WebPageTests(unittest.TestCase):
             "legacy": ["旧链接", "state-attention"],
             "error": ["异常", "state-error"],
             "broken": ["链接损坏", "state-error"],
-            "disabled": ["未启用", "state-muted"],
+            "missing": ["未启用", "state-disabled"],
+            "disabled": ["未启用", "state-disabled"],
         }
         for value, expected in cases.items():
             with self.subTest(value=value):
@@ -303,6 +304,7 @@ class WebPageTests(unittest.TestCase):
             ".state-attention { background: var(--warning-light); color: var(--warning-text); }",
             ".state-error { background: var(--error-light); color: var(--error-text); }",
             ".state-partial { background: var(--warning-light); color: var(--warning-text); }",
+            ".state-disabled { background: var(--warning-light); color: var(--warning-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 45%, transparent); }",
             ".state-muted { background: var(--neutral-light); color: var(--muted); }",
             ".status-badge-healthy { background: var(--success-light); color: var(--success-text); }",
             ".status-badge-attention { background: var(--warning-light); color: var(--warning-text); }",
@@ -312,6 +314,10 @@ class WebPageTests(unittest.TestCase):
             self.assertIn(contract, self.css)
         self.assertRegex(self.css, r"\.state-text \{[^}]*border-radius: 3px;")
         self.assertRegex(self.css, r"\.state-text \{[^}]*font-size: 12px;")
+        self.assertIn(
+            ".state-text.state-disabled::before { background: currentColor; }",
+            self.css,
+        )
         self.assertRegex(
             self.css,
             r"\.route-status-button:hover[^{]*\{[^}]*box-shadow: var\(--shadow-1\);",

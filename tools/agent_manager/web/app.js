@@ -796,8 +796,8 @@
   function statePresentation(value) {
     const presentations = {
       enabled: ["已启用", "state-enabled"],
-      missing: ["未启用", "state-muted"],
-      disabled: ["未启用", "state-muted"],
+      missing: ["未启用", "state-disabled"],
+      disabled: ["未启用", "state-disabled"],
       "matching-copy": ["内容相同", "state-partial"],
       "indirect-link": ["间接链接", "state-partial"],
       unavailable: ["未安装", "state-muted"],
