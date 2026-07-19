@@ -56,6 +56,7 @@
     writeBusyCount: 0,
     lastStatusProblem: null,
     lastInventoryProblem: null,
+    openAttentionGroups: new Set(),
   };
 
   function asArray(value) {
@@ -633,6 +634,7 @@
     const skillTargets = asArray(skills.targets);
     const instructionTargets = asArray(instructions.targets);
     const manualInstructions = asArray(instructions.manual_surfaces);
+    const repoSkillCount = asArray(skills.records).length;
     const pathRows = loadPathRows(payload);
     return TOOL_FAMILIES.map((family) => {
       const familySurfaceKeys = new Set(
@@ -680,6 +682,11 @@
           messages: uniqueMessages([instruction]),
         };
       });
+      const enabledSlugs = new Set(
+        toolSkills
+          .filter((target) => target.state === "enabled" || target.state === "legacy")
+          .map((target) => target.slug),
+      );
       return {
         tool: family.key,
         label: family.label,
@@ -689,12 +696,21 @@
           ...routeStatus(toolSkills, toolAdapters.length === 0),
           roots: skillRoots,
           messages: uniqueMessages(toolSkills),
+          countLabel: repoSkillCount
+            ? `${enabledSlugs.size}/${repoSkillCount}`
+            : null,
         },
         instructions: {
           lineStyle: "dashed",
           ...routeStatus(toolInstructions, true),
           roots: instructionRoots,
           messages: uniqueMessages(toolInstructions),
+          attentionKey: (() => {
+            const flagged = toolInstructions.filter((target) => (
+              target.state === "conflict" || target.state === "broken"
+            ));
+            return flagged.length === 1 ? flagged[0].key : null;
+          })(),
         },
       };
     });
@@ -720,6 +736,8 @@
       statePresentation,
       repositoryHome,
       collectAttention,
+      groupAttentionRecords,
+      skillChannelActions,
       instructionRowActions,
       filterSkillRows,
       inventorySourcePresentation,
@@ -817,6 +835,37 @@
       actions.push({ kind: "resolve", id: "adopt", label: "处理冲突" });
     }
     return { actions, note };
+  }
+
+  function skillChannelActions(state) {
+    if (state === "enabled") {
+      return { actions: [{ kind: "disable", label: "停用" }], note: null };
+    }
+    if (state === "partial") {
+      return {
+        actions: [
+          { kind: "enable", label: "启用" },
+          { kind: "disable", label: "停用" },
+        ],
+        note: null,
+      };
+    }
+    if (state === "disabled" || state === "missing") {
+      return { actions: [{ kind: "enable", label: "启用" }], note: null };
+    }
+    if (state === "legacy") {
+      return {
+        actions: [{ kind: "adopt", label: "接管旧链接" }],
+        note: "接管操作会处理所有旧结构链接，预览会列出全部变更。",
+      };
+    }
+    if (state === "conflict" || state === "broken" || state === "error") {
+      return {
+        actions: [{ kind: "enable", label: "启用" }],
+        note: "加载位置被占用或损坏，预览会展示阻塞原因。",
+      };
+    }
+    return { actions: [], note: null };
   }
 
   function exactMessage(record) {
@@ -1362,9 +1411,12 @@
           null,
           `route-channel line-${channel.lineStyle} status-${channel.status}`,
         );
-        channelNode.setAttribute("aria-label", `${route.label} ${kind}：${channel.statusLabel}`);
+        const statusText = channel.countLabel
+          ? `${channel.statusLabel} · ${channel.countLabel}`
+          : channel.statusLabel;
+        channelNode.setAttribute("aria-label", `${route.label} ${kind}：${statusText}`);
         channelNode.appendChild(node("span", kind, "route-kind"));
-        channelNode.appendChild(node("strong", channel.statusLabel, "route-status"));
+        channelNode.appendChild(node("strong", statusText, "route-status"));
         if (channel.status !== "healthy") {
           const notes = channel.messages
             .map((message) => messageLabel(message))
@@ -1379,7 +1431,7 @@
           const go = node("button", "处理", "compact-action attention-action");
           go.setAttribute("type", "button");
           go.setAttribute("aria-label", `处理 ${route.label} ${kind} 异常`);
-          go.addEventListener("click", () => jumpToAttentionTarget({ view }));
+          go.addEventListener("click", () => jumpToAttentionTarget({ view, key: channel.attentionKey }));
           channelNode.appendChild(go);
         }
         routeNode.appendChild(channelNode);
@@ -1402,17 +1454,20 @@
         label: `Skill 扫描 · ${issue.code || "问题"}`,
         message: exactMessage(issue),
         path: issue.path,
+        group: "Skill 扫描",
       });
     });
     asArray(payload.skills && payload.skills.targets)
       .filter((target) => ATTENTION_STATES.has(target.state))
       .forEach((target) => {
         const family = TOOL_FAMILIES.find((item) => item.key === target.tool);
+        const familyLabel = family ? family.label : target.tool;
         records.push({
-          label: `Skill · ${target.slug} · ${family ? family.label : target.tool}`,
+          label: `Skill · ${target.slug} · ${familyLabel}`,
           message: exactMessage(target),
           view: "skills",
           slug: target.slug,
+          group: `Skill · ${familyLabel}`,
         });
       });
     asArray(payload.instructions && payload.instructions.issues).forEach((issue) => {
@@ -1420,6 +1475,7 @@
         label: `个人约束扫描 · ${issue.code || "问题"}`,
         message: exactMessage(issue),
         path: issue.path,
+        group: "个人约束扫描",
       });
     });
     asArray(payload.instructions && payload.instructions.targets)
@@ -1430,6 +1486,7 @@
           message: exactMessage(target),
           view: "instructions",
           key: target.key,
+          group: "个人约束",
         });
       });
     if (payload.ok === false && payload.message) {
@@ -1439,6 +1496,28 @@
       }
     }
     return records;
+  }
+
+  function groupAttentionRecords(records) {
+    const list = asArray(records);
+    if (list.length <= 8) return { flat: list, groups: [] };
+    const flat = [];
+    const grouped = new Map();
+    list.forEach((record) => {
+      if (!record.group) {
+        flat.push(record);
+        return;
+      }
+      if (!grouped.has(record.group)) grouped.set(record.group, []);
+      grouped.get(record.group).push(record);
+    });
+    return {
+      flat,
+      groups: [...grouped.entries()].map(([label, items]) => ({
+        label,
+        records: items,
+      })),
+    };
   }
 
   function highlightJumpTarget(element) {
@@ -1470,6 +1549,35 @@
     list.scrollIntoView({ block: "start" });
   }
 
+  function appendAttentionRow(list, record, nested) {
+    const item = node("li", null, `attention-copy${nested ? " attention-nested" : ""}`);
+    const copy = node("div", null, "attention-record");
+    copy.appendChild(node("strong", record.label));
+    copy.appendChild(node("span", record.message));
+    if (record.path) {
+      appendPath(copy, record.path, "path-text attention-path");
+    }
+    item.appendChild(copy);
+    if (record.view) {
+      const go = node("button", "查看", "compact-action attention-action");
+      go.setAttribute("type", "button");
+      go.setAttribute("aria-label", `查看 ${record.label}`);
+      go.addEventListener("click", () => jumpToAttentionTarget(record));
+      item.appendChild(go);
+    }
+    list.appendChild(item);
+  }
+
+  function focusAttentionGroupToggle(label) {
+    const toggles = document.querySelectorAll("#attention-list .attention-group-toggle");
+    for (const toggle of toggles) {
+      if (toggle.getAttribute("data-attention-group") === label) {
+        toggle.focus();
+        return;
+      }
+    }
+  }
+
   function renderAttention(payload) {
     const attention = collectAttention(payload);
     const list = document.getElementById("attention-list");
@@ -1479,23 +1587,29 @@
       list.appendChild(node("li", "当前扫描未发现冲突或异常。", "healthy-copy"));
       return;
     }
-    attention.forEach((record) => {
-      const item = node("li", null, "attention-copy");
-      const copy = node("div", null, "attention-record");
-      copy.appendChild(node("strong", record.label));
-      copy.appendChild(node("span", record.message));
-      if (record.path) {
-        appendPath(copy, record.path, "path-text attention-path");
-      }
-      item.appendChild(copy);
-      if (record.view) {
-        const go = node("button", "查看", "compact-action attention-action");
-        go.setAttribute("type", "button");
-        go.setAttribute("aria-label", `查看 ${record.label}`);
-        go.addEventListener("click", () => jumpToAttentionTarget(record));
-        item.appendChild(go);
-      }
+    const { flat, groups } = groupAttentionRecords(attention);
+    flat.forEach((record) => appendAttentionRow(list, record, false));
+    groups.forEach((group) => {
+      const open = state.openAttentionGroups.has(group.label);
+      const item = node("li", null, "attention-group");
+      const toggle = node("button", null, "attention-group-toggle");
+      toggle.setAttribute("type", "button");
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("data-attention-group", group.label);
+      toggle.appendChild(node("strong", group.label));
+      toggle.appendChild(node("span", `${group.records.length} 项`, "count-label"));
+      toggle.appendChild(node("span", open ? "收起" : "展开全部", "attention-group-cue"));
+      toggle.addEventListener("click", () => {
+        if (open) state.openAttentionGroups.delete(group.label);
+        else state.openAttentionGroups.add(group.label);
+        renderAttention(payload);
+        focusAttentionGroupToggle(group.label);
+      });
+      item.appendChild(toggle);
       list.appendChild(item);
+      if (open) {
+        group.records.forEach((record) => appendAttentionRow(list, record, true));
+      }
     });
   }
 
@@ -1563,17 +1677,21 @@
         );
         note.title = aggregate.message;
         body.appendChild(note);
+        const planned = skillChannelActions(aggregate.state);
+        if (planned.note) body.appendChild(node("p", planned.note, "plan-copy"));
         const actions = node("div", null, "operation-actions");
-        if (aggregate.state !== "enabled" && aggregate.state !== "unavailable") {
-          appendOperationButton(actions, "启用", () => previewSkillSelection({
+        const handlers = {
+          enable: () => previewSkillSelection({
             kind: "set", skill: record.slug, tool: family.key, on: true,
-          }));
-        }
-        if (aggregate.state !== "disabled" && aggregate.state !== "unavailable") {
-          appendOperationButton(actions, "停用", () => previewSkillSelection({
+          }),
+          disable: () => previewSkillSelection({
             kind: "set", skill: record.slug, tool: family.key, on: false,
-          }));
-        }
+          }),
+          adopt: () => previewSkillSelection({ kind: "adopt" }),
+        };
+        planned.actions.forEach((action) => {
+          appendOperationButton(actions, action.label, handlers[action.kind]);
+        });
         if (actions.childNodes.length) body.appendChild(actions);
       },
     });

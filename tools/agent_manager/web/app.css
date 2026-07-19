@@ -465,6 +465,22 @@ main {
   justify-content: space-between;
   gap: 14px;
 }
+.attention-list li.attention-group { padding: 0; }
+.attention-group-toggle {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 13px 0;
+  text-align: left;
+}
+.attention-group-toggle strong { color: var(--warning-text); }
+.attention-group-cue { margin-left: auto; color: var(--brand); font-size: 12px; font-weight: 600; }
+.attention-list li.attention-nested { padding-left: 19px; }
 .attention-record { display: grid; gap: 3px; min-width: 0; }
 .attention-record strong { color: var(--warning-text); }
 .attention-record span { color: var(--ink); }

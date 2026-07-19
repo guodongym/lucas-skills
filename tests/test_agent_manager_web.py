@@ -392,6 +392,9 @@ class WebPageTests(unittest.TestCase):
         by_label = {record["label"]: record for record in records}
         self.assertNotIn("view", by_label["Skill 扫描 · scan-issue"])
         self.assertNotIn("view", by_label["个人约束扫描 · source-missing"])
+        self.assertEqual(by_label["Skill 扫描 · scan-issue"]["group"], "Skill 扫描")
+        self.assertEqual(by_label["Skill · docx · Codex"]["group"], "Skill · Codex")
+        self.assertEqual(by_label["个人约束 · codex"]["group"], "个人约束")
         self.assertEqual(
             by_label["Skill 扫描 · scan-issue"]["path"], "/repo/skills/broken"
         )
@@ -408,6 +411,41 @@ class WebPageTests(unittest.TestCase):
         instruction_record = by_label["个人约束 · codex"]
         self.assertEqual(instruction_record["view"], "instructions")
         self.assertEqual(instruction_record["key"], "codex")
+
+    def test_attention_records_group_and_fold_only_beyond_eight_items(self) -> None:
+        small = self._run_exports(
+            "AgentManagerTest.groupAttentionRecords("
+            "Array.from({length: 8}, (_, i) => ({label: `r${i}`, group: 'G'})))"
+        )
+        self.assertEqual(len(small["flat"]), 8)
+        self.assertEqual(small["groups"], [])
+
+        large = self._run_exports(
+            "AgentManagerTest.groupAttentionRecords(["
+            "{label: 'top', message: 'no group'},"
+            "...Array.from({length: 5}, (_, i) => ({label: `a${i}`, group: 'Skill · Claude'})),"
+            "...Array.from({length: 4}, (_, i) => ({label: `b${i}`, group: '个人约束'}))"
+            "])"
+        )
+        self.assertEqual([record["label"] for record in large["flat"]], ["top"])
+        self.assertEqual(
+            [group["label"] for group in large["groups"]],
+            ["Skill · Claude", "个人约束"],
+        )
+        self.assertEqual(
+            [record["label"] for record in large["groups"][0]["records"]],
+            ["a0", "a1", "a2", "a3", "a4"],
+        )
+        for contract in (
+            "openAttentionGroups",
+            '"aria-expanded"',
+            "展开全部",
+            '"data-attention-group"',
+            "function focusAttentionGroupToggle(",
+            ".attention-group-toggle",
+        ):
+            source = self.css if contract.startswith(".") else self.javascript
+            self.assertIn(contract, source)
 
     def test_attention_jump_presets_filters_and_highlights_landing_row(self) -> None:
         self.assertIn("function jumpToAttentionTarget(", self.javascript)
@@ -429,6 +467,33 @@ class WebPageTests(unittest.TestCase):
         self.assertIn('addEventListener("click", focusAttentionList)', self.javascript)
         self.assertIn("查看需要处理列表", self.javascript)
         self.assertIn(".status-value-button", self.css)
+
+    def test_skill_channel_actions_align_with_instruction_action_semantics(self) -> None:
+        cases = {
+            "enabled": (["disable"], False),
+            "partial": (["enable", "disable"], False),
+            "disabled": (["enable"], False),
+            "missing": (["enable"], False),
+            "legacy": (["adopt"], True),
+            "conflict": (["enable"], True),
+            "broken": (["enable"], True),
+            "error": (["enable"], True),
+            "unavailable": ([], False),
+        }
+        for state, (kinds, has_note) in cases.items():
+            with self.subTest(state=state):
+                result = self._run_exports(
+                    f"AgentManagerTest.skillChannelActions({json.dumps(state)})"
+                )
+                self.assertEqual([a["kind"] for a in result["actions"]], kinds)
+                self.assertEqual(bool(result["note"]), has_note)
+        self.assertIn("skillChannelActions(aggregate.state)", self.javascript)
+        self.assertNotIn(
+            'if (aggregate.state !== "enabled" && aggregate.state !== "unavailable")',
+            self.javascript,
+        )
+        self.assertIn("预览会展示阻塞原因。", self.javascript)
+        self.assertNotIn("替换计划", self.javascript)
 
     def test_instruction_row_actions_match_server_semantics_per_state(self) -> None:
         cases = {
@@ -1126,6 +1191,106 @@ class WebPageTests(unittest.TestCase):
         self.assertEqual(result[2]["skills"]["statusLabel"], "需要处理")
         self.assertEqual(result[3]["skills"]["statusLabel"], "未启用")
         self.assertEqual(result[3]["instructions"]["statusLabel"], "需要处理")
+        self.assertTrue(all(route["skills"]["countLabel"] is None for route in result))
+
+    def test_topology_skills_badge_counts_enabled_slugs_against_repository(self) -> None:
+        payload = {
+            "repo_root": "/Users/test/Codes/lucas-skills",
+            "skills": {
+                "records": [{"slug": "docx"}, {"slug": "pdf"}, {"slug": "xlsx"}],
+                "adapters": [
+                    {"key": "claude-shared", "tool": "claude", "home": "/Users/test", "root": "/Users/test/.claude/skills"},
+                    {"key": "codex", "tool": "codex", "home": "/Users/test", "root": "/Users/test/.codex/skills"},
+                ],
+                "targets": [
+                    {"slug": "docx", "tool": "claude", "state": "enabled"},
+                    {"slug": "pdf", "tool": "claude", "state": "legacy"},
+                    {"slug": "xlsx", "tool": "claude", "state": "disabled"},
+                    {"slug": "docx", "tool": "codex", "state": "conflict"},
+                ],
+            },
+            "instructions": {"targets": [{"key": "claude", "state": "enabled", "path": "/Users/test/.claude/CLAUDE.md"}]},
+        }
+        topology = self._run_exports(
+            f"AgentManagerTest.buildTopology({json.dumps(payload)})"
+        )
+        claude = next(route for route in topology if route["tool"] == "claude")
+        codex = next(route for route in topology if route["tool"] == "codex")
+        self.assertEqual(claude["skills"]["countLabel"], "2/3")
+        self.assertEqual(codex["skills"]["countLabel"], "0/3")
+        self.assertIsNone(claude["instructions"].get("countLabel"))
+        self.assertIn("channel.countLabel", self.javascript)
+
+    def test_instruction_channel_attention_key_only_locates_a_single_target(self) -> None:
+        base = {
+            "repo_root": "/Users/test/Codes/lucas-skills",
+            "surfaces": [
+                {"key": "claude-desktop", "installed": True},
+                {"key": "claude-cli", "installed": True},
+            ],
+            "skills": {
+                "adapters": [
+                    {
+                        "key": "claude-shared",
+                        "tool": "claude",
+                        "home": "/Users/test",
+                        "root": "/Users/test/.claude/skills",
+                        "surfaces": ["claude-desktop", "claude-cli"],
+                    }
+                ],
+                "targets": [],
+            },
+            "instructions": {"targets": []},
+        }
+        single = json.loads(json.dumps(base))
+        single["instructions"]["targets"] = [
+            {
+                "key": "claude",
+                "state": "broken",
+                "path": "/Users/test/.claude/CLAUDE.md",
+                "surfaces": ["claude-desktop", "claude-cli"],
+            }
+        ]
+        multi = json.loads(json.dumps(base))
+        multi["instructions"]["targets"] = [
+            {
+                "key": "shared",
+                "state": "conflict",
+                "path": "/Users/test/.agents/AGENTS.md",
+                "surfaces": ["claude-desktop", "claude-cli"],
+            },
+            {
+                "key": "claude",
+                "state": "broken",
+                "path": "/Users/test/.claude/CLAUDE.md",
+                "surfaces": ["claude-desktop", "claude-cli"],
+            },
+        ]
+        healthy = json.loads(json.dumps(base))
+        healthy["instructions"]["targets"] = [
+            {
+                "key": "claude",
+                "state": "enabled",
+                "path": "/Users/test/.claude/CLAUDE.md",
+                "surfaces": ["claude-desktop", "claude-cli"],
+            }
+        ]
+        attention_keys = {
+            name: self._run_exports(
+                f"AgentManagerTest.buildTopology({json.dumps(payload)})"
+            )[0]["instructions"].get("attentionKey")
+            for name, payload in (
+                ("single", single), ("multi", multi), ("healthy", healthy),
+            )
+        }
+        self.assertEqual(
+            attention_keys, {"single": "claude", "multi": None, "healthy": None}
+        )
+        self.assertIn(
+            "jumpToAttentionTarget({ view, key: channel.attentionKey })",
+            self.javascript,
+        )
+        self.assertNotIn("previewInstruction(channel.", self.javascript)
 
     def test_multi_adapter_routes_are_partial_and_preserve_every_root_and_message(self) -> None:
         payload = {
