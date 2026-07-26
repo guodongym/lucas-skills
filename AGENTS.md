@@ -49,7 +49,8 @@
 - **提交历史重写**: 当用户要求整理、合并或重写提交历史时，使用 `git-history-rewrite` skill；默认先做只读预检和风险确认。
 - **Breaking Change**: 涉及破坏性变更时，在 footer 显式标注 `BREAKING CHANGE: <影响说明>`，subject 可同时在 type 后加 `!`。
 - **Push 纪律**: 仅在用户明确要求时执行 push；重写已推送的历史后必须使用 `git push --force-with-lease`，禁止裸 `--force`。
-- **分支**: 功能开发用 `feature/<kebab-case>`，其他用途按 `<用途前缀>/<描述>` 命名（如 `upstream-sync/<date>`）；切换分支前确保工作区干净。
+- **分支纪律**: 禁止在 main 上进行特性开发；特性开发一律新建分支，并默认用 git worktree 隔离工作区。仅文档调整、配置微调、单文件小修复可在 main 直接提交，拿不准时一律开分支。开发完成后，先用 `git-history-rewrite` skill 整理本分支提交（粒度适中、每个提交独立闭环），再按 `finishing-a-development-branch` 流程合并回 main。
+- **分支命名**: 功能开发用 `feature/<kebab-case>`，其他用途按 `<用途前缀>/<描述>` 命名（如 `upstream-sync/<date>`）；切换分支前确保工作区干净。
 
 | type | 适用场景 |
 | :--- | :--- |
