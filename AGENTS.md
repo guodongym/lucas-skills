@@ -44,7 +44,7 @@
 - **Body**: 所有提交都必须包含 body，固定结构 "动机段 + 验证段"，同时写给人和后续读 log 的 Agent：
   - 动机段：一到两段散文说明 "为什么改" 与关键取舍，不复述 diff；存在方案权衡时写明判断依据（范例：「单人仓库唯一真实的绕过场景是忘了跑，因此用 pre-push hook 兜底」）。
   - 验证段：以 `验证：` 起头，给出量化结果（如 `Vitest 487/487`）或可直接复跑的验证命令；多条时用 `- ` 列表。
-  - 写入方式：用 heredoc 或多个 `-m` 参数，严禁把字面 `\n` 转义符写进提交信息。
+  - 写入方式：body 必须是真实多行文本，用 heredoc 或多个 `-m` 参数写入；`-m` 单个字符串里的 `\n` 不会换行，会被原样写进历史。
 - **AI 协作署名**: 若提交由 AI Agent 实质参与生成、修改或整理，commit footer 必须追加标准 Git trailer `Co-authored-by: <名称> <noreply 邮箱>`；多个 Agent 协作时叠加多行。名称优先体现具体模型及版本，便于日后按模型归因评估提交质量，如 `Co-authored-by: Claude Fable 5 <noreply@anthropic.com>`；无法获知模型版本的工具使用稳定工具名，如 `Co-authored-by: OpenAI Codex <noreply@openai.com>`。不冒用未确认的官方身份。
 - **提交历史重写**: 当用户要求整理、合并或重写提交历史时，使用 `git-history-rewrite` skill；默认先做只读预检和风险确认。
 - **Breaking Change**: 涉及破坏性变更时，在 footer 显式标注 `BREAKING CHANGE: <影响说明>`，subject 可同时在 type 后加 `!`。
