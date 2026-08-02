@@ -28,7 +28,7 @@ description: Use when a completed task branch or worktree must be released, espe
 2. 同步版本化 CHANGELOG 和直接相关文档；出现文档升级信号时先执行 `neat-freak`。
 3. 有历史整理信号时先执行 `git-history-rewrite`：可观察信号为 WIP、fixup、重复、乱序提交或用户明确要求；否则按已选路径集成 main，暂停 cleanup。
 4. 在 main 对账本地状态并在 cleanup 前再次浅层盘点 ignored 与 untracked 候选，取得一次最终验证证据。仅当测试在当前 release run 内完成、测试命令成功、测试时的 Git tree object 与最终待发布的 Git tree object 相同，且测试输入所依赖的版本化配置未变时，才可复用该证据；任一条件不能证明则运行一次新的最终验证。不要为同一已证明等价树重复完整测试。
-5. 在已授权范围内 push main 并回读；push annotated tag 并回读；按 provider 能力创建并回读 Release。
+5. 在已授权范围内，只有仓库/provider 已建立支持时，才可用 atomic push 同时发布 main 与 annotated tag，并用一次 Git 回读验证两个 ref；否则 push main 并回读，再 push annotated tag 并回读。按 provider 能力创建 Release 后始终单独回读。
 6. 通过 cleanup 门禁后清理。
 
 ## Provider Result
