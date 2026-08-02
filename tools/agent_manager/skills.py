@@ -545,6 +545,12 @@ def _fixed_inventory_sources(home: Path) -> list[InventorySource]:
             True,
         ),
         InventorySource(
+            home / ".workbuddy/skills",
+            ("workbuddy",),
+            ("workbuddy-desktop",),
+            "user-root",
+        ),
+        InventorySource(
             home / "Library/Application Support/com.github.githubapp/app-skills",
             ("copilot",),
             ("copilot-desktop",),

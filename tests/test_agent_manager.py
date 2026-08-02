@@ -459,6 +459,52 @@ class InventoryTests(unittest.TestCase):
             )
             self.assertTrue((claude_root / "review").is_symlink())
 
+    def test_lists_workbuddy_managed_external_and_broken_skills_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            managed = write_skill(repo, "docx", "docx")
+            workbuddy_root = home / ".workbuddy/skills"
+            workbuddy_root.mkdir(parents=True)
+            (workbuddy_root / "docx").symlink_to(managed)
+            private = workbuddy_root / "private"
+            private.mkdir()
+            (private / "SKILL.md").write_text(
+                "---\nname: private\ndescription: private Skill\n---\n",
+                encoding="utf-8",
+            )
+            broken = workbuddy_root / "broken"
+            broken.symlink_to(home / "missing")
+
+            state = build_test_state(repo, home)
+            before = self._tree_snapshot(home)
+            records = scan_inventory(state, home)
+
+            self.assertEqual(self._tree_snapshot(home), before)
+            self.assertTrue(
+                any(
+                    record.slug == "docx"
+                    and record.source_type == "managed"
+                    and record.tools == ("workbuddy",)
+                    and record.surfaces == ("workbuddy-desktop",)
+                    for record in records
+                )
+            )
+            self.assertTrue(
+                any(
+                    record.slug == "private"
+                    and record.source_type == "local-copy"
+                    and record.tools == ("workbuddy",)
+                    for record in records
+                )
+            )
+            self.assertTrue(
+                any(
+                    record.slug == "broken" and record.source_type == "broken"
+                    for record in records
+                )
+            )
+
     def test_codex_plugin_sources_prefer_remote_and_newest_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp).resolve() / "home"
