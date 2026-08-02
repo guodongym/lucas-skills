@@ -1,7 +1,7 @@
 # 开发版本发布收尾 Skill 设计
 
 - 日期：2026-08-02
-- 状态：已确认，待实现
+- 状态：已实现，待发布复核
 - 结论：新增 `finishing-a-development-release` 编排型 Skill，用一条默认快速路径完成任务分支或 worktree 的文档同步、提交历史整理、main 集成、tag、远端发布与清理；只有出现风险信号时才升级检查。GitHub、Gitee、私有 EZone 等远端按能力分级，平台不支持 Release 页面时允许以可验证的 Portable Release 收口。
 
 ## 1. 要解决的问题
