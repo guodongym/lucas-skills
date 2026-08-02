@@ -227,6 +227,59 @@ class HttpServerTests(unittest.TestCase):
                 )
                 self.assertEqual(applied_replacement["changes"], replace_preview["changes"])
 
+    def test_workbuddy_skill_set_preview_and_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            applications = root / "Applications"
+            skill = write_skill(repo, "docx", "docx")
+            (applications / "WorkBuddy.app").mkdir(parents=True)
+            target = home / ".workbuddy/skills/docx"
+            request = {
+                "skill": "docx",
+                "all": False,
+                "tool": "workbuddy",
+                "on": True,
+                "apply": False,
+            }
+
+            with running_http_server(repo, home, applications) as (
+                _server,
+                _thread,
+                base_url,
+            ):
+                preview_response = self._write_request(
+                    base_url,
+                    "/api/skills/set",
+                    request,
+                )
+                self.assertEqual(preview_response.status, 200)
+                preview = json.loads(preview_response.read())
+                self.assertEqual(len(preview["changes"]), 1)
+                self.assertEqual(
+                    preview["changes"][0]["adapter_key"],
+                    "workbuddy-desktop",
+                )
+                self.assertEqual(preview["changes"][0]["action"], "create")
+                self.assertFalse(target.exists())
+
+                request["apply"] = True
+                applied = json.loads(
+                    self._write_request(base_url, "/api/skills/set", request).read()
+                )
+                self.assertTrue(applied["ok"])
+                self.assertTrue(target.is_symlink())
+                self.assertEqual(target.resolve(), skill.resolve())
+
+                request["tool"] = "unknown"
+                with self.assertRaises(urllib.error.HTTPError) as caught:
+                    self._write_request(base_url, "/api/skills/set", request)
+                self.assertEqual(caught.exception.code, 400)
+                self.assertEqual(
+                    self._error_payload(caught.exception)["code"],
+                    "invalid-request",
+                )
+
     def test_write_requires_exact_host_origin_and_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()

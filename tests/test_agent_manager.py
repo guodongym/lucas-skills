@@ -2131,6 +2131,32 @@ class UmbrellaParserTests(unittest.TestCase):
             with self.subTest(argv=argv):
                 self.assert_parse_exit(argv, 2)
 
+    def test_workbuddy_skill_set_parser_executes_with_runtime_dependencies(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            applications = root / "Applications"
+            write_skill(repo, "pdf", "pdf")
+            (applications / "WorkBuddy.app").mkdir(parents=True)
+            output = io.StringIO()
+
+            code = main(
+                ["skills", "set", "pdf", "--tool", "workbuddy", "--on", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda _: None,
+                applications=applications,
+            )
+
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                json.loads(output.getvalue())["changes"][0]["adapter_key"],
+                "workbuddy-desktop",
+            )
+
 
 class AggregateCliContractTests(unittest.TestCase):
     def invoke(self, argv: list[str], repo: Path, home: Path) -> tuple[int, dict[str, object]]:
@@ -2874,7 +2900,37 @@ class CliTests(unittest.TestCase):
             self.assertEqual(payload["skills"]["records"][0]["slug"], "pdf")
             self.assertEqual(len(payload["skills"]["adapters"]), 6)
             self.assertEqual(len(payload["surfaces"]), 9)
+            self.assertIn(
+                "workbuddy-desktop",
+                {adapter["key"] for adapter in payload["skills"]["adapters"]},
+            )
+            self.assertEqual(len(payload["instructions"]["targets"]), 5)
             self.assertEqual(payload["skills"]["issues"], [])
+
+    def test_workbuddy_skill_set_preview_is_non_mutating(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            applications = root / "Applications"
+            write_skill(repo, "pdf", "pdf")
+            (applications / "WorkBuddy.app").mkdir(parents=True)
+            output = io.StringIO()
+
+            code = main(
+                ["skills", "set", "pdf", "--tool", "workbuddy", "--on", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=output,
+                which=lambda _: None,
+                applications=applications,
+            )
+
+            payload = json.loads(output.getvalue())
+            self.assertEqual(code, 0)
+            self.assertEqual(len(payload["changes"]), 1)
+            self.assertEqual(payload["changes"][0]["adapter_key"], "workbuddy-desktop")
+            self.assertEqual(payload["changes"][0]["action"], "create")
+            self.assertFalse((home / ".workbuddy").exists())
 
     def test_batch_partial_failure_returns_one_with_per_item_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

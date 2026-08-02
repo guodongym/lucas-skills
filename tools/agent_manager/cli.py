@@ -47,7 +47,7 @@ from .skills import (
 from .server import _serve
 
 
-TOOLS = ("claude", "codex", "copilot", "antigravity")
+TOOLS = ("claude", "codex", "copilot", "antigravity", "workbuddy")
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
 INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot", "antigravity")
 FINGERPRINT_PATTERN = r"[0-9a-f]{64}"
