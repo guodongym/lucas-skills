@@ -296,6 +296,13 @@ def build_adapters(home: Path) -> tuple[TargetAdapter, ...]:
             plugin_root / "plugin.json",
             ANTIGRAVITY_MANIFEST,
         ),
+        TargetAdapter(
+            "workbuddy-desktop",
+            "workbuddy",
+            home,
+            home / ".workbuddy/skills",
+            ("workbuddy-desktop",),
+        ),
     )
 
 
@@ -308,6 +315,7 @@ def detect_surfaces(
         "codex-desktop": (applications / "ChatGPT.app", applications / "Codex.app"),
         "copilot-desktop": (applications / "GitHub Copilot.app",),
         "antigravity-desktop": (applications / "Antigravity.app",),
+        "workbuddy-desktop": (applications / "WorkBuddy.app",),
     }
     cli_commands = {
         "claude-cli": "claude",

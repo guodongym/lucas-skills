@@ -215,6 +215,7 @@ class ManagedStateTests(unittest.TestCase):
                     "copilot-shared",
                     "antigravity-desktop",
                     "antigravity-cli",
+                    "workbuddy-desktop",
                 },
             )
             self.assertEqual(adapters["claude-shared"].root, home / ".claude/skills")
@@ -228,11 +229,21 @@ class ManagedStateTests(unittest.TestCase):
                 adapters["antigravity-cli"].root,
                 home / ".gemini/antigravity-cli/plugins/lucas-skills/skills",
             )
+            self.assertEqual(
+                adapters["workbuddy-desktop"].root,
+                home / ".workbuddy/skills",
+            )
+            self.assertEqual(adapters["workbuddy-desktop"].tool, "workbuddy")
+            self.assertEqual(
+                adapters["workbuddy-desktop"].surfaces,
+                ("workbuddy-desktop",),
+            )
 
     def test_detects_exact_surfaces_codex_fallback_and_agy_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             applications = Path(tmp) / "Applications"
             (applications / "Codex.app").mkdir(parents=True)
+            (applications / "WorkBuddy.app").mkdir(parents=True)
             commands: list[str] = []
 
             surfaces = detect_surfaces(
@@ -247,6 +258,7 @@ class ManagedStateTests(unittest.TestCase):
                     "codex-desktop",
                     "copilot-desktop",
                     "antigravity-desktop",
+                    "workbuddy-desktop",
                     "claude-cli",
                     "codex-cli",
                     "copilot-cli",
@@ -255,6 +267,8 @@ class ManagedStateTests(unittest.TestCase):
             )
             self.assertTrue(surfaces["codex-desktop"].installed)
             self.assertEqual(commands, ["claude", "codex", "copilot", "agy"])
+            self.assertTrue(surfaces["workbuddy-desktop"].installed)
+            self.assertEqual(surfaces["workbuddy-desktop"].detector, "application")
 
     def test_prefers_chatgpt_app_over_codex_app(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -780,6 +794,95 @@ class ManagedStateFilesystemTests(unittest.TestCase):
             statuses = {(item.adapter_key, item.slug): item for item in state.targets}
 
             self.assertEqual(statuses[("codex-shared", "docx")].state, LinkState.ERROR)
+
+
+class WorkBuddyTests(unittest.TestCase):
+    def test_classifies_disabled_enabled_conflict_and_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            skill = write_skill(repo, "docx", "docx")
+            target = home / ".workbuddy/skills/docx"
+
+            unavailable = build_test_state(repo, home)
+            statuses = {(item.adapter_key, item.slug): item for item in unavailable.targets}
+            self.assertEqual(
+                statuses[("workbuddy-desktop", "docx")].state,
+                LinkState.UNAVAILABLE,
+            )
+            self.assertFalse((home / ".workbuddy").exists())
+
+            disabled = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
+            statuses = {(item.adapter_key, item.slug): item for item in disabled.targets}
+            self.assertEqual(
+                statuses[("workbuddy-desktop", "docx")].state,
+                LinkState.DISABLED,
+            )
+
+            target.parent.mkdir(parents=True)
+            target.symlink_to(skill)
+            enabled = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
+            statuses = {(item.adapter_key, item.slug): item for item in enabled.targets}
+            self.assertEqual(
+                statuses[("workbuddy-desktop", "docx")].state,
+                LinkState.ENABLED,
+            )
+
+            target.unlink()
+            target.mkdir()
+            conflict = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
+            statuses = {(item.adapter_key, item.slug): item for item in conflict.targets}
+            self.assertEqual(
+                statuses[("workbuddy-desktop", "docx")].state,
+                LinkState.CONFLICT,
+            )
+            self.assertTrue(target.is_dir())
+
+    def test_set_on_and_off_apply_only_the_direct_repository_link(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            adapters = build_adapters(home)
+            by_key = {item.key: item for item in adapters}
+            state = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
+
+            plan = plan_set(state, ["docx"], ["workbuddy"], True)
+            self.assertEqual(len(plan.changes), 1)
+            change = plan.changes[0]
+            target = home / ".workbuddy/skills/docx"
+            self.assertEqual(change.adapter_key, "workbuddy-desktop")
+            self.assertEqual(change.target, target)
+            self.assertEqual(change.action, "create")
+
+            result = apply_plan(plan, by_key)
+            self.assertTrue(result.ok)
+            self.assertEqual(target.resolve(), (repo / "skills/docx").resolve())
+
+            off_state = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
+            off_plan = plan_set(off_state, ["docx"], ["workbuddy"], False)
+            off_result = apply_plan(off_plan, by_key)
+            self.assertTrue(off_result.ok)
+            self.assertFalse(target.exists())
+
+    def test_all_includes_workbuddy_without_changing_existing_local_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            target = home / ".workbuddy/skills/docx"
+            target.mkdir(parents=True)
+            state = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
+            plan = plan_set(state, ["docx"], ["all"], True)
+            change = next(
+                item for item in plan.changes if item.adapter_key == "workbuddy-desktop"
+            )
+
+            self.assertEqual(change.action, "blocked")
+            result = apply_plan(plan, {item.key: item for item in state.adapters})
+            self.assertFalse(result.ok)
+            self.assertTrue(target.is_dir())
+            self.assertFalse(target.is_symlink())
 
 
 class AdoptionTests(unittest.TestCase):
@@ -2175,8 +2278,8 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(len(payload["surfaces"]), 9)
+            self.assertEqual(len(payload["skills"]["targets"]), 6)
             self.assertEqual(payload["inventory"], [])
             self.assertEqual(payload["skills"]["issues"], [])
 
@@ -2378,9 +2481,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 5)
-            self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(len(payload["skills"]["adapters"]), 6)
+            self.assertEqual(len(payload["surfaces"]), 9)
+            self.assertEqual(len(payload["skills"]["targets"]), 6)
             self.assertEqual(
                 [issue["code"] for issue in payload["skills"]["issues"]],
                 ["invalid-frontmatter"],
@@ -2415,8 +2518,8 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(len(payload["surfaces"]), 9)
+            self.assertEqual(len(payload["skills"]["targets"]), 6)
             self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"]["link_changes"], [])
             self.assertEqual(payload["changes"]["container_changes"], [])
@@ -2557,9 +2660,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 5)
-            self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(len(payload["skills"]["adapters"]), 6)
+            self.assertEqual(len(payload["surfaces"]), 9)
+            self.assertEqual(len(payload["skills"]["targets"]), 6)
             self.assertEqual(payload["inventory"], [])
             self.assertEqual(payload["skills"]["issues"], [])
 
@@ -2587,9 +2690,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 5)
-            self.assertEqual(len(payload["surfaces"]), 8)
-            self.assertEqual(len(payload["skills"]["targets"]), 5)
+            self.assertEqual(len(payload["skills"]["adapters"]), 6)
+            self.assertEqual(len(payload["surfaces"]), 9)
+            self.assertEqual(len(payload["skills"]["targets"]), 6)
             self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"], [])
             self.assertEqual(payload["results"], [])
@@ -2723,8 +2826,8 @@ class CliTests(unittest.TestCase):
             payload = json.loads(output.getvalue())
             self.assertEqual(code, 0)
             self.assertEqual(payload["skills"]["records"][0]["slug"], "pdf")
-            self.assertEqual(len(payload["skills"]["adapters"]), 5)
-            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["skills"]["adapters"]), 6)
+            self.assertEqual(len(payload["surfaces"]), 9)
             self.assertEqual(payload["skills"]["issues"], [])
 
     def test_batch_partial_failure_returns_one_with_per_item_results(self) -> None:
