@@ -1161,7 +1161,7 @@ class WebPageTests(unittest.TestCase):
             self.javascript.index("textarea.select();"),
         )
 
-    def test_build_topology_returns_four_tool_routes_with_text_status_and_line_semantics(self) -> None:
+    def test_build_topology_returns_five_tool_routes_with_text_status_and_line_semantics(self) -> None:
         state = {
             "repo_root": "/Users/test/Codes/lucas-skills",
             "skills": {
@@ -1190,7 +1190,10 @@ class WebPageTests(unittest.TestCase):
         result = self._run_exports(
             f"AgentManagerTest.buildTopology({json.dumps(state)})"
         )
-        self.assertEqual([route["tool"] for route in result], ["claude", "codex", "copilot", "antigravity"])
+        self.assertEqual(
+            [route["tool"] for route in result],
+            ["claude", "codex", "copilot", "antigravity", "workbuddy"],
+        )
         self.assertTrue(all(route["skills"]["lineStyle"] == "solid" for route in result))
         self.assertTrue(all(route["instructions"]["lineStyle"] == "dashed" for route in result))
         self.assertEqual(result[0]["skills"]["statusLabel"], "正常")
@@ -1450,15 +1453,24 @@ class WebPageTests(unittest.TestCase):
             f"AgentManagerTest.buildTopology({json.dumps(missing_payload)})"
         )
 
+        managed_tools = tuple(family_surfaces)
         self.assertEqual(
-            [route["instructions"]["status"] for route in broken],
+            [
+                route["instructions"]["status"]
+                for route in broken
+                if route["tool"] in managed_tools
+            ],
             ["attention", "attention", "attention", "attention"],
         )
         self.assertEqual(
-            [route["instructions"]["status"] for route in missing],
+            [
+                route["instructions"]["status"]
+                for route in missing
+                if route["tool"] in managed_tools
+            ],
             ["partial", "partial", "partial", "partial"],
         )
-        for route in broken:
+        for route in (item for item in broken if item["tool"] in managed_tools):
             roots = route["instructions"]["roots"]
             self.assertEqual(roots[0]["key"], "shared")
             self.assertIn(route["tool"], [root["key"] for root in roots])
@@ -1481,6 +1493,10 @@ class WebPageTests(unittest.TestCase):
                 "configure Copilot Desktop manually",
             ],
         )
+        workbuddy = next(route for route in broken if route["tool"] == "workbuddy")
+        self.assertEqual(workbuddy["instructions"]["status"], "muted")
+        self.assertEqual(workbuddy["instructions"]["statusLabel"], "手动配置")
+        self.assertIn("自定义指令", workbuddy["instructions"]["messages"][0])
 
     def test_surface_rows_preserve_desktop_and_cli_install_truth(self) -> None:
         surfaces = [
@@ -1497,6 +1513,67 @@ class WebPageTests(unittest.TestCase):
                 {"key": "claude-cli", "label": "CLI", "installed": False},
             ],
         )
+
+    def test_workbuddy_topology_is_desktop_only_with_manual_custom_instructions(self) -> None:
+        payload = {
+            "repo_root": "/Users/test/Codes/lucas-skills",
+            "surfaces": [
+                {
+                    "key": "workbuddy-desktop",
+                    "installed": True,
+                    "detector": "application",
+                },
+            ],
+            "skills": {
+                "records": [{"slug": "docx"}],
+                "adapters": [
+                    {
+                        "key": "workbuddy-desktop",
+                        "tool": "workbuddy",
+                        "home": "/Users/test",
+                        "root": "/Users/test/.workbuddy/skills",
+                        "surfaces": ["workbuddy-desktop"],
+                    },
+                ],
+                "targets": [
+                    {
+                        "slug": "docx",
+                        "adapter_key": "workbuddy-desktop",
+                        "tool": "workbuddy",
+                        "state": "disabled",
+                        "path": "/Users/test/.workbuddy/skills/docx",
+                    },
+                ],
+            },
+            "instructions": {"targets": [], "manual_surfaces": []},
+        }
+        topology = self._run_exports(
+            f"AgentManagerTest.buildTopology({json.dumps(payload)})"
+        )
+        route = next(
+            (item for item in topology if item["tool"] == "workbuddy"),
+            None,
+        )
+
+        self.assertIsNotNone(route)
+        self.assertEqual(route["label"], "WorkBuddy")
+        self.assertEqual(
+            route["surfaces"],
+            [
+                {
+                    "key": "workbuddy-desktop",
+                    "label": "Desktop",
+                    "installed": True,
+                },
+            ],
+        )
+        self.assertEqual(
+            route["skills"]["roots"][0]["fullPath"],
+            "/Users/test/.workbuddy/skills",
+        )
+        self.assertEqual(route["instructions"]["status"], "muted")
+        self.assertEqual(route["instructions"]["statusLabel"], "手动配置")
+        self.assertIn("自定义指令", route["instructions"]["messages"][0])
 
     def test_load_path_rows_keep_repository_and_every_adapter_root(self) -> None:
         payload = {
@@ -1594,6 +1671,24 @@ class WebPageTests(unittest.TestCase):
         for heading in ("Skill", "来源", "工具", "状态", "路径", "操作"):
             self.assertIn(f">{heading}</th>", self.page)
 
+    def test_workbuddy_is_available_in_skill_and_inventory_tool_selects(self) -> None:
+        option = '<option value="workbuddy">WorkBuddy</option>'
+        for select_id in ("skills-bulk-tool", "inventory-tool-filter"):
+            select_start = self.page.index(f'<select id="{select_id}"')
+            select_end = self.page.index("</select>", select_start)
+            self.assertIn(option, self.page[select_start:select_end])
+
+    def test_skills_table_has_workbuddy_header_and_six_column_empty_states(self) -> None:
+        self.assertIn('<th scope="col">WorkBuddy</th>', self.page)
+        self.assertIn('<td colspan="6">正在读取 Skills…</td>', self.page)
+        render_skills_start = self.javascript.index("  function renderSkills(payload) {")
+        render_skills_end = self.javascript.index(
+            "\n  function renderInstructions(payload) {",
+            render_skills_start,
+        )
+        render_skills = self.javascript[render_skills_start:render_skills_end]
+        self.assertIn('cell.setAttribute("colspan", "6")', render_skills)
+
     def test_inventory_refresh_preserves_filters_and_clear_restores_defaults(self) -> None:
         for contract in (
             "inventoryRecords: []",
@@ -1678,6 +1773,15 @@ class WebPageTests(unittest.TestCase):
         )
         self.assertEqual(result["flags"][2]["raw"], "invalid-skill:missing SKILL.md")
         self.assertEqual(result["flags"][3]["raw"], "mystery")
+
+    def test_inventory_tool_label_recognizes_workbuddy(self) -> None:
+        self.assertEqual(
+            self._run_exports(
+                "typeof AgentManagerTest.inventoryToolLabel === 'function' "
+                "? AgentManagerTest.inventoryToolLabel('workbuddy') : null"
+            ),
+            "WorkBuddy",
+        )
 
     def test_filter_inventory_records_combines_all_filters(self) -> None:
         records = self._inventory_filter_records()

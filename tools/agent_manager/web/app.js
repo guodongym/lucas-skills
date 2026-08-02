@@ -6,6 +6,12 @@
     { key: "codex", label: "Codex" },
     { key: "copilot", label: "Copilot" },
     { key: "antigravity", label: "Antigravity" },
+    {
+      key: "workbuddy",
+      label: "WorkBuddy",
+      surfaces: ["desktop"],
+      instructionsManual: true,
+    },
   ];
   const ATTENTION_STATES = new Set(["conflict", "error", "broken", "legacy"]);
   const NAV_ICONS = {
@@ -470,11 +476,16 @@
   }
 
   function toolSurfaceRows(surfaces, tool) {
-    return [`${tool}-desktop`, `${tool}-cli`].map((key) => {
+    const family = TOOL_FAMILIES.find((item) => item.key === tool);
+    const surfaceKinds = family && family.surfaces
+      ? family.surfaces
+      : ["desktop", "cli"];
+    return surfaceKinds.map((kind) => {
+      const key = `${tool}-${kind}`;
       const surface = asArray(surfaces).find((item) => item.key === key);
       return {
         key,
-        label: key.endsWith("-desktop") ? "Desktop" : "CLI",
+        label: kind === "desktop" ? "Desktop" : "CLI",
         installed: Boolean(surface && surface.installed),
       };
     });
@@ -651,6 +662,15 @@
           || asArray(target.surfaces).some((surface) => familySurfaceKeys.has(surface))
         )),
       ];
+      const presentedInstructions = family.instructionsManual && toolInstructions.length === 0
+        ? [{
+          key: `${family.key}-custom-instructions`,
+          state: "manual",
+          path: "",
+          surfaces: [`${family.key}-desktop`],
+          message: "WorkBuddy 自定义指令需在应用内的“个性化 → 自定义指令”手工维护。",
+        }]
+        : toolInstructions;
       const skillRoots = pathRows
         .filter((row) => row.tool === family.key)
         .map((row) => {
@@ -665,7 +685,7 @@
           };
         });
       const instructionHome = toolAdapters[0] && toolAdapters[0].home;
-      const instructionRoots = toolInstructions.map((instruction) => {
+      const instructionRoots = presentedInstructions.map((instruction) => {
         const declaredSurfaces = asArray(instruction.surfaces);
         const applicableSurfaces = declaredSurfaces.length
           ? declaredSurfaces.filter((surface) => familySurfaceKeys.has(surface))
@@ -702,11 +722,11 @@
         },
         instructions: {
           lineStyle: "dashed",
-          ...routeStatus(toolInstructions, true),
+          ...routeStatus(presentedInstructions, true),
           roots: instructionRoots,
-          messages: uniqueMessages(toolInstructions),
+          messages: uniqueMessages(presentedInstructions),
           attentionKey: (() => {
-            const flagged = toolInstructions.filter((target) => (
+            const flagged = presentedInstructions.filter((target) => (
               target.state === "conflict" || target.state === "broken"
             ));
             return flagged.length === 1 ? flagged[0].key : null;
@@ -744,6 +764,7 @@
       inventoryFlagPresentation,
       inventorySummary,
       inventoryFailureMode,
+      inventoryToolLabel,
       filterInventoryRecords,
       sortInventoryRecords,
       compactHomePath,
@@ -1709,7 +1730,7 @@
     if (!filtered.length) {
       const row = node("tr");
       const cell = node("td", rows.length ? "没有符合筛选条件的 Skill。" : "仓库中没有可展示的 Skill。", "empty-cell");
-      cell.setAttribute("colspan", "5");
+      cell.setAttribute("colspan", "6");
       row.appendChild(cell);
       body.appendChild(row);
       syncWriteBusy();
