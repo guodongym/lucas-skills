@@ -136,11 +136,50 @@ class ReadmeTests(unittest.TestCase):
             "单独取得明确授权",
             "旧状态归档",
             "独立授权",
-            "四个工具族、八个检测表面",
-            "五个 Skill 根目录",
+            "WorkBuddy",
+            "WorkBuddy.app",
+            "~/.workbuddy/skills/<skill>",
+            "五个工具族、九个检测表面",
+            "六个 Skill 根目录",
             "五个 Instructions 文件入口",
         ):
             self.assertIn(text, readme)
+        self.assertIn(
+            "| WorkBuddy | `WorkBuddy.app` | 无受管 CLI | "
+            "`~/.workbuddy/skills/<skill>` |",
+            readme,
+        )
+        self.assertIn(
+            "`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录、"
+            "Antigravity CLI 用户目录、Copilot Desktop 内置目录和 WorkBuddy 用户 Skill "
+            "根目录 `~/.workbuddy/skills`；这些库存来源不因此变为受管目标。",
+            readme,
+        )
+        self.assertIn(
+            "启用 WorkBuddy Skill 后，请新建一个 WorkBuddy 任务验证发现结果；"
+            "不承诺热重载。",
+            readme,
+        )
+        self.assertIn(
+            "WorkBuddy 的自定义指令位于“个性化 → 自定义指令”，同样保持手工边界，"
+            "不是 `AGENTS.md` target。",
+            readme,
+        )
+        instructions_start = readme.index("| target | Instructions 目标路径 | 覆盖范围 |")
+        instructions_end = readme.index("\n\nCopilot Desktop", instructions_start)
+        instructions_rows = [
+            line
+            for line in readme[instructions_start:instructions_end].splitlines()
+            if line.startswith("| `")
+        ]
+        self.assertEqual(len(instructions_rows), 5)
+        self.assertEqual(
+            [row.split("|")[1].strip() for row in instructions_rows],
+            ["`shared`", "`claude`", "`codex`", "`copilot`", "`antigravity`"],
+        )
+        self.assertNotIn(
+            "`workbuddy`", readme[instructions_start:instructions_end]
+        )
         self.assertLess(
             readme.index(
                 "uv run agent-manager instructions adopt --replace-existing --json"

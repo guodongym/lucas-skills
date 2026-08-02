@@ -81,7 +81,7 @@ uv run upstream-sync sync --upstream anthropics-skills
 
 ## Agent Manager
 
-Agent Manager 以本仓库 `skills/` 和 `AGENTS.md` 为唯一受管源，统一管理 Skills 与个人约束。它覆盖 Claude、Codex、GitHub Copilot、Antigravity 四个工具族、八个检测表面；前置条件是本机已安装 `uv`：
+Agent Manager 以本仓库 `skills/` 和 `AGENTS.md` 为唯一受管源，统一管理 Skills 与个人约束。它覆盖 Claude、Codex、GitHub Copilot、Antigravity、WorkBuddy 五个工具族、九个检测表面；前置条件是本机已安装 `uv`：
 
 ```bash
 uv --version
@@ -113,7 +113,7 @@ Skills 常见状态为 `enabled`、`disabled`、`conflict` 和 `broken`。Instru
 
 ### 工具表面与受管路径
 
-Desktop 和 CLI 分别检测，共四个工具族、八个检测表面。Skills 共使用五个 Skill 根目录：
+Desktop 和 CLI 分别检测，共五个工具族、九个检测表面。Skills 共使用六个 Skill 根目录：
 
 | 工具 | Desktop 检测 | CLI 检测 | Skill 加载位置 |
 | --- | --- | --- | --- |
@@ -121,8 +121,9 @@ Desktop 和 CLI 分别检测，共四个工具族、八个检测表面。Skills 
 | Codex | 优先 `ChatGPT.app`，兼容 `Codex.app` fallback | `codex` | `~/.codex/skills/<skill>` |
 | GitHub Copilot | `GitHub Copilot.app` | `copilot` | `~/.copilot/skills/<skill>` |
 | Antigravity | `Antigravity.app` | `agy` | Desktop：`~/.gemini/config/skills/<skill>`；CLI：`~/.gemini/antigravity-cli/plugins/lucas-skills/skills/<skill>` |
+| WorkBuddy | `WorkBuddy.app` | 无受管 CLI | `~/.workbuddy/skills/<skill>` |
 
-Antigravity CLI 的受管插件清单位于 `~/.gemini/antigravity-cli/plugins/lucas-skills/plugin.json`。`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录、Antigravity CLI 用户目录和 Copilot Desktop 内置目录；这些库存来源不因此变为受管目标。
+Antigravity CLI 的受管插件清单位于 `~/.gemini/antigravity-cli/plugins/lucas-skills/plugin.json`。`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录、Antigravity CLI 用户目录、Copilot Desktop 内置目录和 WorkBuddy 用户 Skill 根目录 `~/.workbuddy/skills`；这些库存来源不因此变为受管目标。启用 WorkBuddy Skill 后，请新建一个 WorkBuddy 任务验证发现结果；不承诺热重载。
 
 Instructions 共使用五个 Instructions 文件入口，全部以仓库 `AGENTS.md` 为来源：
 
@@ -135,6 +136,8 @@ Instructions 共使用五个 Instructions 文件入口，全部以仓库 `AGENTS
 | `antigravity` | `~/.gemini/GEMINI.md` | Antigravity Desktop 与 CLI |
 
 Copilot Desktop 的全局 instructions 由应用 Settings 管理，是手工边界；管理器只显示 manual 状态、复制规则内容和操作说明，不写应用内部数据。
+
+WorkBuddy 的自定义指令位于“个性化 → 自定义指令”，同样保持手工边界，不是 `AGENTS.md` target。
 
 ### Preview、apply 与安全门
 
