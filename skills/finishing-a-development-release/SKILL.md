@@ -10,6 +10,7 @@ description: Use when a completed task branch or worktree must be released, espe
 - 先锚定 repo/worktree/branch/HEAD/base/upstream/remote 与授权。
 - 默认快速路径；只在可观察风险出现时升级。
 - 授权按动作分别确认：本地集成、push main、push annotated tag、创建平台 Release、删除 worktree、删除 branch 均不得从另一项授权推断。已有明确选择不得重复询问。
+- force-push、移动已有 tag、覆盖 ignored/untracked 私有配置、删除未合并 branch 各自需要明确、逐项且指向目标的授权；普通 push/tag/cleanup/branch-deletion 授权不涵盖它们。缺少该授权时停止对应动作。
 
 ## Skill Composition
 
@@ -23,10 +24,10 @@ description: Use when a completed task branch or worktree must be released, espe
 
 ## Fast Path
 
-1. 锚定现场并记录本地状态候选快照。
+1. 锚定现场并记录本地状态候选快照：在当前 release 范围浅层盘点 ignored 与 untracked 的配置、secret、runtime 候选；不递归扫描 cache。只记录路径、key 名、元数据、等价性和分类计数，不读取或输出值。
 2. 同步版本化 CHANGELOG 和直接相关文档；出现文档升级信号时先执行 `neat-freak`。
 3. 有历史整理信号时先执行 `git-history-rewrite`：可观察信号为 WIP、fixup、重复、乱序提交或用户明确要求；否则按已选路径集成 main，暂停 cleanup。
-4. 在 main 对账本地状态并取得一次最终验证证据。仅当测试在当前 release run 内完成、测试命令成功、测试时的 Git tree object 与最终待发布的 Git tree object 相同，且测试输入所依赖的版本化配置未变时，才可复用该证据；任一条件不能证明则运行一次新的最终验证。不要为同一已证明等价树重复完整测试。
+4. 在 main 对账本地状态并在 cleanup 前再次浅层盘点 ignored 与 untracked 候选，取得一次最终验证证据。仅当测试在当前 release run 内完成、测试命令成功、测试时的 Git tree object 与最终待发布的 Git tree object 相同，且测试输入所依赖的版本化配置未变时，才可复用该证据；任一条件不能证明则运行一次新的最终验证。不要为同一已证明等价树重复完整测试。
 5. 在已授权范围内 push main 并回读；push annotated tag 并回读；按 provider 能力创建并回读 Release。
 6. 通过 cleanup 门禁后清理。
 
@@ -45,7 +46,8 @@ Provider capability 仅在已知、已认证且有本仓库或 provider 官方�
 
 ## Local State Gate
 
-- 只报告路径、key 名、元数据、等价性和分类计数，不报告值。
+- 初始快照与 cleanup 前快照都必须浅层盘点 ignored 和 untracked 的配置、secret、runtime 候选；不递归扫描 cache。
+- 只报告路径、key 名、元数据、等价性和分类计数，不读取或报告值。
 - 同一 key 的不同值是 conflict；conflict 或 unclassified 大于 0 时保留 worktree，且不得用删除 worktree 代替丢弃 branch/commits 的授权。
 
 ## Cleanup Gate
@@ -57,7 +59,7 @@ Provider capability 仅在已知、已认证且有本仓库或 provider 官方�
 3. main 已按授权 push 并回读。
 4. annotated tag 已按授权 push 并回读。
 5. provider 结果为 `Full Release` 或 `Portable Release`，不是 `Partial Release` 或 `Blocked`。
-6. 本地状态已分类且 conflict、unclassified 均为 0，并且该 worktree 归当前流程安全清理。
+6. 初始与 cleanup 前的 ignored/untracked 候选均已浅层盘点并分类，conflict、unclassified 均为 0，且该 worktree 归当前流程安全清理。
 
 ## Final Report
 

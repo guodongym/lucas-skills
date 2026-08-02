@@ -29,7 +29,7 @@
 ### 2.1 目标
 
 1. 用一次明确触发完成常见的 worktree 发布收尾，减少重复沟通和漏项。
-2. 默认只执行一次最终完整验证、一次远端回读和一次本地状态候选扫描。
+2. 默认只执行一次最终完整验证；非原子路径对 main 和 tag 各执行一次必要的 Git 回读，受支持的 atomic push 可合并这两项 Git 回读；平台原生 Release 始终单独回读。
 3. 根据实际风险决定是否整理历史、执行完整 `neat-freak` 或深度比较本地状态。
 4. 同时支持 GitHub、Gitee、私有 EZone 和未知 Git 托管平台。
 5. 区分 Full、Portable、Partial、Blocked 四种发布结果，不把 tag 等同于平台 Release。

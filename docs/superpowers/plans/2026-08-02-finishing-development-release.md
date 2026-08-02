@@ -12,7 +12,7 @@
 
 - 新 Skill 目录只包含 `SKILL.md` 与 `agents/openai.yaml`。
 - 不修改插件缓存中的 `finishing-a-development-branch`；只记录三个兼容点：已有选择不重复询问、等价 tree 不重复测试、cleanup 延后但不取消。
-- 默认快速路径只执行一次最终完整验证、一次远端回读和一次本地状态候选扫描。
+- 默认快速路径只执行一次最终完整验证；非原子路径对 main 和 tag 各执行一次必要的 Git 回读，受支持的 atomic push 可合并这两项 Git 回读；平台原生 Release 始终单独回读。
 - GitHub 支持 Full Release；Gitee、EZone 和未知平台按现场能力选择 Full、Portable、Partial 或 Blocked，不猜测接口。
 - ignored/untracked 密钥、配置和运行状态必须在 cleanup 前完成对账；任何输出都不得包含密钥值。
 - force push、移动既有 tag、覆盖私有配置、删除未合并分支需要单独明确授权。
