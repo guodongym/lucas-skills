@@ -14,13 +14,13 @@ description: Use when a completed task branch or worktree must be released, espe
 
 ## Skill Composition
 
-**REQUIRED SUB-SKILL:** Use `neat-freak` when the user names it or release-relevant documentation/governance escalation signals are present: versioned CHANGELOG or directly related release docs are missing, stale against the release tree, conflict with repository rules, or require a governed documentation update.
+**REQUIRED SUB-SKILL:** Use `neat-freak` when the user names it or release-relevant documentation/governance escalation signals are present: versioned CHANGELOG or directly related release docs are missing, stale against the release tree, conflict with repository rules, or require a governed documentation update. 消费其文档变更与未解决漂移清单；不得复制完整审计、知识整理或规则同步流程。
 
-**REQUIRED SUB-SKILL:** 有 WIP/fixup/重复/乱序提交或用户明确要求整理历史时，先使用 `git-history-rewrite` 作预检；仅为提交数或形式性 squash 不改写历史，实际改写仍须由预检证明能改善可审查性且满足其远端安全门禁。
+**REQUIRED SUB-SKILL:** 有 WIP/fixup/重复/乱序提交或用户明确要求整理历史时，先使用 `git-history-rewrite` 作预检；消费 no-op/改写结论、backup ref、tree identity 与远端安全结果，不复制改写操作或 force-push 规则。
 
-**REUSED CONTRACT:** Use `finishing-a-development-branch` for base confirmation, the chosen integration path, merged-tree verification, ownership-safe cleanup, and branch deletion; preserve an existing user choice, reuse equivalent-tree evidence, and defer cleanup until release gates pass.
+**REUSED CONTRACT:** Use `finishing-a-development-branch`; 消费已确认 base、既有集成选择、merged-tree identity 与所有权/cleanup 结论。编排器只保留既有选择、复用等价树证据、延后但不取消 cleanup；不得重写其集成选项、授权或删除规则。
 
-**REQUIRED SUB-SKILL:** Use `verification-before-completion` before any successful merge, verification, release, or cleanup claim.
+**REQUIRED SUB-SKILL:** Use `verification-before-completion` before any successful merge, verification, release, or cleanup claim. 消费 fresh 命令、结果与对应 tree identity；不得另建完成标准或以旧日志替代证据。
 
 ## Fast Path
 
@@ -42,7 +42,7 @@ Provider capability 仅在已知、已认证且有本仓库或 provider 官方�
 | `Partial Release` | main/tag 已发布，但预期可用的平台 Release 创建或回读失败。 |
 | `Blocked` | main/tag 写入失败，或版本、notes、remote 无法确定。 |
 
-`Partial Release` 保留 worktree 和本地状态，报告已经回读的 main/tag 与失败的 provider 操作；在不改变已发布 Git 产物的前提下，取得授权后重试或由用户选择补建/回滚，不把它称为 `Full Release`。`Blocked` 不进入 cleanup。
+`Partial Release` 默认保留 worktree 和本地状态；仅可在 Cleanup Gate 六项全真时例外清理。报告失败的 provider 操作及重试来源，不把它称为 `Full Release`。`Blocked` 不进入 cleanup。
 
 ## Local State Gate
 
@@ -58,8 +58,8 @@ Provider capability 仅在已知、已认证且有本仓库或 provider 官方�
 2. 已集成的最终树有一次最终验证，或有符合等价条件的复用验证证据。
 3. main 已按授权 push 并回读。
 4. annotated tag 已按授权 push 并回读。
-5. provider 结果为 `Full Release` 或 `Portable Release`，不是 `Partial Release` 或 `Blocked`。
-6. 初始与 cleanup 前的 ignored/untracked 候选均已浅层盘点并分类，conflict、unclassified 均为 0，且该 worktree 归当前流程安全清理。
+5. provider 结果为 `Full Release`/`Portable Release`；或为 `Partial Release` 且 notes 已版本化固化、main/tag 已回读并可由明确 ref 恢复、本地状态已迁移/对账、已创建 backup ref。任何 Git 写入或回读失败仍为 `Blocked`。
+6. 初始与 cleanup 前的 ignored/untracked 候选均已分类，conflict、unclassified 均为 0；所有 useful 候选已迁移到 main 工作区对应本地状态，并在不读取或输出 secret 值的前提下验证来源/目标等价；该 worktree 归当前流程安全清理。
 
 ## Final Report
 
