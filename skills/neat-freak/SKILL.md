@@ -12,7 +12,10 @@ description: >
   or any phrase suggesting a dev milestone where knowledge needs
   reconciliation. Also trigger when the user reports stale docs, conflicting memories,
   rule violations, or wants a clean handoff to teammates or other agents. Bare "整理" / "tidy" with
-  prior dev context counts — do not under-trigger. Cross-platform: works on Claude Code,
+  prior dev context counts — do not under-trigger. Explicit release closure requests such as 发布收尾,
+  合并 main 后打 tag/push, or creating a platform Release route to finishing-a-development-release;
+  run neat-freak there only when explicitly named or when that orchestrator detects documentation/governance
+  escalation signals. Cross-platform: works on Claude Code,
   OpenAI Codex, OpenCode, and OpenClaw.
 ---
 
