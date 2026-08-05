@@ -27,6 +27,13 @@ upstreams:
       - src: storage-analyzer
         dst: skills/storage-analyzer
 
+  - name: human-writing
+    repo: https://github.com/KKKKhazix/human-writing
+    branch: main
+    mappings:
+      - src: human-writing
+        dst: skills/human-writing
+
   # 示例：添加更多上游
   # - name: my-other-upstream
   #   repo: https://github.com/user/repo
