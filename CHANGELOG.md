@@ -10,6 +10,33 @@
 
 ---
 
+## [v0.2.0] - 2026-08-05
+
+**定位**：引入通用中文“活人感”写作 Skill，并将其作为独立上游持续跟踪。
+
+### ✨ 新功能
+
+* 新增 `human-writing` Skill 1.0.0，覆盖现实长文、虚构故事、论坛长帖、口播和演讲稿等通用中文创作与改稿场景。
+* 随 Skill 同步 5 份按需加载的写作参考，以及只报告、不自动改稿的 `check_prose.py` 检查器。
+
+### 🛠️ 上游管理
+
+* 新增 `KKKKhazix/human-writing` 独立上游映射，固定首次同步提交 `22d20b67`，后续由每周同步流程检测更新。
+* `human-writing` 保持通用写作定位；已有 `khazix-writer` 继续承担卡兹克个人公众号文风生成，两者不合并。
+
+### 🧪 验证
+
+* Skill 结构校验通过，上游文件 10/10 字节一致，重复同步无差异。
+* `check_prose.py` 正反例分别以退出码 0/1 返回，反例检出 4 类硬性问题。
+* `uv run python -m unittest discover -s tests -v`：275/275 通过。
+* `uv lock --check` 与 `uv build` 通过。
+
+### 📄 关联文档
+
+* 无新增关联文档。
+
+---
+
 ## [v0.1.1] - 2026-08-02
 
 **定位**：将 WorkBuddy Desktop 纳入 Agent Manager 的 Skill 纳管范围，并保持其自定义指令与 `AGENTS.md` 管理边界分离。
