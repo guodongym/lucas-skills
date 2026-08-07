@@ -170,9 +170,9 @@ Antigravity Desktop 使用官方全局目录 `~/.gemini/config/skills/`。Antigr
 4. 目录名本身符合可安全用作软链名称的 slug 约束；
 5. 顶层受管 Skill 之间不存在重复目录名或重复 frontmatter `name`。
 
-目录名是管理器的稳定部署标识，frontmatter `name` 用于触发语义、展示和重名检测。两者不一致时显示 `name-mismatch` 告警，但不阻止管理；这是为了兼容当前 `skills/wps365/` 目录与 `name: wps365-skills` 的既有结构。
+目录名是管理器的稳定部署标识，frontmatter `name` 用于触发语义、展示和重名检测。两者不一致时显示 `name-mismatch` 告警，但不阻止管理，以兼容目录 slug 与触发名称不同的 Skill。
 
-不递归把 `skills/wps365/skills/*` 等子 Skill 当成独立顶层受管项；它们属于父 Skill 的资源。
+不递归把顶层 Skill 内嵌的子 Skill 当成独立顶层受管项；它们属于父 Skill 的资源。
 
 扫描提取 `name`、`description` 和源路径供 UI 使用。正文不默认渲染。
 

@@ -2,7 +2,7 @@
 
 日期：2026-07-03
 状态：已定案并实施完成（2026-07-03，含执行期修正，详见实施计划状态行）
-范围：4 个自研 skill（git-history-rewrite、handoff、technical-proposal-review、business-architecture-diagram）。wps365 为外部来源，明确排除。
+范围：4 个自研 skill（git-history-rewrite、handoff、technical-proposal-review、business-architecture-diagram）。外部来源 skill 明确排除。
 
 ## 背景
 

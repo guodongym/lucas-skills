@@ -208,14 +208,14 @@ class RepositoryScanTests(unittest.TestCase):
             repo = Path(tmp)
             temp_home = repo / "home"
             temp_home.mkdir()
-            write_skill(repo, "wps365", "wps365-skills")
+            write_skill(repo, "example-skill", "example-trigger-name")
 
             with patch.dict(os.environ, {"HOME": str(temp_home)}):
                 self.assertEqual(Path.home(), temp_home)
                 result = scan_repository(repo)
 
-            self.assertEqual([skill.slug for skill in result.skills], ["wps365"])
-            self.assertEqual(result.skills[0].name, "wps365-skills")
+            self.assertEqual([skill.slug for skill in result.skills], ["example-skill"])
+            self.assertEqual(result.skills[0].name, "example-trigger-name")
             self.assertEqual(result.skills[0].warnings, ("name-mismatch",))
             self.assertEqual(result.issues, ())
 

@@ -87,12 +87,12 @@ class RepositoryScanTests(unittest.TestCase):
     def test_scans_valid_skill_and_allows_name_mismatch_with_warning(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            write_skill(repo, "wps365", "wps365-skills")
+            write_skill(repo, "example-skill", "example-trigger-name")
 
             result = scan_repository(repo)
 
-            self.assertEqual([skill.slug for skill in result.skills], ["wps365"])
-            self.assertEqual(result.skills[0].name, "wps365-skills")
+            self.assertEqual([skill.slug for skill in result.skills], ["example-skill"])
+            self.assertEqual(result.skills[0].name, "example-trigger-name")
             self.assertEqual(result.skills[0].warnings, ("name-mismatch",))
             self.assertEqual(result.issues, ())
 
