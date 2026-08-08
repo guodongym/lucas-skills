@@ -84,7 +84,7 @@ technical-proposal-review/
 
 `feedback/accepted/` 存放你已经确认采纳的反馈。这些反馈可以影响后续 skill 行为，也可以进一步沉淀到 `references/` 里。
 
-`feedback/pending/` 存放还没经过你确认的反馈，比如模型自评、评测过程、其他 agent 提出的改进建议。这里的内容不能直接改写 skill 行为。
+`feedback/pending/` 存放你明确授权写入、但还没确认采纳的脱敏反馈。模型自评、评测过程、其他 agent 提出的建议可以先起草，但不能未经授权直接写入，也不能直接改写 skill 行为。
 
 `feedback/rejected/` 存放你明确不采纳的反馈。保留它是为了避免后续重复采纳同类错误建议。
 
@@ -100,12 +100,12 @@ technical-proposal-review/
 
 1. 评审输出不包含回流表单。回流结构定义在 `references/feedback-loop.md`。
 2. 当你想提供反馈时，可以标记漏判、误判、优先级调整、喜欢的评论、不喜欢的评论和措辞偏好。
-3. 未经确认的反馈先进入 `feedback/pending/`。
+3. 先起草并脱敏；只有你明确授权写入后，才进入 `feedback/pending/`。
 4. 你确认采纳后，反馈进入 `feedback/accepted/`。
 5. 你明确不采纳的反馈进入 `feedback/rejected/`。
 6. 已采纳反馈可以继续沉淀到 `references/risk-patterns.md`、`references/case-bank.md` 或 `references/output-preferences.md`。
 
-原则：模型、评测脚本或其他 agent 生成的反馈，必须先经过人工确认，不能直接改进 skill 行为。
+原则：模型、评测脚本或其他 agent 生成的反馈，写盘前需要明确授权，采纳前需要人工确认，不能直接改进 skill 行为。
 
 ## 隐私边界
 
@@ -125,6 +125,7 @@ technical-proposal-review/
 - 原始方案正文
 - 内部真实文件名和本地路径映射
 - 可能包含方案细节的私有评测输出
+- 真实提案 URL、文档 ID 或账号空间标识
 - 租户名、内部域名、凭证、客户敏感信息
 - `materials/private/` 下的任何文件
 

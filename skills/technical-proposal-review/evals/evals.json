@@ -3,21 +3,23 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "请初审外部评测准备好的 API Key 认证架构合并 masked input。该输入已去除已有 `评审意见`，请只基于 masked input 输出初审意见和回流表单。",
+      "prompt": "请初审以下已脱敏且不含已有评审意见的 API Key 认证架构合并方案：当前使用开源网关的认证插件；方案计划直接修改第三方插件源码，将认证和授权合并，新增 CRD 字段，并迁移现有 key、consumer 和 route 数据。方案没有说明非 fork 替代、上游同步与升级负责人、迁移校验和回滚。只输出初审报告。",
       "expected_output": "The review should identify open source or community plugin source modification risk, explain upstream-sync and fork-maintenance concerns, ask for extension/composition/upstream-compatible alternatives, and include migration/rollback and security findings without relying on the existing human comments.",
       "files": [],
       "assertions": [
         "Mentions community fork or upstream divergence risk from modifying plugin/source code.",
-        "Requires checking whether the affected component is open source.",
+        "Recognizes that the proposal identifies an open source gateway plugin and uses that fact to assess upstream divergence, upgrade ownership, and non-fork alternatives.",
         "Requires an upstream-compatible maintenance strategy or explains how to stay compatible with upstream.",
         "Includes actionable migration or rollback requirements.",
-        "States the reviewed input scope and that existing `评审意见` was excluded via external masking, not model self-hiding.",
+        "States the reviewed input scope and that the inline masked proposal contains no existing `评审意见`.",
+        "Does not output feedback YAML.",
+        "Does not write a feedback file without explicit user authorization.",
         "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
       ]
     },
     {
       "id": 2,
-      "prompt": "请初审外部评测准备好的知识库多租户隔离 masked input。该输入已去除已有 `评审意见`，请只基于 masked input 输出初审意见和回流表单。",
+      "prompt": "请初审以下已脱敏且不含已有评审意见的知识库多租户隔离方案：产品承诺不同套餐的 QPS、TPM、并发和文档数；方案新增应用队列、worker 队列和模型队列，并要求上下游按固定顺序联动扩缩容。读请求和写入 embedding 共用模型实例。方案没有给出套餐指标到限流控制点、指标来源、超限行为和告警的映射。只输出初审报告。",
       "expected_output": "The review should require a spec-to-control matrix for tenant package promises, call out multi-layer queue consistency risk, prefer decoupled HPA/backpressure over cross-layer scaling rules, and evaluate model read/write isolation.",
       "files": [],
       "assertions": [
@@ -26,13 +28,15 @@
         "Recommends decoupled component scaling with backpressure or HTTP 429 instead of tightly coupled cross-layer scaling.",
         "Checks read/write traffic isolation for model or embedding resources.",
         "Includes human review focus items for the human reviewer.",
-        "States the reviewed input scope and that existing `评审意见` was excluded via external masking, not model self-hiding.",
+        "States the reviewed input scope and that the inline masked proposal contains no existing `评审意见`.",
+        "Does not output feedback YAML.",
+        "Does not write a feedback file without explicit user authorization.",
         "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
       ]
     },
     {
       "id": 3,
-      "prompt": "请初审外部评测准备好的基础平台操作审计 masked input。该输入已去除已有 `评审意见`，请只基于 masked input 输出初审意见和回流表单。",
+      "prompt": "请初审以下已脱敏且不含已有评审意见的基础平台操作审计方案：当前 Java 服务已有异步事件审计机制；方案计划新增 Go/Python SDK、中心审计服务和批量写入路径，并直接覆盖所有服务。方案没有解释为什么不能扩展现有异步机制，也没有定义代表性 MVP、button/API/route 覆盖矩阵、幂等、队列满、重试和恢复语义。只输出初审报告。",
       "expected_output": "The review should ask for current-state proof, existing async mechanism reuse boundary, MVP-first rollout, button/API/route coverage matrix, and concrete audit delivery semantics.",
       "files": [],
       "assertions": [
@@ -41,13 +45,15 @@
         "Calls out MVP-first rollout before broad platform optimization.",
         "Asks for button/API/route coverage matrix with owner, current status, priority, and acceptance case.",
         "Includes concrete delivery semantics such as idempotency, retry, queue full behavior, or recovery.",
-        "States the reviewed input scope and that existing `评审意见` was excluded via external masking, not model self-hiding.",
+        "States the reviewed input scope and that the inline masked proposal contains no existing `评审意见`.",
+        "Does not output feedback YAML.",
+        "Does not write a feedback file without explicit user authorization.",
         "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
       ]
     },
     {
       "id": 4,
-      "prompt": "请初审一个认证/网关方案：方案里使用网关 JWT 插件，认证失败、密钥拉取失败、配置缺失或插件异常时允许请求继续通过，并计划把 user_id/client_type 通过 header 透传给后端。请输出初审意见和回流表单。",
+      "prompt": "请初审一个认证/网关方案：方案里使用网关 JWT 插件，认证失败、密钥拉取失败、配置缺失或插件异常时允许请求继续通过，并计划把 user_id/client_type 通过 header 透传给后端。只输出初审报告。",
       "expected_output": "The review should explain the business consequence of allowing requests to pass after authentication failure before using fail-open/fail-closed terms, require allowed scenarios/time window/alerting/owner/recovery path, and check trusted header injection boundaries.",
       "files": [],
       "assertions": [
@@ -58,6 +64,55 @@
         "Avoids only using abstract fail-open/fail-closed terminology without business consequence.",
         "Includes severity and proposal evidence for each major finding.",
         "Includes requested remediation and human review focus.",
+        "Does not output feedback YAML.",
+        "Does not write a feedback file without explicit user authorization.",
+        "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "请初审一个缓存架构选型方案：业务预计未来半年请求量增长 10 倍，因此计划新增 Redis Cluster。方案没有定义 Redis 相对于维持现状的 p99、下游负载或成本目标，也没有定义验收阈值。",
+      "expected_output": "The review should require authors to define a measurable decision gate that would invalidate or reverse the Redis selection, rather than only requesting more metrics.",
+      "files": [],
+      "assertions": [
+        "Requires at least one explicit decision gate that names a metric, comparison baseline, and numeric threshold or decision cutoff which would invalidate or reverse the Redis selection.",
+        "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "请初审一个管理后台鉴权方案：API Proxy 只校验浏览器会话有效，随后统一使用固定管理员 service-account 调用下游，不传递真实用户身份；审计日志也只记录 service-account。方案理由是下游无需改造、接入最快。",
+      "expected_output": "The review should identify the user-level authorization and accountability invariants without inventing arbitrary numeric decision thresholds.",
+      "files": [],
+      "assertions": [
+        "Identifies that a valid session is not equivalent to authorization for every downstream administrator action.",
+        "Requires preserving real-user accountability in authorization or audit records.",
+        "Uses qualitative invariants or acceptance conditions and does not require an arbitrary numeric threshold merely because this is a core decision.",
+        "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "请初审一个低风险前端方案：把三个页面各自的日期拼接代码替换为项目已使用的 Intl.DateTimeFormat 包装函数；不新增依赖，不改接口、存储格式、时区来源或权限边界；输出保持 YYYY-MM-DD HH:mm；已有快照覆盖空值、合法时间和非法时间；先上线一个页面，确认后再替换其余页面，每页可独立回滚。",
+      "expected_output": "The review should recognize the bounded and reversible change, avoid P0/P1 findings based only on missing detail, and keep any useful gaps at P2 or Q.",
+      "files": [],
+      "assertions": [
+        "Does not create any P0 or P1 finding.",
+        "Acknowledges the existing tests, narrow scope, and independent rollback as risk controls.",
+        "Uses P2 or Q for any remaining contract or documentation detail.",
+        "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "请初审一个订单表分区迁移方案：迁移期间应用先写旧表再写新表，后台任务回填历史数据，完成后一次性切读到新表。方案没有定义两次写入之间进程崩溃、新表写失败、回填与在线更新竞争、差异检测、停止迁移和恢复旧读路径的条件。",
+      "expected_output": "The review should trace a concrete reachable consistency failure through impact, detection, containment, and recovery without raising severity merely because the scenario is adversarial.",
+      "files": [],
+      "assertions": [
+        "Names a concrete reachable failure such as old-table success followed by new-table failure or process crash.",
+        "Explains the resulting data impact and how to detect the divergence.",
+        "Requires a stop condition and a recovery or old-read restoration path.",
+        "Assigns severity from evidenced impact and review readiness rather than adversarial wording alone.",
         "(with-skill runs only) review ends with the single 校准 calibration line as defined in references/output-template.md."
       ]
     }

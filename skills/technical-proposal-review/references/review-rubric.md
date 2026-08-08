@@ -2,6 +2,14 @@
 
 Use every section for every proposal. Domain tags can add checks but cannot remove any global dimension.
 
+## Cross-Cutting Reasoning Rules
+
+Apply these rules before historical risk patterns:
+
+- **First principles:** for each material decision, identify its goal or invariant, separate proposal facts from assumptions, check existing capabilities and meaningful alternatives, and state what evidence or acceptance condition would change the decision. Require a metric, comparison baseline, and numeric threshold only for quantitative decisions such as capacity, performance, cost, SLOs, and rollout gates.
+- **Adversarial review:** for each material path, test at least one concrete reachable failure or counterexample. If reachable, check impact, detection, containment, and recovery. Reachability decides whether to analyze the failure, not its severity; assign severity only from evidenced impact and review readiness.
+- **Evidence control:** create a finding only when an evidence-backed gap affects the selection or implementation boundary. Use `Q` when evidence is insufficient, do not invent missing risks, and merge findings with the same root cause. Grade severity from evidenced impact, blast radius, reversibility, and existing controls—not checklist absence; use `Q` or `P2` when only detail is missing.
+
 ## 1. Background And Goals
 
 Check:

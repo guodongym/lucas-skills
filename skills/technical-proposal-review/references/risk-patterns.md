@@ -70,7 +70,7 @@ Historical source:
 
 ## RP-004 Community Fork Or Source Patch Without Governance
 
-Scope: gateway
+Scope: global
 
 Trigger:
 
@@ -83,7 +83,7 @@ Expected review:
 - Require upgrade ownership, patch rebase path, trigger conditions for tracking upstream releases, and a plan for merging back if the community eventually supports the capability.
 - Identify whether the affected component is open source. For open source components, the maintenance strategy should stay close to upstream and avoid hard-to-merge divergence from community code.
 - If the proposal has not yet established whether non-fork alternatives are feasible, also require evaluation of extension points, configuration, composition, sidecar, or upstream contribution before accepting source modification.
-- Treat as at least `P1`; use `P0` when the source patch changes authentication, authorization, routing, security defaults, or migration-critical behavior and no governance is provided.
+- Treat `P1` or `P0` as candidates when those impacts are reachable, then apply the `SKILL.md` P0/P1 evidence gate; use `P2` or `Q` when existing controls or reversibility contain the impact.
 - Do not let route-level or configuration-level findings hide the fork and upgrade-maintenance risk.
 
 Historical source:
@@ -103,7 +103,7 @@ Trigger:
 Expected review:
 
 - Require migration sequence, data integrity checks, conflict handling, rollback exercise, and release gates.
-- For external resource creation, require idempotency, compensation, explicit failure state, retry, and repair path. Use `P0` only when synchronous external creation has no such controls; otherwise use `P1` or `Q`.
+- For external resource creation, require idempotency, compensation, explicit failure state, retry, and repair path. Treat `P0` as a candidate only when synchronous external creation has no such controls; determine final severity through the `SKILL.md` evidence gate.
 
 Historical source:
 
@@ -258,7 +258,7 @@ Historical source:
 
 ## RP-015 Coverage Matrix Missing For Platform Capability
 
-Scope: audit
+Scope: global
 
 Trigger:
 
@@ -277,7 +277,7 @@ Historical source:
 
 ## RP-016 Cross-Service Contract Missing
 
-Scope: audit
+Scope: global
 
 Trigger:
 
@@ -307,7 +307,7 @@ Expected review:
 
 - Require the author to mark each diagram component and path as current, this-phase target, future target, or out of scope.
 - Ask for an explicit delta between current behavior and proposed behavior before reviewing implementation details.
-- Raise as `P1` when the mismatch changes development scope, ownership, or review readiness.
+- Treat `P1` as a candidate when the mismatch changes development scope, ownership, or review readiness; final severity must pass the `SKILL.md` evidence gate.
 
 Historical source:
 
