@@ -10,6 +10,34 @@
 
 ---
 
+## [v0.3.0] - 2026-08-08
+
+**定位**：将第一性原理与对抗性审查作为 `technical-proposal-review` 的通用推理规则，在保留关键风险识别能力的同时减少机械量化和过度定级。
+
+### ✨ 工作流增强
+
+* 增加第一性原理、对抗性审查和证据控制三条横切规则，覆盖目标与约束还原、可达失败链以及证据充分性判断。
+* 增加 P0/P1 出口门：只有现有控制和可逆性无法约束已证实影响时，才能保留高严重级别。
+
+### 🛡️ 评审边界
+
+* 定量决策继续要求指标、基线和阈值；定性决策不再被强制补造数字门槛。
+* 评测样本改为自包含输入，并收紧反馈写盘授权、脱敏和跨领域风险模式边界。
+
+### 🧪 验证
+
+* A/B 微测 40 次：定量与关键风险命中保持 5/5；定性强制量化由 5/5 降至 0/5；平均输出减少 15.4%，findings 减少 18.8%。
+* 完整 Skill 回归：低风险场景 5/5 通过且 0/5 出现 P0/P1；3 个关键风险场景 3/3 命中。
+* `uv run python -m unittest discover -s tests -v`：275/275 通过。
+* `quick_validate.py`、eval JSON、accepted YAML 与 `git diff --check` 均通过。
+
+### 📄 关联文档
+
+* [推理增强设计](docs/superpowers/specs/2026-08-08-technical-proposal-review-reasoning-design.md)
+* [推理增强实施计划](docs/superpowers/plans/2026-08-08-technical-proposal-review-reasoning.md)
+
+---
+
 ## [v0.2.0] - 2026-08-05
 
 **定位**：引入通用中文“活人感”写作 Skill，并将其作为独立上游持续跟踪。
