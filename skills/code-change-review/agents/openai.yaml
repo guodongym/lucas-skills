@@ -1,0 +1,4 @@
+interface:
+  display_name: "代码变更评审"
+  short_description: "只读审查代码变更中的缺陷、回归风险、测试证据与合并就绪状态"
+  default_prompt: "Use $code-change-review to review the current code changes for evidence-backed defects, regressions, and merge readiness."
