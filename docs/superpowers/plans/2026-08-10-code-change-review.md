@@ -19,6 +19,31 @@
 
 ---
 
+## Task 0: Capture the behavioral RED baseline before writing the Skill
+
+**Files:**
+
+- Do not create or load `skills/code-change-review/SKILL.md` in this task.
+- Keep raw baseline outputs in a temporary directory outside the repository.
+
+### Step 1: Prepare raw bug/safe pressure scenarios
+
+- [ ] Prepare the four bug/safe pairs defined in Task 2 as raw, self-contained review prompts. Each pair must differ by only one named control: transaction boundary, trusted identity re-injection, compatibility alias, or durable idempotency key.
+- [ ] Give reviewers the changed code, baseline requirement, callers/consumers, and relevant tests, but do not provide expected findings, severity, or the planned Skill rules.
+
+### Step 2: Run the eight baseline cases without the Skill
+
+- [ ] Start a fresh reviewer context for each of the eight prompts without loading or naming `code-change-review`.
+- [ ] Record model, case ID, raw output path, missed reachable-path assertions, false-positive `P0/P1`, scope mistakes, and whether questions were incorrectly emitted as confirmed findings.
+
+Expected RED evidence: at least one missed bug assertion or one safe-control false positive. If all eight cases unexpectedly satisfy the planned assertions, stop and strengthen the scenarios before writing the Skill.
+
+### Step 3: Extract only demonstrated failure patterns
+
+- [ ] Summarize the baseline failure categories that the Skill must correct. Do not copy reviewer prose into the Skill and do not add rules for hypothetical failures absent from the baseline or approved design.
+
+---
+
 ## Task 1: Add the contract tests and minimal Skill workflow
 
 **Files:**
@@ -363,11 +388,11 @@ git commit -m 'test(code-change-review): add routing and behavior eval corpus' \
 - Read: `skills/code-change-review/evals/fixtures/*.md`
 - Do not create persistent repository files for raw eval output.
 
-### Step 1: Capture the RED baseline from the pre-Skill commit
+### Step 1: Compare GREEN results with the pre-Skill RED baseline
 
-- [ ] In a disposable worktree or temporary clone anchored at the committed plan's parent, run the eight paired bug/safe cases without loading `code-change-review`. Record only aggregate assertion results and temporary output paths.
+- [ ] Compare the eight paired behavior results with Task 0's raw baseline records.
 
-Expected baseline evidence: at least one missed bug assertion or one safe-control false positive. If the baseline unexpectedly passes all assertions, stop and strengthen the cases before claiming the Skill changes behavior.
+Expected: every demonstrated baseline failure category is either corrected by the Skill or explicitly documented as an unresolved eval failure; do not claim improvement from wording alone.
 
 ### Step 2: Run all behavior cases in fresh contexts
 
