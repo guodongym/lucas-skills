@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -95,6 +96,80 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
             "未发现有代码证据支持的缺陷",
         ):
             self.assertIn(phrase, template)
+
+    def test_eval_manifest_has_fixed_case_matrix_and_valid_fixtures(self):
+        manifest = json.loads(
+            (SKILL_ROOT / "evals" / "evals.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["skill_name"], "code-change-review")
+        evals = manifest["evals"]
+        self.assertEqual(len(evals), 24)
+        self.assertEqual(len({case["id"] for case in evals}), 24)
+
+        required = {
+            "id",
+            "kind",
+            "prompt",
+            "expected_output",
+            "files",
+            "assertions",
+        }
+        for case in evals:
+            self.assertTrue(required.issubset(case), case["id"])
+            self.assertIn(case["kind"], {"trigger", "behavior"})
+            self.assertTrue(case["assertions"], case["id"])
+            for relative in case["files"]:
+                fixture = (SKILL_ROOT / relative).resolve()
+                self.assertTrue(
+                    fixture.is_relative_to(SKILL_ROOT.resolve()), case["id"]
+                )
+                self.assertTrue(fixture.is_file(), f"{case['id']}: {relative}")
+
+        triggers = [case for case in evals if case["kind"] == "trigger"]
+        behavior = [case for case in evals if case["kind"] == "behavior"]
+        self.assertEqual(len(triggers), 12)
+        self.assertEqual(len(behavior), 12)
+        self.assertEqual(
+            {case["route"] for case in triggers},
+            {"code-change-review", "other-skill", "mixed"},
+        )
+        self.assertEqual(
+            [case["route"] for case in triggers].count("code-change-review"), 5
+        )
+        self.assertEqual(
+            [case["route"] for case in triggers].count("other-skill"), 5
+        )
+        self.assertEqual([case["route"] for case in triggers].count("mixed"), 2)
+
+        categories = [case["category"] for case in behavior]
+        self.assertEqual(categories.count("bug"), 4)
+        self.assertEqual(categories.count("safe"), 4)
+        self.assertEqual(categories.count("control"), 4)
+        bug_ids = {case["id"] for case in behavior if case["category"] == "bug"}
+        safe_controls = {
+            case["control_for"]
+            for case in behavior
+            if case["category"] == "safe"
+        }
+        self.assertEqual(safe_controls, bug_ids)
+
+    def test_compatibility_bug_assertion_points_to_changed_field(self):
+        manifest = json.loads(
+            (SKILL_ROOT / "evals" / "evals.json").read_text(encoding="utf-8")
+        )
+        case = next(
+            item
+            for item in manifest["evals"]
+            if item["id"] == "behavior-compatibility-bug"
+        )
+        self.assertIn(
+            (
+                "Locates the changed user_id to actor_id producer field "
+                "(events/user_event.py line 14 in target-file coordinates; "
+                "the corresponding fixture diff line is acceptable)."
+            ),
+            case["assertions"],
+        )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,321 @@
+{
+  "skill_name": "code-change-review",
+  "evals": [
+    {
+      "id": "trigger-positive-current-branch",
+      "kind": "trigger",
+      "route": "code-change-review",
+      "prompt": "Review 一下当前分支相对 main 的代码，看看是否有 bug，能不能合并。",
+      "expected_output": "Load code-change-review and review the implemented branch changes.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record includes code-change-review.",
+        "The task is not routed to technical-proposal-review."
+      ]
+    },
+    {
+      "id": "trigger-positive-pr",
+      "kind": "trigger",
+      "route": "code-change-review",
+      "prompt": "深度 review PR #42，重点找回归和数据风险，给出 merge readiness。",
+      "expected_output": "Load code-change-review for the pull request review.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record includes code-change-review.",
+        "The reviewer treats the PR implementation as the judged object."
+      ]
+    },
+    {
+      "id": "trigger-positive-staged",
+      "kind": "trigger",
+      "route": "code-change-review",
+      "prompt": "检查 staged changes 有没有缺陷以及是否可以提交合并。",
+      "expected_output": "Load code-change-review with staged changes as the snapshot.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record includes code-change-review.",
+        "The intended scope is staged changes."
+      ]
+    },
+    {
+      "id": "trigger-positive-commit-range",
+      "kind": "trigger",
+      "route": "code-change-review",
+      "prompt": "帮我 review 81a2b0..9cc441 这些提交，找具体 bug 和兼容性回归。",
+      "expected_output": "Load code-change-review for the explicit commit range.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record includes code-change-review.",
+        "The explicit commit range remains the review scope."
+      ]
+    },
+    {
+      "id": "trigger-positive-working-tree",
+      "kind": "trigger",
+      "route": "code-change-review",
+      "prompt": "看看当前全部未提交代码改动有没有问题，给我 file/line 证据。",
+      "expected_output": "Load code-change-review for the complete working-tree snapshot.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record includes code-change-review.",
+        "The intended scope includes staged, unstaged, and safe non-ignored untracked changes."
+      ]
+    },
+    {
+      "id": "trigger-negative-proposal",
+      "kind": "trigger",
+      "route": "other-skill",
+      "prompt": "初审这份技术方案，看看设计是否完整合理、能不能开始开发。",
+      "expected_output": "Route to technical-proposal-review, not code-change-review.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record does not include code-change-review.",
+        "The request routes to technical-proposal-review."
+      ]
+    },
+    {
+      "id": "trigger-negative-comments",
+      "kind": "trigger",
+      "route": "other-skill",
+      "prompt": "把 PR 上 reviewer 留下的 unresolved comments 都处理掉。",
+      "expected_output": "Route to the existing GitHub comment-addressing workflow.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record does not include code-change-review.",
+        "The request routes to the reviewer-comment handling workflow."
+      ]
+    },
+    {
+      "id": "trigger-negative-debug",
+      "kind": "trigger",
+      "route": "other-skill",
+      "prompt": "排查生产环境为什么偶发超时，我现在没有明确的代码变更范围。",
+      "expected_output": "Route to systematic debugging, not change review.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record does not include code-change-review.",
+        "The request routes to systematic debugging."
+      ]
+    },
+    {
+      "id": "trigger-negative-audit",
+      "kind": "trigger",
+      "route": "other-skill",
+      "prompt": "审计整个仓库，找所有过度工程和历史技术债。",
+      "expected_output": "Route to a whole-repository audit workflow.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record does not include code-change-review.",
+        "The request routes to a whole-repository audit."
+      ]
+    },
+    {
+      "id": "trigger-negative-implement",
+      "kind": "trigger",
+      "route": "other-skill",
+      "prompt": "按已经 review 的 plan 开始实现并修好测试。",
+      "expected_output": "Route to the implementation workflow.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record does not include code-change-review.",
+        "The request routes to implementation rather than review."
+      ]
+    },
+    {
+      "id": "trigger-mixed-code-primary",
+      "kind": "trigger",
+      "route": "mixed",
+      "prompt": "方案文档作为需求依据，review 当前 PR 的代码是否正确、能否合并。",
+      "expected_output": "Load code-change-review; treat the proposal only as requirement evidence.",
+      "files": [],
+      "assertions": [
+        "The actual Skill loading record includes code-change-review.",
+        "Only the implementation receives a verdict; the proposal is supporting evidence."
+      ]
+    },
+    {
+      "id": "trigger-mixed-dual-review",
+      "kind": "trigger",
+      "route": "mixed",
+      "prompt": "请同时评审 RFC 是否完整，以及对应 PR 的实现是否正确可合并。",
+      "expected_output": "Run technical-proposal-review and code-change-review as two independent reviews.",
+      "files": [],
+      "assertions": [
+        "The routing record includes two independent review tasks or Skills.",
+        "Proposal readiness and merge readiness receive separate verdicts."
+      ]
+    },
+    {
+      "id": "behavior-dual-write-bug",
+      "kind": "behavior",
+      "category": "bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "A P1 finding traces autocommit partial-state failure and marks the change Not ready.",
+      "files": ["evals/fixtures/dual-write-bug.md"],
+      "assertions": [
+        "Reports a confirmed finding at the payments/transfers.py changed function or lines 20-23.",
+        "Traces a later statement failure to a committed partial balance or missing-ledger state.",
+        "Explains why autocommit and retry do not contain the impact.",
+        "Uses P1 and Merge readiness Not ready; does not claim tests were run."
+      ]
+    },
+    {
+      "id": "behavior-dual-write-safe",
+      "kind": "behavior",
+      "category": "safe",
+      "control_for": "behavior-dual-write-bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "Recognize transaction rollback and produce zero P0/P1 findings.",
+      "files": ["evals/fixtures/dual-write-safe.md"],
+      "assertions": [
+        "Recognizes that the transaction rolls back all three writes on failure.",
+        "Produces zero P0 and zero P1 confirmed findings.",
+        "Does not promote unspecified account-existence, commit-uncertainty, or return-contract assumptions to confirmed findings.",
+        "Does not use Merge readiness Not ready."
+      ]
+    },
+    {
+      "id": "behavior-auth-boundary-bug",
+      "kind": "behavior",
+      "category": "bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "A P1 finding traces client tenant override to cross-tenant export without inflating it to P0.",
+      "files": ["evals/fixtures/auth-boundary-bug.md"],
+      "assertions": [
+        "Reports a confirmed finding at api/export.py lines 33-36.",
+        "Explains that later dictionary expansion lets client filters override trusted claims.",
+        "Traces the overridden tenant through authorization and report export.",
+        "Uses P1, not P0, because broad or irreversible impact is not established."
+      ]
+    },
+    {
+      "id": "behavior-auth-boundary-safe",
+      "kind": "behavior",
+      "category": "safe",
+      "control_for": "behavior-auth-boundary-bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "Recognize trusted-claims precedence and produce zero P0/P1 findings.",
+      "files": ["evals/fixtures/auth-boundary-safe.md"],
+      "assertions": [
+        "Recognizes that trusted claims are expanded last and therefore control tenant_id.",
+        "Produces zero P0 and zero P1 confirmed findings.",
+        "Any missing adversarial test is at most P2 or a non-blocking question.",
+        "Does not use Merge readiness Not ready."
+      ]
+    },
+    {
+      "id": "behavior-compatibility-bug",
+      "kind": "behavior",
+      "category": "bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "A P1 finding traces the removed field to the real old consumer during mixed deployment.",
+      "files": ["evals/fixtures/compatibility-bug.md"],
+      "assertions": [
+        "Locates the changed user_id to actor_id producer field (events/user_event.py line 14 in target-file coordinates; the corresponding fixture diff line is acceptable).",
+        "Traces new producer events to old consumer event[user_id] failure.",
+        "Uses the stated 24-hour mixed deployment as reachability evidence.",
+        "Uses P1 and Merge readiness Not ready."
+      ]
+    },
+    {
+      "id": "behavior-compatibility-safe",
+      "kind": "behavior",
+      "category": "safe",
+      "control_for": "behavior-compatibility-bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "Recognize the compatibility alias and produce zero P0/P1 findings.",
+      "files": ["evals/fixtures/compatibility-safe.md"],
+      "assertions": [
+        "Recognizes that user_id remains available to old consumers.",
+        "Produces zero P0 and zero P1 confirmed findings.",
+        "Marks the unrun cross-repository contract suite as unverified without calling it a product defect.",
+        "Does not use Merge readiness Not ready."
+      ]
+    },
+    {
+      "id": "behavior-retry-idempotency-bug",
+      "kind": "behavior",
+      "category": "bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "A P1 finding traces response loss and retry to a duplicate external charge.",
+      "files": ["evals/fixtures/retry-idempotency-bug.md"],
+      "assertions": [
+        "Reports a confirmed finding at jobs/charge.py lines 40-43.",
+        "Traces provider acceptance followed by timeout or crash and queue retry.",
+        "Explains that the provider cannot deduplicate without a durable key.",
+        "Uses P1 and Merge readiness Not ready."
+      ]
+    },
+    {
+      "id": "behavior-retry-idempotency-safe",
+      "kind": "behavior",
+      "category": "safe",
+      "control_for": "behavior-retry-idempotency-bug",
+      "prompt": "Use $code-change-review to review the supplied change for defects and merge readiness.",
+      "expected_output": "Recognize durable provider idempotency and produce zero P0/P1 findings.",
+      "files": ["evals/fixtures/retry-idempotency-safe.md"],
+      "assertions": [
+        "Recognizes that repeated job.id keys return the original provider charge.",
+        "Produces zero P0 and zero P1 confirmed findings.",
+        "Any missing retry regression test is non-blocking and is not described as an existing duplicate-charge defect.",
+        "Does not use Merge readiness Not ready."
+      ]
+    },
+    {
+      "id": "behavior-empty-range",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review the supplied commit range for defects and merge readiness.",
+      "expected_output": "Clean no-op with zero confirmed findings and Ready.",
+      "files": ["evals/fixtures/empty-range.md"],
+      "assertions": [
+        "States that the resolved range contains no changes.",
+        "Includes the clean no-op conclusion and zero confirmed findings.",
+        "Does not manufacture test, refactor, or style findings.",
+        "Uses Merge readiness Ready."
+      ]
+    },
+    {
+      "id": "behavior-low-risk-refactor",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review the supplied commit range for defects and merge readiness.",
+      "expected_output": "Recognize behavior preservation and direct tests; zero P0/P1.",
+      "files": ["evals/fixtures/low-risk-refactor.md"],
+      "assertions": [
+        "Recognizes that the local rename preserves observable behavior.",
+        "Records the provided 42/42 direct-test result without inventing other execution.",
+        "Produces zero P0 and zero P1 confirmed findings.",
+        "Uses Merge readiness Ready or Ready with non-blocking follow-ups, not Not ready."
+      ]
+    },
+    {
+      "id": "behavior-out-of-scope-wip",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review only the requested commit range for defects and merge readiness.",
+      "expected_output": "Exclude the working-tree WIP and review only the safe commit range.",
+      "files": ["evals/fixtures/out-of-scope-wip.md"],
+      "assertions": [
+        "Names ab410e1..bc521f8 as the judged range.",
+        "Explicitly excludes src/debug_admin.py working-tree WIP.",
+        "Does not report the out-of-range authorization bypass as a finding.",
+        "Produces zero P0 and zero P1 findings for the requested range."
+      ]
+    },
+    {
+      "id": "behavior-external-unavailable",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review the supplied commit range for defects and merge readiness.",
+      "expected_output": "Keep direct code evidence separate from an unavailable external runtime check.",
+      "files": ["evals/fixtures/external-unavailable.md"],
+      "assertions": [
+        "Recognizes that the changed default matches the stated missing-status requirement.",
+        "Records 6/6 provided unit tests separately from the external sandbox suite.",
+        "Marks the sandbox contract result unverified and does not call credential failure a product defect.",
+        "Produces zero P0/P1; any question is explicitly non-blocking unless the reviewer proves the sandbox is necessary for the narrow verdict."
+      ]
+    }
+  ]
+}
