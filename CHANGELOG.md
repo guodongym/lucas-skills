@@ -10,6 +10,35 @@
 
 ---
 
+## [v0.4.0] - 2026-08-11
+
+**定位**：新增面向真实代码差异的 `code-change-review` Skill，与技术方案评审分工，提供只读、证据优先的缺陷与合并就绪审查。
+
+### ✨ 新 Skill
+
+* 支持 working tree、staged/unstaged、提交范围、当前分支和 PR 等代码变更范围，并在审查前后核对 Git 状态。
+* 默认使用第一性原理还原需求、约束和可达路径；只在高风险信号出现时进入对抗性审查。
+
+### 🛡️ 证据与评审边界
+
+* 将已证实缺陷、待确认问题和验证边界分开输出；P0/P1 必须通过影响、现有控制和可逆性的统一证据门禁。
+* `technical-proposal-review` 继续负责技术方案/RFC；`code-change-review` 只审查已有代码变更，混合请求可按两个工作流分别处理。
+* 对无证据缺陷的变更给出干净 no-op 结论，不为覆盖不足或外部环境不可用臆造产品问题。
+
+### 🧪 验证
+
+* 行为评测 12/12 通过；4 组缺陷/安全对照在去除答案泄漏后重新隔离复测 8/8 通过。
+* 路由评测 12/12 通过；只读状态检查 4/4 前后指纹一致；真实提交范围前向测试 1/1 通过。
+* `uv run python -m unittest discover -s tests`：280/280 通过。
+* `quick_validate.py`、eval JSON、`uv lock --check`、sdist/wheel 构建与 `git diff --check` 均通过。
+
+### 📄 关联文档
+
+* [代码变更评审设计](docs/superpowers/specs/2026-08-10-code-change-review-design.md)
+* [代码变更评审实施计划](docs/superpowers/plans/2026-08-10-code-change-review.md)
+
+---
+
 ## [v0.3.0] - 2026-08-08
 
 **定位**：将第一性原理与对抗性审查作为 `technical-proposal-review` 的通用推理规则，在保留关键风险识别能力的同时减少机械量化和过度定级。

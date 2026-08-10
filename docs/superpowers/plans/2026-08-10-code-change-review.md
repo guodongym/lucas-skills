@@ -28,19 +28,19 @@
 
 ### Step 1: Prepare raw bug/safe pressure scenarios
 
-- [ ] Prepare the four bug/safe pairs defined in Task 2 as raw, self-contained review prompts. Each pair must differ by only one named control: transaction boundary, trusted identity re-injection, compatibility alias, or durable idempotency key.
-- [ ] Give reviewers the changed code, baseline requirement, callers/consumers, and relevant tests, but do not provide expected findings, severity, or the planned Skill rules.
+- [x] Prepare the four bug/safe pairs defined in Task 2 as raw, self-contained review prompts. Each pair must differ by only one named control: transaction boundary, trusted identity re-injection, compatibility alias, or durable idempotency key.
+- [x] Give reviewers the changed code, baseline requirement, callers/consumers, and relevant tests, but do not provide expected findings, severity, or the planned Skill rules.
 
 ### Step 2: Run the eight baseline cases without the Skill
 
-- [ ] Start a fresh reviewer context for each of the eight prompts without loading or naming `code-change-review`.
-- [ ] Record model, case ID, raw output path, missed reachable-path assertions, false-positive `P0/P1`, scope mistakes, and whether questions were incorrectly emitted as confirmed findings.
+- [x] Start a fresh reviewer context for each of the eight prompts without loading or naming `code-change-review`.
+- [x] Record model, case ID, raw output path, missed reachable-path assertions, false-positive `P0/P1`, scope mistakes, and whether questions were incorrectly emitted as confirmed findings.
 
 Expected RED evidence: at least one missed bug assertion or one safe-control false positive. If all eight cases unexpectedly satisfy the planned assertions, stop and strengthen the scenarios before writing the Skill.
 
 ### Step 3: Extract only demonstrated failure patterns
 
-- [ ] Summarize the baseline failure categories that the Skill must correct. Do not copy reviewer prose into the Skill and do not add rules for hypothetical failures absent from the baseline or approved design.
+- [x] Summarize the baseline failure categories that the Skill must correct. Do not copy reviewer prose into the Skill and do not add rules for hypothetical failures absent from the baseline or approved design.
 
 ---
 
@@ -56,7 +56,7 @@ Expected RED evidence: at least one missed bug assertion or one safe-control fal
 
 ### Step 1: Write the failing Skill contract tests
 
-- [ ] Create `tests/test_code_change_review_skill.py` with the following initial contract:
+- [x] Create `tests/test_code_change_review_skill.py` with the following initial contract:
 
 ```python
 import re
@@ -162,7 +162,7 @@ if __name__ == "__main__":
 
 ### Step 2: Run the focused test and confirm RED
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 uv run python -m unittest tests.test_code_change_review_skill -v
@@ -172,7 +172,7 @@ Expected: failure because `skills/code-change-review/` does not exist.
 
 ### Step 3: Scaffold only the permitted Skill resources
 
-- [ ] Run the system Skill Creator scaffold:
+- [x] Run the system Skill Creator scaffold:
 
 ```bash
 uv run python /Users/zhaoguodong/.codex/skills/.system/skill-creator/scripts/init_skill.py code-change-review \
@@ -187,7 +187,7 @@ Expected: the Skill root, `agents/openai.yaml`, and `references/` are created; n
 
 ### Step 4: Implement the minimal orchestration contract
 
-- [ ] Replace the generated `SKILL.md` with concise English instructions containing:
+- [x] Replace the generated `SKILL.md` with concise English instructions containing:
 
   1. The exact positive/negative routing boundary from the approved design.
   2. Input precedence and the five deterministic snapshot definitions.
@@ -199,7 +199,7 @@ Expected: the Skill root, `agents/openai.yaml`, and `references/` are created; n
   8. Severity and merge-readiness rules, including the separation of confirmed findings from questions.
   9. Explicit prohibition on implementation, index/ref mutation, fetch by default, PR comments, thread resolution, and external writes.
 
-- [ ] Write `references/review-rubric.md` with these review dimensions:
+- [x] Write `references/review-rubric.md` with these review dimensions:
 
   - observable behavior and requirements;
   - data semantics and state transitions;
@@ -210,13 +210,13 @@ Expected: the Skill root, `agents/openai.yaml`, and `references/` are created; n
   - direct tests, observability, detection, containment, and recovery;
   - maintainability and YAGNI only where complexity creates a concrete change risk.
 
-- [ ] Write `references/output-template.md` with a result-first report containing merge readiness, scope, confirmed findings, separate questions, verification, and coverage boundaries. Include a clean no-op path and all four readiness outcomes.
+- [x] Write `references/output-template.md` with a result-first report containing merge readiness, scope, confirmed findings, separate questions, verification, and coverage boundaries. Include a clean no-op path and all four readiness outcomes.
 
-- [ ] Keep `agents/openai.yaml` limited to the three quoted `interface` fields generated above; do not declare tools or dependencies.
+- [x] Keep `agents/openai.yaml` limited to the three quoted `interface` fields generated above; do not declare tools or dependencies.
 
 ### Step 5: Run focused validation and confirm GREEN
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 uv run python -m unittest tests.test_code_change_review_skill -v
@@ -228,7 +228,7 @@ Expected: 4/4 focused tests pass, Skill validation prints `Skill is valid!`, and
 
 ### Step 6: Commit the minimal Skill workflow
 
-- [ ] Stage only the five Skill files and focused test, then commit:
+- [x] Stage only the five Skill files and focused test, then commit:
 
 ```bash
 git add tests/test_code_change_review_skill.py \
@@ -264,7 +264,7 @@ git commit -m 'feat(code-change-review): add evidence-first review workflow' \
 
 ### Step 1: Extend the contract test and confirm RED
 
-- [ ] Add these imports and tests to `tests/test_code_change_review_skill.py`:
+- [x] Add these imports and tests to `tests/test_code_change_review_skill.py`:
 
 ```python
 import json
@@ -314,7 +314,7 @@ import json
         self.assertEqual(safe_controls, bug_ids)
 ```
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 uv run python -m unittest tests.test_code_change_review_skill -v
@@ -324,39 +324,39 @@ Expected: the new eval-manifest test fails because `evals/evals.json` is absent.
 
 ### Step 2: Create the 12 trigger cases
 
-- [ ] Create `evals/evals.json` with top-level keys `skill_name` and `evals`. Add these stable trigger IDs:
+- [x] Create `evals/evals.json` with top-level keys `skill_name` and `evals`. Add these stable trigger IDs:
 
   - Positive route: `trigger-positive-current-branch`, `trigger-positive-pr`, `trigger-positive-staged`, `trigger-positive-commit-range`, `trigger-positive-working-tree`.
   - Negative route: `trigger-negative-proposal`, `trigger-negative-comments`, `trigger-negative-debug`, `trigger-negative-audit`, `trigger-negative-implement`.
   - Mixed route: `trigger-mixed-code-primary`, `trigger-mixed-dual-review`.
 
-- [ ] Every trigger case must have `kind: "trigger"`, a `route` value, no fixture files, and assertions that identify actual Skill selection rather than matching final prose. The five negative cases must name the expected alternative workflow in `expected_output`.
+- [x] Every trigger case must have `kind: "trigger"`, a `route` value, no fixture files, and assertions that identify actual Skill selection rather than matching final prose. The five negative cases must name the expected alternative workflow in `expected_output`.
 
 ### Step 3: Create four bug/safe fixture pairs
 
-- [ ] Each fixture must be self-contained Markdown with requirement, baseline, changed code or diff, consumer/caller context, relevant test/control evidence, and review scope. Keep each pair identical except for one named control:
+- [x] Each fixture must be self-contained Markdown with requirement, baseline, changed code or diff, consumer/caller context, relevant test/control evidence, and review scope. Keep each pair identical except for one named control:
 
   1. `dual-write-bug.md` / `dual-write-safe.md`: transaction boundary is the only material difference.
   2. `auth-boundary-bug.md` / `auth-boundary-safe.md`: trusted identity re-injection after client-data merging is the only material difference.
   3. `compatibility-bug.md` / `compatibility-safe.md`: legacy field alias or mixed-version compatibility adapter is the only material difference.
   4. `retry-idempotency-bug.md` / `retry-idempotency-safe.md`: durable idempotency key check is the only material difference.
 
-- [ ] Add eight behavior entries with `category: "bug"` or `category: "safe"`. Each safe entry must set `control_for` to its paired bug ID. Assertions must require the exact reachable path for bugs and 0 `P0/P1` plus explicit control recognition for safe cases.
+- [x] Add eight behavior entries with `category: "bug"` or `category: "safe"`. Each safe entry must set `control_for` to its paired bug ID. Assertions must require the exact reachable path for bugs and 0 `P0/P1` plus explicit control recognition for safe cases.
 
 ### Step 4: Create the four scope/evidence controls
 
-- [ ] Add fixtures and manifest entries for:
+- [x] Add fixtures and manifest entries for:
 
   - `behavior-empty-range`: no changed lines; require clean no-op and 0 confirmed findings.
   - `behavior-low-risk-refactor`: behavior-preserving rename with direct tests; require 0 `P0/P1`.
   - `behavior-out-of-scope-wip`: commit range plus unrelated working-tree edit; require explicit exclusion of WIP.
   - `behavior-external-unavailable`: direct code evidence remains reviewable but an external integration cannot run; require separation of code conclusion from unverified runtime evidence.
 
-- [ ] Give all four `category: "control"` and assertions for scope, evidence status, and merge readiness.
+- [x] Give all four `category: "control"` and assertions for scope, evidence status, and merge readiness.
 
 ### Step 5: Validate the complete corpus
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 uv run python -m unittest tests.test_code_change_review_skill -v
@@ -369,7 +369,7 @@ Expected: 5/5 focused tests pass, JSON parses, all 12 fixture paths resolve, Ski
 
 ### Step 6: Commit the eval corpus
 
-- [ ] Stage only the contract-test and eval files, then commit:
+- [x] Stage only the contract-test and eval files, then commit:
 
 ```bash
 git add tests/test_code_change_review_skill.py skills/code-change-review/evals
@@ -390,32 +390,32 @@ git commit -m 'test(code-change-review): add routing and behavior eval corpus' \
 
 ### Step 1: Compare GREEN results with the pre-Skill RED baseline
 
-- [ ] Compare the eight paired behavior results with Task 0's raw baseline records.
+- [x] Compare the eight paired behavior results with Task 0's raw baseline records.
 
 Expected: every demonstrated baseline failure category is either corrected by the Skill or explicitly documented as an unresolved eval failure; do not claim improvement from wording alone.
 
 ### Step 2: Run all behavior cases in fresh contexts
 
-- [ ] For each of the 12 behavior entries, start a fresh reviewer context, explicitly load `$code-change-review`, provide only the fixture and prompt, and grade the raw response against that case's `assertions`.
-- [ ] Record model, Skill commit, case ID, each assertion pass/fail, and raw output in a temporary directory outside the repository.
+- [x] For each of the 12 behavior entries, start a fresh reviewer context, explicitly load `$code-change-review`, provide only the fixture and prompt, and grade the raw response against that case's `assertions`.
+- [x] Record model, Skill commit, case ID, each assertion pass/fail, and raw output in a temporary directory outside the repository.
 
 Expected: 12/12 cases pass; all four bug paths are found, all four safe controls have 0 `P0/P1`, and all four scope/evidence controls satisfy their isolation rules.
 
 ### Step 3: Run all routing cases in fresh contexts
 
-- [ ] For each of the 12 trigger entries, start a fresh context without explicitly naming a Skill. Determine routing from the actual Skill/tool loading record.
+- [x] For each of the 12 trigger entries, start a fresh context without explicitly naming a Skill. Determine routing from the actual Skill/tool loading record.
 
 Expected: 5/5 positive routes load `code-change-review`; 5/5 negative routes do not; both mixed cases follow the declared primary-object or dual-review behavior.
 
 ### Step 4: Verify read-only behavior on disposable fixtures
 
-- [ ] Before and after representative bug, safe, scope, and external-unavailable cases, compare `HEAD`, refs, index, tracked state, and non-ignored untracked state.
+- [x] Before and after representative bug, safe, scope, and external-unavailable cases, compare `HEAD`, refs, index, tracked state, and non-ignored untracked state.
 
 Expected: 4/4 representative runs leave all reviewed state unchanged; only ignored caches explicitly allowed by a fixture may differ.
 
 ### Step 5: Run one blinded forward test
 
-- [ ] Select one real but de-identified commit range not used in the fixtures. Give a fresh reviewer only the range and its requirement, not the expected result. Grade the raw output for scope anchoring, evidence, severity calibration, readiness, and read-only behavior.
+- [x] Select one real but de-identified commit range not used in the fixtures. Give a fresh reviewer only the range and its requirement, not the expected result. Grade the raw output for scope anchoring, evidence, severity calibration, readiness, and read-only behavior.
 
 Expected: all five contract areas pass. A clean result is acceptable; do not require a finding.
 
@@ -430,14 +430,14 @@ Expected: all five contract areas pass. A clean result is acceptable; do not req
 
 ### Step 1: Request an independent code/Skill review
 
-- [ ] Use `superpowers:requesting-code-review` with the approved design, implementation plan, branch base SHA, and branch head SHA.
-- [ ] Require the reviewer to check trigger boundaries, read-only guarantees, evidence/readiness consistency, paired safe controls, and unnecessary machinery.
+- [x] Use `superpowers:requesting-code-review` with the approved design, implementation plan, branch base SHA, and branch head SHA.
+- [x] Require the reviewer to check trigger boundaries, read-only guarantees, evidence/readiness consistency, paired safe controls, and unnecessary machinery.
 
 Expected: no unresolved P0/P1 findings. Verify every suggested issue against the repository before changing code.
 
 ### Step 2: Run focused and full verification
 
-- [ ] Run:
+- [x] Run:
 
 ```bash
 uv run python -m unittest tests.test_code_change_review_skill -v
@@ -454,10 +454,10 @@ Expected: focused tests, full tests, lock validation, package build, Skill valid
 
 ### Step 3: Reconcile implementation against the design
 
-- [ ] Confirm all eight design completion criteria have current evidence: discovery/frontmatter, trigger separation, 12 behavior cases, evidence-gated `P0/P1`, safe/empty controls, read-only verification, repository checks, and one fresh-context forward test.
-- [ ] Confirm there are no changes to `technical-proposal-review`, no new dependency, and no forbidden directory or automation.
+- [x] Confirm all eight design completion criteria have current evidence: discovery/frontmatter, trigger separation, 12 behavior cases, evidence-gated `P0/P1`, safe/empty controls, read-only verification, repository checks, and one fresh-context forward test.
+- [x] Confirm there are no changes to `technical-proposal-review`, no new dependency, and no forbidden directory or automation.
 
 ### Step 4: Prepare the handoff without publishing
 
-- [ ] Report branch/worktree, commit list, exact verification counts, eval pass counts, independent-review outcome, and any unverified boundary.
-- [ ] Do not merge, push, create a PR, tag, release, or remove the worktree without separate user authorization.
+- [x] Report branch/worktree, commit list, exact verification counts, eval pass counts, independent-review outcome, and any unverified boundary.
+- [x] Do not merge, push, create a PR, tag, release, or remove the worktree without separate user authorization.
