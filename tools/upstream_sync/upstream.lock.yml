@@ -1,11 +1,11 @@
 # 此文件由 vendor.py 自动生成，请勿手动编辑
 # 建议提交到 git，记录上次同步状态
 anthropics-skills:
-  commit: 9d2f1ae187231d8199c64b5b762e1bdf2244733d
-  synced_at: '2026-07-13T11:51:07Z'
+  commit: f17010c9bb483898c1d9c9f42dde2b3a98889434
+  synced_at: '2026-08-10T10:08:20Z'
 human-writing:
-  commit: 22d20b672680e4c1a34e75aec550ff48d622ca59
-  synced_at: '2026-08-05T07:05:10Z'
+  commit: 4fda173f3fef7fb808f3eba991eeb2528ea4b189
+  synced_at: '2026-08-10T10:08:21Z'
 khazix-skills:
-  commit: 6529fbb3fbb387f91fe307914268c4c911f23cbd
-  synced_at: '2026-07-13T11:51:08Z'
+  commit: 651a45affc65919c0e3facc6124f1656d43c4ad2
+  synced_at: '2026-08-10T10:08:20Z'
