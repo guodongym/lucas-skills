@@ -175,11 +175,11 @@ Expected: failure because `skills/code-change-review/` does not exist.
 - [ ] Run the system Skill Creator scaffold:
 
 ```bash
-python /Users/zhaoguodong/.codex/skills/.system/skill-creator/scripts/init_skill.py code-change-review \
+uv run python /Users/zhaoguodong/.codex/skills/.system/skill-creator/scripts/init_skill.py code-change-review \
   --path skills \
   --resources references \
   --interface 'display_name=代码变更评审' \
-  --interface 'short_description=只读审查代码变更并判断是否具备合并条件' \
+  --interface 'short_description=只读审查代码变更中的缺陷、回归风险、测试证据与合并就绪状态' \
   --interface 'default_prompt=Use $code-change-review to review the current code changes for evidence-backed defects, regressions, and merge readiness.'
 ```
 
