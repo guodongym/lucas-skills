@@ -438,18 +438,14 @@ Expected:
 
 Capture new rationalizations verbatim. If a case fails, add only the smallest explicit rule or output slot that closes that demonstrated loophole, then rerun all four scenarios in fresh contexts.
 
+
 - [ ] **Step 3: Select two current PRs without changing them**
 
-Run this read-only inventory command:
-
-```bash
-gh search prs --author @me --state open --limit 50 \
-  --json number,title,url,repository,state,isDraft,updatedAt
-```
+Use read-only probes to record two exact candidate URLs. PR A may be any stable public `OPEN` PR readable through the installed GitHub connector; it does not need to be authored by the current account. PR B may be an exact private PR supplied by the user.
 
 Selection predicates:
 
-1. PR A is public and readable through the installed GitHub connector.
+1. PR A is public, `OPEN`, stable for the dry run, and readable through the installed GitHub connector; its author is not a selection requirement.
 2. PR B is private, readable through authenticated `gh`, and either returns connector `404/NOT_FOUND` or otherwise proves the connector lacks repository scope.
 3. Both PRs have stable repository/PR identifiers and a readable base/head for the duration of one dry run.
 
