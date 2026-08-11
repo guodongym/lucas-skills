@@ -339,8 +339,8 @@ tests/
 
 - `SKILL.md` 只保留触发、复用契约、核心流程、三状态门禁和授权边界。
 - `agents/openai.yaml` 提供 UI 名称、短描述和默认 prompt。
-- 契约测试覆盖目录、frontmatter、正反路由和必须出现的编排契约，但不以逐句匹配代替 Agent 行为验证。
-- 契约测试明确 v0.1 为 Codex-only、禁止 `--tool all`，并覆盖缺少阶段依赖时进入 `STOP`、不得复制或静默跳过子 Skill。
+- 自动化测试只覆盖目录、frontmatter 路由和 Codex UI 元数据等机器消费契约，不通过搜索 `SKILL.md` 正文短语证明 Agent 行为。
+- v0.1 的 Codex-only 边界、禁止 `--tool all`、缺少阶段依赖时进入 `STOP`、不得复制或静默跳过子 Skill，均由 fresh-context 压力测试和只读 live-PR 演练验证。
 - 首版不创建 `scripts/`、`references/`、`assets/`、README 或持久化状态文件。
 
 写 `SKILL.md` 前先用不加载本 Skill 的新任务运行压力场景并记录基线缺口；如果现有能力已经稳定满足完整契约，则停止新增重复 Skill。实现后使用新任务重跑相同场景，并在只读、评论草稿模式下连续完成两个真实 PR 前向验证，才能激活到 Codex。前向验证不得修改 PR、代码、Git refs 或发布状态。
