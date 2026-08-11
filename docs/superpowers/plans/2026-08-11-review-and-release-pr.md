@@ -44,7 +44,7 @@
 - Consumes: one representative `FIX/STOP` micro-test repeated five times, four self-contained pressure prompts, and the currently installed general-purpose Skills only.
 - Produces: five no-guidance micro-test outputs plus at least one verbatim baseline failure showing why the thin orchestration Skill is necessary.
 
-- [ ] **Step 1: Anchor the clean pre-Skill state**
+- [x] **Step 1: Anchor the clean pre-Skill state**
 
 Run:
 
@@ -55,7 +55,7 @@ test ! -e skills/review-and-release-pr
 
 Expected: the implementation worktree has no unrelated changes and the new Skill does not exist. The committed spec and plan may be present.
 
-- [ ] **Step 2: Run five no-guidance FIX/STOP micro-tests**
+- [x] **Step 2: Run five no-guidance FIX/STOP micro-tests**
 
 Start five separate fresh subagents without conversation history and without naming or loading the new Skill. Give every replicate exactly this prompt:
 
@@ -71,7 +71,7 @@ Expected future behavior: all four fields are present; `State=FIX`; `Next action
 
 Record all five raw outputs and manually classify every result. At least one no-guidance replicate must omit a required field, silently repair, skip TDD, or skip the new independent review; otherwise the representative wording has no demonstrated failure to correct.
 
-- [ ] **Step 3: Run the requirement-gate pressure control without the Skill**
+- [x] **Step 3: Run the requirement-gate pressure control without the Skill**
 
 Start a fresh subagent without conversation history and without naming or loading the new Skill. Give it exactly this scenario:
 
@@ -88,7 +88,7 @@ C. Silently change the implementation to preserve audit rows and continue.
 
 Expected correct behavior after the Skill exists: `B`. Record a RED failure if the control chooses `A/C`, studies the repair before judging the requirement, or treats the existing index comment as independent review.
 
-- [ ] **Step 4: Run the silent-fix pressure control without the Skill**
+- [x] **Step 4: Run the silent-fix pressure control without the Skill**
 
 Use a second fresh subagent with this exact scenario:
 
@@ -105,7 +105,7 @@ C. STOP and request a new product decision.
 
 Expected correct behavior after the Skill exists: `B`. Record a RED failure if the control chooses `A`, skips TDD, or moves from repaired code directly to release without another independent review.
 
-- [ ] **Step 5: Run the missing-capability pressure control without the Skill**
+- [x] **Step 5: Run the missing-capability pressure control without the Skill**
 
 Use a third fresh subagent with this exact scenario:
 
@@ -122,7 +122,7 @@ C. STOP, list the missing current-phase capability, and leave authentication, in
 
 Expected correct behavior after the Skill exists: `C`. Record a RED failure if the control chooses `A/B` or changes plugin/authentication state.
 
-- [ ] **Step 6: Run the stale-release-evidence pressure control without the Skill**
+- [x] **Step 6: Run the stale-release-evidence pressure control without the Skill**
 
 Use a fourth fresh subagent with this exact scenario:
 
@@ -139,7 +139,7 @@ C. Merge now and rerun tests after the release.
 
 Expected correct behavior after the Skill exists: `B`. Record a RED failure if the control chooses `A/C`, treats GitHub mergeable state as verification, or reuses tests without proving tree identity.
 
-- [ ] **Step 7: Apply the no-op gate**
+- [x] **Step 7: Apply the no-op gate**
 
 Expected RED evidence: at least one of the five micro-test replicates or four full controls violates its expected behavior or produces no stable `requirement review / inherited review / independent review` separation.
 
@@ -158,7 +158,7 @@ If all five micro-test replicates and all four full controls independently meet 
 - Consumes: `github:github`, `github:gh-address-comments`, `technical-proposal-review`, `code-change-review`, `superpowers:receiving-code-review`, `superpowers:systematic-debugging`, `superpowers:test-driven-development`, `superpowers:verification-before-completion`, `finishing-a-development-release`, and local `gh` when the connector lacks target-repository scope.
 - Produces: one Codex-only orchestration contract whose only persistent states are `PASS`, `FIX`, and `STOP`.
 
-- [ ] **Step 1: Write the failing repository contract tests**
+- [x] **Step 1: Write the failing repository contract tests**
 
 Create `tests/test_review_and_release_pr_skill.py` with this initial content:
 
@@ -239,7 +239,7 @@ if __name__ == "__main__":
 
 These tests deliberately stop at structure and machine-consumed metadata. Do not add assertions that search `SKILL.md` prose for dependency names, gate order, state names, authorization boundaries, or evidence-refresh phrases. Those are Agent behaviors and are proven in Tasks 0 and 2.
 
-- [ ] **Step 2: Run the focused contract and verify RED**
+- [x] **Step 2: Run the focused contract and verify RED**
 
 Run:
 
@@ -249,7 +249,7 @@ uv run python -m unittest tests.test_review_and_release_pr_skill -v
 
 Expected: `ERROR` or `FAIL` because `skills/review-and-release-pr/` does not exist. Confirm the failure is caused by the missing Skill, not a syntax or import error.
 
-- [ ] **Step 3: Scaffold exactly the two permitted runtime files**
+- [x] **Step 3: Scaffold exactly the two permitted runtime files**
 
 Run:
 
@@ -263,7 +263,7 @@ uv run python /Users/zhaoguodong/.codex/skills/.system/skill-creator/scripts/ini
 
 Expected: `skills/review-and-release-pr/SKILL.md` and `skills/review-and-release-pr/agents/openai.yaml` are created; no optional resource directory is created.
 
-- [ ] **Step 4: Replace the template with the minimal orchestration contract**
+- [x] **Step 4: Replace the template with the minimal orchestration contract**
 
 Write `SKILL.md` in English, with only `name` and `description` in frontmatter. Use this trigger contract:
 
@@ -377,7 +377,7 @@ Report PR/base/head, backend and capabilities, phase, state, requirement sources
 
 Keep `agents/openai.yaml` limited to the three quoted `interface` fields generated by the scaffold. Do not add a tool dependency block: the supported dependencies are Skills and a capability-gated connector/CLI choice, not a portable MCP declaration.
 
-- [ ] **Step 5: Run focused GREEN validation**
+- [x] **Step 5: Run focused GREEN validation**
 
 Run:
 
@@ -389,7 +389,7 @@ git diff --check
 
 Expected: all three structural/metadata tests pass; Skill Creator prints `Skill is valid!`; `git diff --check` prints nothing.
 
-- [ ] **Step 6: Commit the minimal GREEN implementation**
+- [x] **Step 6: Commit the minimal GREEN implementation**
 
 Run:
 
@@ -417,7 +417,7 @@ Expected: one focused implementation commit with exactly the three scoped files.
 - Consumes: the five-replicate Task 0 micro-test, four Task 0 pressure scenarios, the source Skill path, one connector-readable public PR, and one private PR that exercises connector-scope-gap to authenticated `gh` fallback.
 - Produces: five guided micro-test passes plus GREEN behavior evidence with no code, Git, GitHub, release, or production mutation.
 
-- [ ] **Step 1: Re-run the FIX/STOP micro-test five times with the source Skill**
+- [x] **Step 1: Re-run the FIX/STOP micro-test five times with the source Skill**
 
 Start five separate fresh subagents with no conversation history. Give each the exact Task 0 micro-test prompt and load `$review-and-release-pr` from the source directory.
 
@@ -425,7 +425,7 @@ Expected: `5/5` outputs contain exactly the four requested fields, choose `State
 
 If any replicate fails, classify its exact omission or rationalization, make the smallest wording correction in `SKILL.md`, and rerun five fresh guided replicates. Do not weaken the expected result to fit the output.
 
-- [ ] **Step 2: Re-run the four pressure scenarios with the source Skill**
+- [x] **Step 2: Re-run the four pressure scenarios with the source Skill**
 
 For each Task 0 scenario, start a new subagent with no conversation history. Load only `$review-and-release-pr` from the source directory and the capabilities needed by that scenario. Do not include the expected option in hidden context beyond the original prompt.
 
@@ -439,7 +439,7 @@ Expected:
 Capture new rationalizations verbatim. If a case fails, add only the smallest explicit rule or output slot that closes that demonstrated loophole, then rerun all four scenarios in fresh contexts.
 
 
-- [ ] **Step 3: Select two current PRs without changing them**
+- [x] **Step 3: Select two current PRs without changing them**
 
 Use read-only probes to record two exact candidate URLs. PR A may be any stable public `OPEN` PR readable through the installed GitHub connector; it does not need to be authored by the current account. PR B may be an exact private PR supplied by the user.
 
@@ -451,7 +451,7 @@ Selection predicates:
 
 If no current pair satisfies these predicates, stop before activation and report the missing forward-test surface. Do not create or modify a PR just to satisfy the test.
 
-- [ ] **Step 4: Forward-test PR A in read-only draft mode**
+- [x] **Step 4: Forward-test PR A in read-only draft mode**
 
 Start a fresh Codex task with this request, substituting only the selected current URL:
 
@@ -461,13 +461,13 @@ Use $review-and-release-pr on the exact PR A URL recorded in the preceding selec
 
 Expected: `github_backend=connector`; requirement, inherited-review, and independent-review conclusions remain separate; any would-be write is a draft; the result names base/head and current state.
 
-- [ ] **Step 5: Forward-test PR B through the private-repository fallback**
+- [x] **Step 5: Forward-test PR B through the private-repository fallback**
 
 Start another fresh Codex task with the same request shape and PR B URL.
 
 Expected: connector identity success plus target repository `404/NOT_FOUND` is recorded as `connector_scope_gap`; authenticated `gh` read succeeds; `github_backend=gh` is locked; no authentication or installation change occurs; writes remain drafts.
 
-- [ ] **Step 6: Verify the forward tests left local and remote state untouched**
+- [x] **Step 6: Verify the forward tests left local and remote state untouched**
 
 For each tested local repository, compare the recorded pre/post values:
 
@@ -478,7 +478,7 @@ git rev-parse HEAD
 
 Re-read each PR through the locked backend and confirm the tested head SHA and user-visible comment/review counts were not changed by this run. If unrelated concurrent remote activity occurred, identify it by timestamp/actor before claiming the test preserved state.
 
-- [ ] **Step 7: Re-run contracts after any behavioral refinement**
+- [x] **Step 7: Re-run contracts after any behavioral refinement**
 
 Run:
 
@@ -490,7 +490,7 @@ git diff --check
 
 Expected: all checks pass. If the Skill did not need refinement, leave the implementation commit unchanged and do not create an empty commit.
 
-- [ ] **Step 8: Commit demonstrated refinements only**
+- [x] **Step 8: Commit demonstrated refinements only**
 
 If Step 1–5 changed the Skill, run:
 
@@ -517,7 +517,7 @@ Expected: no commit when there are no demonstrated refinements; otherwise one na
 - Consumes: the committed implementation, pressure evidence, two live-PR dry-run results, and the canonical main checkout after integration.
 - Produces: a merge-ready reviewed branch and, only after separate deployment authority, one Codex managed target pointing to canonical main.
 
-- [ ] **Step 1: Run the repository verification suite**
+- [x] **Step 1: Run the repository verification suite**
 
 Run:
 
@@ -531,7 +531,7 @@ git status --short --branch
 
 Expected: focused and full suites report zero failures/errors; Skill Creator reports valid; diff check is silent; only intended branch state remains.
 
-- [ ] **Step 2: Run an independent code-change review of the implementation range**
+- [x] **Step 2: Run an independent code-change review of the implementation range**
 
 Use `code-change-review` on the committed branch range from its merge-base with `main` through current `HEAD`. Exclude unrelated worktree content.
 
@@ -539,13 +539,13 @@ Expected: no `P0/P1` or blocking `Q`; all three created files trace to the appro
 
 If a confirmed defect exists, reproduce it with a failing test or pressure scenario, apply the smallest repair, rerun Steps 1–2, and commit with the repository-required body and AI trailer.
 
-- [ ] **Step 3: Prepare the branch for the repository integration workflow**
+- [x] **Step 3: Prepare the branch for the repository integration workflow**
 
 Use `git-history-rewrite` for read-only history review and medium-granularity cleanup only if the branch contains accidental WIP or non-independent commits. Then use `superpowers:finishing-a-development-branch` to present the integration choices. Do not push or merge without the user's explicit selection.
 
 Expected: implementation remains on a reviewable feature branch until the user chooses integration.
 
-- [ ] **Step 4: Re-anchor the canonical main checkout after integration**
+- [x] **Step 4: Re-anchor the canonical main checkout after integration**
 
 Activation is allowed only after the implementation commit is present in the canonical checkout:
 
@@ -557,7 +557,7 @@ test -f /Users/zhaoguodong/Codes/ai-coding/lucas-skills/skills/review-and-releas
 
 Expected: branch is `main`, the checkout is clean, and the new Skill exists in canonical main. If not, STOP; do not create a managed link to a feature worktree.
 
-- [ ] **Step 5: Preview the Codex-only activation**
+- [x] **Step 5: Preview the Codex-only activation**
 
 From the canonical main checkout, run:
 
@@ -613,9 +613,9 @@ Self-review result: all 15 acceptance criteria map to an implementation or behav
 
 ## Plan Self-Review Checklist
 
-- [ ] Spec coverage: map all 15 acceptance criteria to Task 1 contracts, Task 2 pressure/live tests, or Task 3 verification and activation.
-- [ ] Placeholder scan: run `rg -n -i 'TBD|TODO|implement later|fill in details|similar to Task|appropriate error handling' docs/superpowers/plans/2026-08-11-review-and-release-pr.md` and ignore only this checklist line; no other match is allowed.
-- [ ] Type/name consistency: `review-and-release-pr`, all nine dependency names, `PASS/FIX/STOP`, test module name, and activation target are identical throughout.
-- [ ] Scope check: the file map contains exactly three implementation files and no new package dependency, vendored Skill, adapter, script, reference, asset, README, or state store.
-- [ ] Deployment safety: activation occurs only after canonical-main integration and only for `--tool codex`; no feature-worktree link or `--tool all` appears as an allowed command.
-- [ ] Validation integrity: RED baseline precedes Skill creation; the representative wording has five no-guidance and five guided fresh-context replicates; four full scenarios and two read-only live PRs test behavior beyond source-text assertions.
+- [x] Spec coverage: map all 15 acceptance criteria to Task 1 contracts, Task 2 pressure/live tests, or Task 3 verification and activation.
+- [x] Placeholder scan: run `rg -n -i 'TBD|TODO|implement later|fill in details|similar to Task|appropriate error handling' docs/superpowers/plans/2026-08-11-review-and-release-pr.md` and ignore only this checklist line; no other match is allowed.
+- [x] Type/name consistency: `review-and-release-pr`, all nine dependency names, `PASS/FIX/STOP`, test module name, and activation target are identical throughout.
+- [x] Scope check: the file map contains exactly three implementation files and no new package dependency, vendored Skill, adapter, script, reference, asset, README, or state store.
+- [x] Deployment safety: activation occurs only after canonical-main integration and only for `--tool codex`; no feature-worktree link or `--tool all` appears as an allowed command.
+- [x] Validation integrity: RED baseline precedes Skill creation; the representative wording has five no-guidance and five guided fresh-context replicates; four full scenarios and two read-only live PRs test behavior beyond source-text assertions.

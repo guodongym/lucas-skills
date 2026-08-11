@@ -10,6 +10,41 @@
 
 ---
 
+## [v0.5.0] - 2026-08-11
+
+**定位**：新增 Codex 专用的 `review-and-release-pr` 薄编排 Skill，把需求合理性、已有 review、独立代码审查、授权修复和发布收尾串成一条证据门禁流程；同时收紧 Agent 面向用户说明时的中文优先规则。
+
+### ✨ 新 Skill
+
+* `review-and-release-pr` 在实现审查前先用第一性原理判断 PR 需求；需求不合理、证据不足或需要新决策时进入 `STOP`。
+* 运行状态保持为 `PASS / FIX / STOP`，复用现有方案评审、评论处理、代码审查、调试、TDD、完成验证和发布 Skills，不新增工作流引擎或持久状态。
+* v0.1 只支持 Codex；普通代码审查、方案审查、评论处理、单点 Bug 修复和 release-only 请求继续路由到各自现有 Skill。
+
+### 🛡️ 门禁、GitHub 与授权边界
+
+* 已有 reviewer 结论与独立 `code-change-review` 保持分离；P0/P1 始终阻止合并，只有修法明确、范围受控且已有修复授权的问题才能在披露后进入 `FIX`，修完必须重新独立评审。
+* Connector 无法读取目标私有仓库但身份健康时记录 `connector_scope_gap`，可锁定到已认证的 `gh`；不会自动登录、刷新凭据或修改 GitHub App 安装范围。
+* PR 评论、代码修复、push、合并、tag/Release、生产操作和 cleanup 分别授权，不能从一个动作推断另一个动作。
+
+### 🗣️ Agent 交互规则
+
+* 面向用户的普通说明默认使用自然中文，技术标识符、命令、路径、日志和报错保持原文，并在首次影响理解时补充中文含义。
+* 代码、命令、原文引用和英文仓库交付物继续保持原有语言，不为中文可读性破坏机器依赖的精确文本。
+
+### 🧪 验证
+
+* 无 Skill 的 RED 基线证明编排缺口；加载 Skill 后 FIX/STOP 微测 5/5、压力场景 4/4 通过。
+* 两个真实 PR 只读演练 2/2 完成；私有 `x-scraper#26` 正确回退到 `gh`、确认 1 个 P1 并在无修复授权时停止，PR、代码和 Git refs 均未改变。
+* `uv run python -m unittest discover -s tests -q`：284/284 通过；`review-and-release-pr` 聚焦测试 3/3 通过，最终独立代码评审为 `Ready`。
+* `quick_validate.py`、`uv lock --check`、sdist/wheel 构建与 `git diff --check` 均通过；Agent Manager 预览只包含 `codex-shared` 目标且未 apply。
+
+### 📄 关联文档
+
+* [PR 评审发布编排设计](docs/superpowers/specs/2026-08-11-review-and-release-pr-design.md)
+* [PR 评审发布编排实施计划](docs/superpowers/plans/2026-08-11-review-and-release-pr.md)
+
+---
+
 ## [v0.4.0] - 2026-08-11
 
 **定位**：新增面向真实代码差异的 `code-change-review` Skill，与技术方案评审分工，提供只读、证据优先的缺陷与合并就绪审查。
