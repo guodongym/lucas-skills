@@ -49,6 +49,7 @@
 - 不把普通代码 review、单独处理 reviewer comments、release-only 或 cleanup-only 请求全部抢进本 Skill。
 - 不自动修改 PR body、Issue、spec 或项目计划来使门禁通过。
 - 不在首版增加脚本、provider adapter、模板库或持久化状态数据库。
+- 不自动执行 `gh auth login`、`gh auth refresh` 或修改 GitHub App 安装范围。
 - 不要求每个 `P2` 都修复或阻止合并。
 
 ## 3. 触发与路由
@@ -75,13 +76,13 @@ skills/review-and-release-pr/
 - 已完成开发，只需要合并、tag、Release 或清理：`finishing-a-development-release`。
 - 只要求盘点多个 PR：GitHub triage；如果用户同时表达后续逐个评审发布意图，再由本 Skill 接管完整流程。
 
-## 4. 现有 Skill 复用契约
+## 4. 现有 Skill 与工具复用契约
 
 `review-and-release-pr` 是编排器。它只决定阶段顺序、状态、证据是否仍有效以及是否已取得对应授权；子 Skill 保留各自的专业规则。
 
-| 现有 Skill | 调用条件 | 消费的结果 | 新 Skill 只补充 | 禁止重复实现 |
+| 现有 Skill / 工具 | 调用条件 | 消费的结果 | 新 Skill 只补充 | 禁止重复实现 |
 | --- | --- | --- | --- | --- |
-| `github` | 解析 PR、Issue、评论、Draft、base/head 和多 PR 现场 | 结构化 PR 元数据与顶层评论 | 将现场绑定到当前阶段 | 不另写通用 GitHub triage |
+| `github` / `gh` | 解析 PR、Issue、评论、Draft、base/head 和多 PR 现场 | 结构化 PR 元数据、评论及目标仓库权限 | 运行一次能力预检并锁定本轮远端后端 | 不另写通用 GitHub triage，不把仓库 404 直接解释为掉登录 |
 | `technical-proposal-review` | PR 引用了正式 PRD、RFC、spec 或技术方案，且需要判断方案合理性 | 独立的 `P0/P1/P2/Q` 方案结论 | 把结论映射到需求门禁 | 不复制其 rubric、历史案例和反馈流程 |
 | `gh-address-comments` | PR 存在已有 review threads 或 requested changes | thread 状态、可执行意见和待澄清项 | 保持“已有 review 复核”与独立 review 分离 | 不重新实现 GraphQL thread 解析、回复或 resolve 规则 |
 | `receiving-code-review` | 判断已有 reviewer 建议是否正确、完整且适合实施 | 接受、拒绝或需澄清的反馈结论 | 把结论记入当前阶段 | 不盲从 reviewer，也不复制反馈验证流程 |
@@ -91,6 +92,29 @@ skills/review-and-release-pr/
 | `finishing-a-development-release` | 独立 review 重跑通过且用户已授权对应合并/发布动作 | main 集成、tag、Release、回读和 cleanup 门禁 | 传递已验证 tree、授权和遗留风险 | 不复制发布、tag、provider 或本地状态对账流程 |
 
 `skill-creator`、brainstorming、writing-plans 和 writing-skills 只用于开发本 Skill，不是运行期依赖。
+
+### 4.1 GitHub 能力预检与后端锁定
+
+Connector 与本机 `gh` 使用不同认证和仓库授权，不能假设一边登录成功就代表另一边能访问目标仓库。Phase 0 对目标 PR 只做一次能力预检：
+
+```text
+Connector 读取身份和目标仓库
+├─ 所需 PR 读取能力均成功：github_backend=connector
+└─ 目标仓库 404、NOT_FOUND 或缺少所需读取能力
+   → gh auth status + 目标仓库只读查询
+      ├─ 成功：github_backend=gh
+      └─ 失败：STOP
+```
+
+规则如下：
+
+- Connector 身份成功但目标私有仓库返回 404/NOT_FOUND 时，记录 `connector_scope_gap`，不得误报为未登录。
+- 能力预检至少覆盖目标仓库和核心 PR 元数据；进入已有 review 复核前，再确认普通评论和 review threads 的必要读取能力。
+- 后端一旦选定，它就是本轮目标 PR 的主事实来源和全部 GitHub 写操作入口，避免在不同权限和刷新时点之间来回切换。
+- 专项 Skill 明确要求的只读能力补充可以使用另一后端，例如 `gh-address-comments` 的 thread-aware GraphQL；使用前必须核对同一 repository、PR number 和 head SHA，不得据此切换主后端或扩大写权限。
+- 本地 Git 仍负责代码对象、diff 和 tree identity，不受远端元数据后端选择影响。
+- 两个后端都失败时进入 `STOP`，报告失败层和原始错误；不得自动登录、刷新凭据或修改 GitHub App 安装。
+- 后端选择只证明能力可用，不授予评论、resolve、push、合并或其他写权限。
 
 ## 5. 最小状态模型
 
@@ -126,6 +150,7 @@ skills/review-and-release-pr/
 开始任何判断前记录：
 
 - repository、PR number/URL、base branch、base SHA、head SHA；
+- `github_backend`、目标仓库访问结果和必要 PR 读取能力；
 - 当前 main、PR Draft/mergeable/checks/review 状态；
 - PR body、关联 Issue、spec/plan 和验收标准；
 - 本地 worktree、branch、HEAD、脏文件及排除范围；
@@ -190,7 +215,7 @@ Gate 1 的 `STOP` 评论包含：
 5. 作者需要回答或修改的内容；
 6. 明确说明 Gate 1 通过前不进入实现 review。
 
-有评论授权时发布并回读；无授权时输出同内容草稿。作者更新需求后不能从后续阶段续跑，必须从 Phase 0 和 Gate 1 重新开始。
+有评论授权时使用本轮锁定的 GitHub 后端发布并回读；无授权时输出同内容草稿。作者更新需求后不能从后续阶段续跑，必须从 Phase 0 和 Gate 1 重新开始。
 
 ## 8. Phase 2：复核已有 review
 
@@ -244,7 +269,7 @@ Gate 1 的 `STOP` 评论包含：
 - 修复明显超出原 PR；
 - 实现暴露出需求或方案本身错误，此时回到 Gate 1，而不是给错误需求打补丁。
 
-`STOP` 时评论 finding、证据、影响、建议选项和需要的决定；没有评论授权时生成草稿。不得修改代码、push、合并或发布。
+`STOP` 时使用本轮锁定的 GitHub 后端评论 finding、证据、影响、建议选项和需要的决定；没有评论授权时生成草稿。不得修改代码、push、合并或发布。
 
 ### 9.4 防止静默修复
 
@@ -275,6 +300,7 @@ cleanup 始终使用独立授权。成功合并和发布不自动授权删除 wo
 
 ```text
 PR / base SHA / head SHA
+GitHub backend and capability result
 Current phase
 State: PASS | FIX | STOP
 Requirement sources
@@ -298,7 +324,7 @@ tests/
 
 - `SKILL.md` 只保留触发、复用契约、核心流程、三状态门禁和授权边界。
 - `agents/openai.yaml` 提供 UI 名称、短描述和默认 prompt。
-- 契约测试覆盖目录、frontmatter、正反路由、必需子 Skill、`PASS / FIX / STOP`、Gate 1、评论授权和 cleanup 分离。
+- 契约测试覆盖目录、frontmatter、正反路由、必需子 Skill、`PASS / FIX / STOP`、Gate 1、GitHub 能力预检、评论授权和 cleanup 分离。
 - 首版不创建 `scripts/`、`references/`、`assets/`、README 或持久化状态文件。
 
 连续两个真实 PR 前向验证后，如果仍重复手写相同的 PR 快照采集逻辑，再单独评估脚本；不能预先增加 provider 或状态机框架。
@@ -313,8 +339,10 @@ tests/
 6. 已授权且修法明确的范围内问题可进入 `FIX`；修复前披露，修复后重新独立 review。
 7. 核心接口、Schema、新依赖、产品语义或超范围修复进入 `STOP`。
 8. `STOP` 后不执行代码或外部状态变更；只有用户解决问题后才从正确阶段重新开始。
-9. 最终发布复用现有 release Skill，并证明验证 tree、合并 tree 和 tag 目标一致或等价。
-10. 合并、发布、PR 评论和 cleanup 授权保持相互独立。
+9. Connector 能读取身份但无法访问目标私有仓库、而 `gh` 可以访问时，本轮锁定 `gh` 并继续，不误报掉登录。
+10. Connector 和 `gh` 都无法访问目标仓库时进入 `STOP`，不得自动改变认证或安装状态。
+11. 最终发布复用现有 release Skill，并证明验证 tree、合并 tree 和 tag 目标一致或等价。
+12. 合并、发布、PR 评论和 cleanup 授权保持相互独立。
 
 ## 14. 设计取舍
 
