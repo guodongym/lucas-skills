@@ -4,7 +4,7 @@
 
 **Goal:** Add a Codex-only `review-and-release-pr` Skill that stops unreasonable PR requirements before implementation review, separates inherited review from independent review, discloses authorized fixes, and reaches merge/release only through fresh verification.
 
-**Architecture:** Implement one self-contained orchestration document plus Codex UI metadata. Reuse the existing local, GitHub-plugin, and Superpowers Skills by name; do not copy their rubrics or add runtime code. Use repository contract tests for structure and invariant markers, fresh-context pressure scenarios for behavior, and two read-only live-PR forward tests before Codex activation.
+**Architecture:** Implement one self-contained orchestration document plus Codex UI metadata. Reuse the existing local, GitHub-plugin, and Superpowers Skills by name; do not copy their rubrics or add runtime code. Use repository tests only for machine-consumed structure and metadata; prove orchestration behavior through fresh-context pressure scenarios and two read-only live-PR forward tests before Codex activation.
 
 **Tech Stack:** Markdown Agent Skill, YAML `agents/openai.yaml`, Python 3.11 `unittest`, PyYAML, Skill Creator validators, Agent Manager, Git, GitHub connector, `gh`.
 
@@ -30,7 +30,7 @@
 | --- | --- |
 | `skills/review-and-release-pr/SKILL.md` | Trigger boundary, Codex-only support contract, phase dependency checks, `PASS/FIX/STOP` gates, evidence refresh, authorization, and handoff to existing Skills. |
 | `skills/review-and-release-pr/agents/openai.yaml` | Codex UI display name, 25–64 character short description, and explicit `$review-and-release-pr` starter prompt. |
-| `tests/test_review_and_release_pr_skill.py` | Minimal layout, metadata, support boundary, dependency markers, state/gate invariants, and authorization-separation contracts. |
+| `tests/test_review_and_release_pr_skill.py` | Minimal layout, frontmatter routing metadata, and Codex UI metadata. |
 
 ## Task 0: Prove a behavioral RED baseline without the new Skill
 
@@ -233,77 +233,11 @@ class ReviewAndReleasePrSkillTests(unittest.TestCase):
         self.assertLessEqual(len(interface["short_description"]), 64)
         self.assertIn("$review-and-release-pr", interface["default_prompt"])
 
-    def test_support_and_dependency_contract_is_fail_closed(self):
-        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
-        for phrase in (
-            "Codex-only",
-            "unsupported surfaces",
-            "Do not use --tool all",
-            "Missing capability -> STOP",
-            "Both GitHub backends unavailable -> STOP",
-            "Do not install, authenticate, copy, skip, or approximate",
-        ):
-            self.assertIn(phrase, body)
-        for dependency in (
-            "github:github",
-            "github:gh-address-comments",
-            "technical-proposal-review",
-            "code-change-review",
-            "superpowers:receiving-code-review",
-            "superpowers:systematic-debugging",
-            "superpowers:test-driven-development",
-            "superpowers:verification-before-completion",
-            "finishing-a-development-release",
-        ):
-            self.assertIn(dependency, body)
-
-    def test_workflow_preserves_gate_order_and_three_states(self):
-        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
-        headings = (
-            "## Phase 0: Anchor facts, capabilities, and authority",
-            "## Gate 1: Review the requirement from first principles",
-            "## Phase 2: Verify existing review independently",
-            "## Phase 3: Run an independent code review",
-            "## Final verification and release handoff",
-        )
-        positions = [body.index(heading) for heading in headings]
-        self.assertEqual(positions, sorted(positions))
-        for state in ("`PASS`", "`FIX`", "`STOP`"):
-            self.assertIn(state, body)
-        for rule in (
-            "P0/P1 always block merge",
-            "blocking Q -> STOP",
-            "P2 is non-blocking by default",
-            "rerun code-change-review",
-        ):
-            self.assertIn(rule, body)
-
-    def test_authority_and_evidence_refresh_are_separate(self):
-        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
-        for action in (
-            "repair",
-            "PR comment",
-            "push",
-            "merge",
-            "tag/Release",
-            "production",
-            "cleanup",
-        ):
-            self.assertIn(action, body)
-        for invalidation in (
-            "base SHA",
-            "head SHA",
-            "requirement",
-            "main",
-            "checks",
-        ):
-            self.assertIn(invalidation, body)
-        self.assertIn("cleanup always requires separate authority", body)
-
-
 if __name__ == "__main__":
     unittest.main()
 ```
+
+These tests deliberately stop at structure and machine-consumed metadata. Do not add assertions that search `SKILL.md` prose for dependency names, gate order, state names, authorization boundaries, or evidence-refresh phrases. Those are Agent behaviors and are proven in Tasks 0 and 2.
 
 - [ ] **Step 2: Run the focused contract and verify RED**
 
@@ -399,9 +333,11 @@ With PR comment authority, publish the gate result through the locked backend an
 
 ## Phase 2: Verify existing review independently
 
-**REQUIRED SUB-SKILL:** Use `github:gh-address-comments` for thread-aware state and `superpowers:receiving-code-review` to verify each actionable claim.
+When existing review comments, threads, or requested changes exist, **REQUIRED SUB-SKILL:** use `github:gh-address-comments` for thread-aware state and `superpowers:receiving-code-review` to verify each actionable claim.
 
 Classify unresolved, resolved, outdated, informational, and duplicate threads. For each claim, verify evidence, reachability, impact, controls, root cause, and whether the proposed repair actually closes it. Keep these results separate from independent findings.
+
+When no existing review comments, threads, or requested changes exist, record `no existing review` and the coverage boundary, then proceed directly to Phase 3.
 
 A newly exposed requirement problem returns to Gate 1. A reviewer suggestion requiring a product or technical decision is STOP.
 
@@ -412,7 +348,7 @@ A newly exposed requirement problem returns to Gate 1. A reviewer suggestion req
 Map the result:
 
 - PASS: no P0/P1 or blocking Q, necessary verification exists, and only P2/non-blocking Q/declared coverage boundaries remain.
-- FIX: the defect is confirmed, direct repair is inside the approved requirement and PR, repair authority exists, and it changes no core API, Schema, dependency, product semantics, cross-module ownership, or irreversible behavior.
+- FIX: the defect is confirmed, direct repair is inside the approved requirement and PR, repair authority exists, and it changes no API, Schema, dependency, product semantics, cross-module ownership, or irreversible behavior.
 - STOP: any P0, blocking Q, missing evidence, decision-bearing repair, multiple long-term behaviors, or scope expansion.
 
 Before FIX, disclose finding ID, impact, root cause, repair scope, and verification. Use `superpowers:systematic-debugging` and `superpowers:test-driven-development`. Re-anchor the new head and rerun code-change-review; never jump from a repair directly to release.
@@ -451,7 +387,7 @@ uv run python /Users/zhaoguodong/.codex/skills/.system/skill-creator/scripts/qui
 git diff --check
 ```
 
-Expected: all contract tests pass; Skill Creator prints `Skill is valid!`; `git diff --check` prints nothing.
+Expected: all three structural/metadata tests pass; Skill Creator prints `Skill is valid!`; `git diff --check` prints nothing.
 
 - [ ] **Step 6: Commit the minimal GREEN implementation**
 
@@ -474,7 +410,7 @@ Expected: one focused implementation commit with exactly the three scoped files.
 **Files:**
 
 - Modify: `skills/review-and-release-pr/SKILL.md` only if a pressure or forward test exposes a demonstrated loophole.
-- Modify: `tests/test_review_and_release_pr_skill.py` only when a refined invariant needs a structural regression check.
+- Modify: `tests/test_review_and_release_pr_skill.py` only when a refinement changes machine-consumed layout or metadata.
 
 **Interfaces:**
 
@@ -502,18 +438,14 @@ Expected:
 
 Capture new rationalizations verbatim. If a case fails, add only the smallest explicit rule or output slot that closes that demonstrated loophole, then rerun all four scenarios in fresh contexts.
 
+
 - [ ] **Step 3: Select two current PRs without changing them**
 
-Run this read-only inventory command:
-
-```bash
-gh search prs --author @me --state open --limit 50 \
-  --json number,title,url,repository,state,isDraft,updatedAt
-```
+Use read-only probes to record two exact candidate URLs. PR A may be any stable public `OPEN` PR readable through the installed GitHub connector; it does not need to be authored by the current account. PR B may be an exact private PR supplied by the user.
 
 Selection predicates:
 
-1. PR A is public and readable through the installed GitHub connector.
+1. PR A is public, `OPEN`, stable for the dry run, and readable through the installed GitHub connector; its author is not a selection requirement.
 2. PR B is private, readable through authenticated `gh`, and either returns connector `404/NOT_FOUND` or otherwise proves the connector lacks repository scope.
 3. Both PRs have stable repository/PR identifiers and a readable base/head for the duration of one dry run.
 
@@ -603,7 +535,7 @@ Expected: focused and full suites report zero failures/errors; Skill Creator rep
 
 Use `code-change-review` on the committed branch range from its merge-base with `main` through current `HEAD`. Exclude unrelated worktree content.
 
-Expected: no `P0/P1` or blocking `Q`; all three created files trace to the approved spec. Confirm that the automated tests are structural contracts and the fresh-context/live-PR runs are the behavioral evidence.
+Expected: no `P0/P1` or blocking `Q`; all three created files trace to the approved spec. Confirm that the automated tests cover only machine-consumed structure/metadata and the fresh-context/live-PR runs are the behavioral evidence.
 
 If a confirmed defect exists, reproduce it with a failing test or pressure scenario, apply the smallest repair, rerun Steps 1–2, and commit with the repository-required body and AI trailer.
 
@@ -663,16 +595,16 @@ Expected: the Skill is discoverable, announces its Codex-only boundary, checks r
 | --- | --- |
 | 1. Negative routes do not trigger the orchestrator | Task 1 metadata contract and explicit frontmatter description. |
 | 2. Codex-only activation and claims | Global constraints; Task 1 support contract; Task 3 activation preview, apply, and discovery check. |
-| 3. Missing phase dependency stops without approximation | Task 0 missing-capability RED; Task 1 fail-closed dependency contract; Task 2 GREEN replay. |
+| 3. Missing phase dependency stops without approximation | Task 0 missing-capability RED; Task 1 runtime rule; Task 2 GREEN replay. |
 | 4. Invalid or under-evidenced requirement stops with comment/draft | Task 0 requirement RED; Task 1 Gate 1 and comment authority; Task 2 GREEN replay. |
 | 5. Failed Gate 1 prevents implementation, repair, merge, and release | Task 1 Gate 1 contract and Task 2 requirement pressure assertion. |
 | 6. Existing and independent reviews remain separate | Task 1 Phase 2/3 boundary and both live-PR dry runs. |
-| 7. Independent-review P0/P1 blocks merge | Task 1 state mapping and structural regression test. |
+| 7. Independent-review P0/P1 blocks merge | Task 1 state mapping and Task 2 guided behavior checks. |
 | 8. Bounded authorized defects enter disclosed FIX and rerun review | Task 0 silent-fix RED; Task 1 FIX contract; Task 2 GREEN replay. |
-| 9. API/Schema/dependency/product/scope decisions stop | Task 1 FIX/STOP predicates and contract markers. |
+| 9. API/Schema/dependency/product/scope decisions stop | Task 1 FIX/STOP predicates and Task 2 guided behavior checks. |
 | 10. STOP causes no code or external mutation | Task 0 missing-capability RED; Task 2 post-run state checks. |
 | 11. Connector scope gap may lock authenticated gh | Task 1 backend algorithm and Task 2 private-PR forward test. |
-| 12. Both GitHub backends failing stops without auth changes | Task 1 explicit backend-failure rule and structural regression marker. |
+| 12. Both GitHub backends failing stops without auth changes | Task 1 explicit backend-failure rule and Task 2 guided behavior checks. |
 | 13. Release uses the verified merge/tag tree | Task 0 stale-evidence RED; Task 1 final verification contract; Task 2 GREEN replay. |
 | 14. Comment, repair, push, merge/release, production, cleanup authority stays separate | Task 1 authority contract and Task 2 draft-only live runs. |
 | 15. Baseline failure, GREEN replay, and two live PRs precede activation | Task 0 includes five no-guidance micro-tests; Task 2 requires five guided passes plus four GREEN scenarios and two live PRs; Task 3 activates only afterward. |

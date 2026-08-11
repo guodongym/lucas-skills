@@ -46,7 +46,7 @@
 
 - 不替代 GitHub 分支保护、CI、CODEOWNERS 或人工审批。
 - 不创建新的代码 review rubric、方案 review rubric 或发布流程。
-- 不自动决定产品需求、核心接口、数据库 Schema、依赖或破坏性行为。
+- 不自动决定产品需求、接口、数据库 Schema、依赖或破坏性行为。
 - 不把普通代码 review、单独处理 reviewer comments、release-only 或 cleanup-only 请求全部抢进本 Skill。
 - 不自动修改 PR body、Issue、spec 或项目计划来使门禁通过。
 - 不在首版增加脚本、provider adapter、模板库或持久化状态数据库。
@@ -173,7 +173,7 @@ Connector 读取身份和目标仓库
 
 授权按动作解释：
 
-- “修复所有确认的问题”授权 `FIX` 中的范围内代码和测试修复，不授权核心接口、Schema、新依赖、产品语义或跨模块扩张。
+- “修复所有确认的问题”授权 `FIX` 中的范围内代码和测试修复，不授权接口、Schema、新依赖、产品语义或跨模块扩张。
 - “没问题就合并发布”只在全部门禁通过后授权普通合并和项目既有正式发布流程，不授权 force-push、移动 tag、生产安全变更或 cleanup。
 - “需求不合理就在 PR 评论”授权该次运行发布需求门禁评论；没有同类表达时只生成评论草稿。
 - 已取得的明确授权不重复询问；不能从一个动作推断另一个动作。
@@ -234,11 +234,14 @@ Gate 1 的 `STOP` 评论包含：
 
 ## 8. Phase 2：复核已有 review
 
-1. 读取 thread-aware review 状态，区分 unresolved、resolved、outdated、informational 和 duplicate。
+当存在已有 review comments、threads 或 requested changes 时：
+
+1. 必须读取 thread-aware review 状态，区分 unresolved、resolved、outdated、informational 和 duplicate。
 2. 对每条结论检查证据、可达路径、影响、现有控制和修复是否覆盖根因。
 3. 分别记录：成立且已正确修复、成立但修复不完整、不成立、证据不足、已过期。
 4. 不把已有 reviewer 的结论并入独立 review finding 数量，也不因评论已 resolved 就认定修复正确。
-5. PR 没有可找到的 review 证据时明确标记覆盖缺口，不从提交名称猜测评论原文。
+
+当不存在已有 review comments、threads 或 requested changes 时，记录 `no existing review` 和 coverage boundary，直接进入 Phase 3；不得从提交名称猜测评论原文。
 
 该阶段发现需求或方案问题时返回 Gate 1；发现需要人工选择的 reviewer 建议时进入 `STOP`；其余已授权问题可作为后续独立 review 的输入，但不能替代独立 review。
 
@@ -267,7 +270,7 @@ Gate 1 的 `STOP` 评论包含：
 - finding 已由代码证据或可复现行为证明；
 - 根因和直接修法明确；
 - 修改仍在已批准需求和原 PR 范围内；
-- 不改变核心接口、数据库 Schema、依赖或产品语义；
+- 不改变接口、数据库 Schema、依赖或产品语义；
 - 不产生新的跨模块或不可逆外部行为；
 - 用户已经授权修复所有确认问题或该 finding。
 
@@ -279,7 +282,7 @@ Gate 1 的 `STOP` 评论包含：
 
 - 任一 `P0`；
 - blocking `Q` 或必要证据缺失；
-- 核心接口、Schema、新依赖、产品语义、跨模块扩张或破坏性行为需要决策；
+- 接口、Schema、新依赖、产品语义、跨模块扩张或破坏性行为需要决策；
 - 存在多种合理修法且长期行为不同；
 - 修复明显超出原 PR；
 - 实现暴露出需求或方案本身错误，此时回到 Gate 1，而不是给错误需求打补丁。
@@ -339,8 +342,8 @@ tests/
 
 - `SKILL.md` 只保留触发、复用契约、核心流程、三状态门禁和授权边界。
 - `agents/openai.yaml` 提供 UI 名称、短描述和默认 prompt。
-- 契约测试覆盖目录、frontmatter、正反路由和必须出现的编排契约，但不以逐句匹配代替 Agent 行为验证。
-- 契约测试明确 v0.1 为 Codex-only、禁止 `--tool all`，并覆盖缺少阶段依赖时进入 `STOP`、不得复制或静默跳过子 Skill。
+- 自动化测试只覆盖目录、frontmatter 路由和 Codex UI 元数据等机器消费契约，不通过搜索 `SKILL.md` 正文短语证明 Agent 行为。
+- v0.1 的 Codex-only 边界、禁止 `--tool all`、缺少阶段依赖时进入 `STOP`、不得复制或静默跳过子 Skill，均由 fresh-context 压力测试和只读 live-PR 演练验证。
 - 首版不创建 `scripts/`、`references/`、`assets/`、README 或持久化状态文件。
 
 写 `SKILL.md` 前先用不加载本 Skill 的新任务运行压力场景并记录基线缺口；如果现有能力已经稳定满足完整契约，则停止新增重复 Skill。实现后使用新任务重跑相同场景，并在只读、评论草稿模式下连续完成两个真实 PR 前向验证，才能激活到 Codex。前向验证不得修改 PR、代码、Git refs 或发布状态。
@@ -357,7 +360,7 @@ tests/
 6. 已有 review 复核与独立代码 review 输出分开，不能互相替代。
 7. 独立 review 的 `P0/P1` 一律阻止合并。
 8. 已授权且修法明确的范围内问题可进入 `FIX`；修复前披露，修复后重新独立 review。
-9. 核心接口、Schema、新依赖、产品语义或超范围修复进入 `STOP`。
+9. 接口、Schema、新依赖、产品语义或超范围修复进入 `STOP`。
 10. `STOP` 后不执行代码或外部状态变更；只有用户解决问题后才从正确阶段重新开始。
 11. Connector 能读取身份但无法访问目标私有仓库、而 `gh` 可以访问时，本轮锁定 `gh` 并继续，不误报掉登录。
 12. Connector 和 `gh` 都无法访问目标仓库时进入 `STOP`，不得自动改变认证或安装状态。
