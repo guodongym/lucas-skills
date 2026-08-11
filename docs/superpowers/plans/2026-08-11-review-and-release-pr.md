@@ -333,9 +333,11 @@ With PR comment authority, publish the gate result through the locked backend an
 
 ## Phase 2: Verify existing review independently
 
-**REQUIRED SUB-SKILL:** Use `github:gh-address-comments` for thread-aware state and `superpowers:receiving-code-review` to verify each actionable claim.
+When existing review comments, threads, or requested changes exist, **REQUIRED SUB-SKILL:** use `github:gh-address-comments` for thread-aware state and `superpowers:receiving-code-review` to verify each actionable claim.
 
 Classify unresolved, resolved, outdated, informational, and duplicate threads. For each claim, verify evidence, reachability, impact, controls, root cause, and whether the proposed repair actually closes it. Keep these results separate from independent findings.
+
+When no existing review comments, threads, or requested changes exist, record `no existing review` and the coverage boundary, then proceed directly to Phase 3.
 
 A newly exposed requirement problem returns to Gate 1. A reviewer suggestion requiring a product or technical decision is STOP.
 
@@ -346,7 +348,7 @@ A newly exposed requirement problem returns to Gate 1. A reviewer suggestion req
 Map the result:
 
 - PASS: no P0/P1 or blocking Q, necessary verification exists, and only P2/non-blocking Q/declared coverage boundaries remain.
-- FIX: the defect is confirmed, direct repair is inside the approved requirement and PR, repair authority exists, and it changes no core API, Schema, dependency, product semantics, cross-module ownership, or irreversible behavior.
+- FIX: the defect is confirmed, direct repair is inside the approved requirement and PR, repair authority exists, and it changes no API, Schema, dependency, product semantics, cross-module ownership, or irreversible behavior.
 - STOP: any P0, blocking Q, missing evidence, decision-bearing repair, multiple long-term behaviors, or scope expansion.
 
 Before FIX, disclose finding ID, impact, root cause, repair scope, and verification. Use `superpowers:systematic-debugging` and `superpowers:test-driven-development`. Re-anchor the new head and rerun code-change-review; never jump from a repair directly to release.
