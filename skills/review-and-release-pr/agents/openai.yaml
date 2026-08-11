@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR 评审与发布"
+  short_description: "先审需求与现有意见，再独立复核、按门禁修复并完成 PR 发布收尾"
+  default_prompt: "Use $review-and-release-pr to validate the PR requirement and existing review, run an independent review, and proceed only through authorized fix and release gates."
