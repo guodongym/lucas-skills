@@ -1,8 +1,8 @@
 # PR 深度评审到发布编排 Skill 设计
 
 - 日期：2026-08-11
-- 状态：设计已确认，待文档复核
-- 结论：新增全局薄编排 Skill `review-and-release-pr`，以第一性原理需求门禁作为入口，复用现有方案评审、GitHub 评论处理、代码审查、TDD 修复、完成验证和发布收尾 Skills。运行状态只保留 `PASS / FIX / STOP`；需求不合理、关键证据不足、P0 或需要新决策的修复均停止，修法明确且已有授权的问题可在披露后继续修复。
+- 状态：设计已确认并完成独立复核，待实施
+- 结论：新增 Codex 全局薄编排 Skill `review-and-release-pr`，以第一性原理需求门禁作为入口，复用现有方案评审、GitHub 评论处理、代码审查、TDD 修复、完成验证和发布收尾 Skills。运行状态只保留 `PASS / FIX / STOP`；需求不合理、关键证据不足、P0 或需要新决策的修复均停止，修法明确且已有授权的问题可在披露后继续修复。v0.1 只支持 Codex，不激活到其他 Agent 工具。
 
 ## 1. 要解决的问题
 
@@ -40,6 +40,7 @@
 6. 在每次 PR head、base、需求或 main 发生实质变化后刷新受影响证据。
 7. 复用现有 Skills，保持各自触发、证据和授权契约。
 8. PR 评论可追溯且不静默写入；没有写权限时生成草稿并停止外部写入。
+9. v0.1 只在 Codex 内跨项目全局可用；运行前确认当前任务具备将要调用的子 Skill 和 GitHub 能力，缺失时 fail-closed。
 
 ### 2.2 非目标
 
@@ -51,6 +52,7 @@
 - 不在首版增加脚本、provider adapter、模板库或持久化状态数据库。
 - 不自动执行 `gh auth login`、`gh auth refresh` 或修改 GitHub App 安装范围。
 - 不要求每个 `P2` 都修复或阻止合并。
+- 不在 v0.1 支持 Claude、GitHub Copilot、Antigravity 或 WorkBuddy，也不为这些工具复制 GitHub 或 Superpowers 插件能力。
 
 ## 3. 触发与路由
 
@@ -59,6 +61,8 @@ Skill 名称固定为 `review-and-release-pr`，源码位于：
 ```text
 skills/review-and-release-pr/
 ```
+
+v0.1 的“全局”特指 Codex 内跨仓库、跨任务可发现，不表示跨 Agent 工具通用。发布时只允许通过 Agent Manager 激活到 `codex` target；不得使用 `--tool all`。Claude、GitHub Copilot、Antigravity 和 WorkBuddy 均为未支持表面，即使它们能够读取仓库中的 `SKILL.md`，也不能据此宣称具备完整流程能力。
 
 ### 3.1 正向触发
 
@@ -92,6 +96,16 @@ skills/review-and-release-pr/
 | `finishing-a-development-release` | 独立 review 重跑通过且用户已授权对应合并/发布动作 | main 集成、tag、Release、回读和 cleanup 门禁 | 传递已验证 tree、授权和遗留风险 | 不复制发布、tag、provider 或本地状态对账流程 |
 
 `skill-creator`、brainstorming、writing-plans 和 writing-skills 只用于开发本 Skill，不是运行期依赖。
+
+运行期依赖按阶段检查，不假设 Skill 激活会自动安装传递依赖：
+
+- Phase 0 必须具备 `code-change-review`、`verification-before-completion`、`finishing-a-development-release`，以及 Connector 或 `gh` 中至少一种满足目标 PR 读取要求的 GitHub 后端。
+- PR 引用正式方案时，进入 Gate 1 前必须具备 `technical-proposal-review`。
+- PR 存在已有 review 时，进入 Phase 2 前必须具备 `gh-address-comments` 和 `receiving-code-review`；如果只是主后端缺少 thread-aware 读取能力，仍按 4.1 节允许的受控只读补充执行。
+- 状态进入 `FIX` 前必须具备 `systematic-debugging` 和 `test-driven-development`。
+- 缺少当前阶段的必需子 Skill 时进入 `STOP`，列出缺失能力并请求用户修复环境；不得现场复制子 Skill rubric、跳过阶段或把通用推理冒充为已完成的专业流程。
+
+这些检查只验证能力存在，不激活、安装、更新或修改任何 Skill、插件与认证状态。
 
 ### 4.1 GitHub 能力预检与后端锁定
 
@@ -155,6 +169,7 @@ Connector 读取身份和目标仓库
 - PR body、关联 Issue、spec/plan 和验收标准；
 - 本地 worktree、branch、HEAD、脏文件及排除范围；
 - 用户已授权的动作：只读 review、代码修复、PR 评论、push、合并、tag/Release、生产操作、cleanup。
+- 当前 Codex 任务所需的运行期子 Skill 可用性；缺失项和对应停止阶段。
 
 授权按动作解释：
 
@@ -324,25 +339,31 @@ tests/
 
 - `SKILL.md` 只保留触发、复用契约、核心流程、三状态门禁和授权边界。
 - `agents/openai.yaml` 提供 UI 名称、短描述和默认 prompt。
-- 契约测试覆盖目录、frontmatter、正反路由、必需子 Skill、`PASS / FIX / STOP`、Gate 1、GitHub 能力预检、评论授权和 cleanup 分离。
+- 契约测试覆盖目录、frontmatter、正反路由和必须出现的编排契约，但不以逐句匹配代替 Agent 行为验证。
+- 契约测试明确 v0.1 为 Codex-only、禁止 `--tool all`，并覆盖缺少阶段依赖时进入 `STOP`、不得复制或静默跳过子 Skill。
 - 首版不创建 `scripts/`、`references/`、`assets/`、README 或持久化状态文件。
+
+写 `SKILL.md` 前先用不加载本 Skill 的新任务运行压力场景并记录基线缺口；如果现有能力已经稳定满足完整契约，则停止新增重复 Skill。实现后使用新任务重跑相同场景，并在只读、评论草稿模式下连续完成两个真实 PR 前向验证，才能激活到 Codex。前向验证不得修改 PR、代码、Git refs 或发布状态。
 
 连续两个真实 PR 前向验证后，如果仍重复手写相同的 PR 快照采集逻辑，再单独评估脚本；不能预先增加 provider 或状态机框架。
 
 ## 13. 验收标准
 
 1. 普通只读 code review、comment-only 和 release-only 请求不会误触发本 Skill。
-2. PR 需求不合理或关键证据不足时，流程停在 Gate 1，并按授权发布评论或生成草稿。
-3. Gate 1 未通过时不进入详细代码 review、修复、合并或发布。
-4. 已有 review 复核与独立代码 review 输出分开，不能互相替代。
-5. 独立 review 的 `P0/P1` 一律阻止合并。
-6. 已授权且修法明确的范围内问题可进入 `FIX`；修复前披露，修复后重新独立 review。
-7. 核心接口、Schema、新依赖、产品语义或超范围修复进入 `STOP`。
-8. `STOP` 后不执行代码或外部状态变更；只有用户解决问题后才从正确阶段重新开始。
-9. Connector 能读取身份但无法访问目标私有仓库、而 `gh` 可以访问时，本轮锁定 `gh` 并继续，不误报掉登录。
-10. Connector 和 `gh` 都无法访问目标仓库时进入 `STOP`，不得自动改变认证或安装状态。
-11. 最终发布复用现有 release Skill，并证明验证 tree、合并 tree 和 tag 目标一致或等价。
-12. 合并、发布、PR 评论和 cleanup 授权保持相互独立。
+2. v0.1 只激活到 Codex target；任何交付说明都不宣称支持其他 Agent 工具。
+3. 当前阶段的必需子 Skill 缺失时进入 `STOP`，不得现场复制、跳过或替代该 Skill 的专业流程。
+4. PR 需求不合理或关键证据不足时，流程停在 Gate 1，并按授权发布评论或生成草稿。
+5. Gate 1 未通过时不进入详细代码 review、修复、合并或发布。
+6. 已有 review 复核与独立代码 review 输出分开，不能互相替代。
+7. 独立 review 的 `P0/P1` 一律阻止合并。
+8. 已授权且修法明确的范围内问题可进入 `FIX`；修复前披露，修复后重新独立 review。
+9. 核心接口、Schema、新依赖、产品语义或超范围修复进入 `STOP`。
+10. `STOP` 后不执行代码或外部状态变更；只有用户解决问题后才从正确阶段重新开始。
+11. Connector 能读取身份但无法访问目标私有仓库、而 `gh` 可以访问时，本轮锁定 `gh` 并继续，不误报掉登录。
+12. Connector 和 `gh` 都无法访问目标仓库时进入 `STOP`，不得自动改变认证或安装状态。
+13. 最终发布复用现有 release Skill，并证明验证 tree、合并 tree 和 tag 目标一致或等价。
+14. 合并、发布、PR 评论和 cleanup 授权保持相互独立。
+15. 不加载本 Skill 的压力基线至少暴露一个已批准流程缺口；加载后相同场景关闭该缺口，且两个真实 PR 的只读前向验证通过后才允许 Codex 激活。
 
 ## 14. 设计取舍
 
@@ -361,6 +382,7 @@ tests/
 首版接受的限制：
 
 - 不跨会话持久化状态；
+- 只支持 Codex，不承诺跨工具可移植性；
 - 不保证所有 Git provider 都能自动评论；
 - 不自动识别所有项目的需求文档来源；
 - 不将一次真实 PR 成功视为已经覆盖全部触发边界。
