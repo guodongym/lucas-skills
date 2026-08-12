@@ -55,11 +55,39 @@ class ProfessionalWritingSkillTests(unittest.TestCase):
             {case["route"] for case in evals},
             {"professional-writing", "other-skill", "mixed"},
         )
+        self.assertEqual(
+            sum(case["route"] == "professional-writing" for case in evals), 8
+        )
+        self.assertEqual(sum(case["route"] == "mixed" for case in evals), 2)
+        self.assertEqual(
+            sum(case["route"] == "other-skill" for case in evals), 10
+        )
         required = {"id", "query", "should_trigger", "route", "reason"}
         for case in evals:
             self.assertEqual(set(case), required)
             self.assertTrue(case["query"].strip())
             self.assertTrue(case["reason"].strip())
+
+        routes_by_id = {
+            case["id"]: (case["should_trigger"], case["route"])
+            for case in evals
+        }
+        self.assertEqual(
+            routes_by_id["positive-standalone-technical-proposal"],
+            (True, "professional-writing"),
+        )
+        self.assertEqual(
+            routes_by_id["negative-active-superpowers-design-doc"],
+            (False, "other-skill"),
+        )
+        self.assertEqual(
+            routes_by_id["mixed-superpowers-draft-professional-writing-verify"],
+            (True, "mixed"),
+        )
+        self.assertEqual(
+            routes_by_id["mixed-design-judgment-then-authoring"],
+            (True, "mixed"),
+        )
 
         positive = " ".join(
             case["query"] for case in evals if case["should_trigger"]
