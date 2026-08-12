@@ -24,14 +24,23 @@ class ProfessionalWritingSkillTests(unittest.TestCase):
         self.assertTrue(description.startswith("Use when "))
         self.assertLessEqual(len(description), 1024)
         for phrase in (
-            "首要目标",
+            "写总结",
+            "调研总结",
+            "进展汇报",
+            "变更总结",
+            "写报告",
+            "整理成文档",
+            "写成文档给人看",
+            "agent 完成一段工作后",
             "正式专业文档",
             "从零撰写技术方案",
             "主要交付物",
+            "不得用本 Skill 取代",
+            "继续",
+            "按原流程",
         ):
             self.assertIn(phrase, description)
         for phrase in (
-            "不得仅因",
             "设计、开发或治理流程",
             "spec",
             "plan",
@@ -48,15 +57,15 @@ class ProfessionalWritingSkillTests(unittest.TestCase):
         )
         self.assertEqual(manifest["skill_name"], "professional-writing")
         evals = manifest["evals"]
-        self.assertEqual(len(evals), 20)
-        self.assertEqual(len({case["id"] for case in evals}), 20)
-        self.assertEqual(sum(case["should_trigger"] for case in evals), 10)
+        self.assertEqual(len(evals), 23)
+        self.assertEqual(len({case["id"] for case in evals}), 23)
+        self.assertEqual(sum(case["should_trigger"] for case in evals), 13)
         self.assertEqual(
             {case["route"] for case in evals},
             {"professional-writing", "other-skill", "mixed"},
         )
         self.assertEqual(
-            sum(case["route"] == "professional-writing" for case in evals), 8
+            sum(case["route"] == "professional-writing" for case in evals), 11
         )
         self.assertEqual(sum(case["route"] == "mixed" for case in evals), 2)
         self.assertEqual(
@@ -76,6 +85,12 @@ class ProfessionalWritingSkillTests(unittest.TestCase):
             routes_by_id["positive-standalone-technical-proposal"],
             (True, "professional-writing"),
         )
+        for case_id in (
+            "positive-agent-autonomous-postmortem",
+            "positive-progress-report",
+            "positive-change-summary",
+        ):
+            self.assertEqual(routes_by_id[case_id], (True, "professional-writing"))
         self.assertEqual(
             routes_by_id["negative-active-superpowers-design-doc"],
             (False, "other-skill"),

@@ -58,6 +58,27 @@
       "reason": "任务是表达重写而非评审已有技术方案。"
     },
     {
+      "id": "positive-agent-autonomous-postmortem",
+      "query": "这次数据库迁移实施和验证已经完成。请把已确认的结果、风险和未决项主动整理成一份给技术负责人阅读的正式复盘文档，不要只在聊天里口头总结。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "agent 完成工作后需要主动产出给人阅读的正式文档文件。"
+    },
+    {
+      "id": "positive-progress-report",
+      "query": "根据本周已经验证的研发工作结果，写一份给项目干系人的正式进展汇报文档。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "正式进展汇报本身是主要交付物。"
+    },
+    {
+      "id": "positive-change-summary",
+      "query": "把刚完成的数据库切换范围、验证结果和未决项整理成给运维与研发共同阅读的正式变更总结。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "正式变更总结本身是主要交付物。"
+    },
+    {
       "id": "mixed-superpowers-draft-professional-writing-verify",
       "query": "请先用 Superpowers 起草方案，再由 professional-writing 验证并润色成正式 design doc。",
       "should_trigger": true,
