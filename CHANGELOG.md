@@ -10,6 +10,29 @@
 
 ---
 
+## [v0.5.1] - 2026-08-12
+
+**定位**：修复 `professional-writing` 的触发边界，在保留独立技术方案写作与正式汇报召回的同时，避免它抢占已有设计、开发或治理流程的文档产物。
+
+### 🐛 触发边界修复
+
+* 路由改为判断正式文档是否为当前主要交付物；单独要求从零撰写技术方案、总结、复盘、进展汇报或重写已有正式文档时继续触发。
+* 用户明确要求继续或按原设计、开发、治理流程生成其必需的 `spec`、`plan` 或 `design doc` 时，不加载 `professional-writing`；显式点名或指定组合顺序仍按用户要求执行。
+* 正文写作流程、参考资料和已有内容评测保持不变。
+
+### 🧪 验证
+
+* 新增 20 条触发路由矩阵：10 条应触发、10 条不应触发，覆盖从零技术方案、正式汇报、已有流程产出设计文档、方案评审和显式组合等近邻场景。
+* `professional-writing` 合同测试 2/2 通过；仓库测试 286/286 通过。
+* `quick_validate.py`、两个评测 JSON 解析与 `git diff --check` 均通过。
+
+### 📄 关联文档
+
+* [professional-writing 触发边界设计](docs/superpowers/specs/2026-08-12-professional-writing-trigger-boundary-design.md)
+* [professional-writing 触发边界实施计划](docs/superpowers/plans/2026-08-12-professional-writing-trigger-boundary.md)
+
+---
+
 ## [v0.5.0] - 2026-08-11
 
 **定位**：新增 Codex 专用的 `review-and-release-pr` 薄编排 Skill，把需求合理性、已有 review、独立代码审查、授权修复和发布收尾串成一条证据门禁流程；同时收紧 Agent 面向用户说明时的中文优先规则。
