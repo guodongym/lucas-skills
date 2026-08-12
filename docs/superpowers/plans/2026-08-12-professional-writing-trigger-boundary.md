@@ -275,3 +275,121 @@ Expected: 工作区干净；实现提交只包含 3 个计划文件；`SKILL.md`
 - [ ] **Step 3: 进入分支收尾**
 
 使用 `superpowers:finishing-a-development-branch` 提供保留分支或本地集成选项。未经用户选择，不合并 main、不 push、不激活、不发布。
+
+### Task 3: 恢复正向召回并强化 active workflow 排除
+
+**Files:**
+- Modify: `tests/test_professional_writing_skill.py`
+- Modify: `skills/professional-writing/evals/trigger-evals.json`
+- Modify: `skills/professional-writing/SKILL.md:1-5`
+
+**Interfaces:**
+- Consumes: Task 1 的 `{ "skill_name", "evals" }` 触发清单和 frontmatter description。
+- Produces: 23 条触发路由合同，其中 `professional-writing=11`、`mixed=2`、`other-skill=10`；正文、references 和既有内容评测保持不变。
+
+- [ ] **Step 1: 写入失败合同测试**
+
+在现有两个测试中增加以下合同：
+
+```python
+for phrase in (
+    "写总结",
+    "调研总结",
+    "进展汇报",
+    "变更总结",
+    "写报告",
+    "整理成文档",
+    "写成文档给人看",
+    "agent 完成一段工作后",
+    "不得用本 Skill 取代",
+    "继续",
+    "按原流程",
+):
+    self.assertIn(phrase, description)
+
+self.assertEqual(len(evals), 23)
+self.assertEqual(sum(case["should_trigger"] for case in evals), 13)
+self.assertEqual(
+    sum(case["route"] == "professional-writing" for case in evals), 11
+)
+for case_id in (
+    "positive-agent-autonomous-postmortem",
+    "positive-progress-report",
+    "positive-change-summary",
+):
+    self.assertEqual(routes_by_id[case_id], (True, "professional-writing"))
+```
+
+- [ ] **Step 2: 运行测试确认 RED**
+
+Run:
+
+```bash
+uv run python -m unittest tests.test_professional_writing_skill -v
+```
+
+Expected: FAIL；当前 description 缺少恢复的触发入口，清单仍为 20 条且缺少三个新 id。
+
+- [ ] **Step 3: 增加三个正向触发样本**
+
+向 `trigger-evals.json` 增加：
+
+```json
+{
+  "id": "positive-agent-autonomous-postmortem",
+  "query": "这次数据库迁移实施和验证已经完成。请把已确认的结果、风险和未决项主动整理成一份给技术负责人阅读的正式复盘文档，不要只在聊天里口头总结。",
+  "should_trigger": true,
+  "route": "professional-writing",
+  "reason": "agent 完成工作后需要主动产出给人阅读的正式文档文件。"
+}
+```
+
+```json
+{
+  "id": "positive-progress-report",
+  "query": "根据本周已经验证的研发工作结果，写一份给项目干系人的正式进展汇报文档。",
+  "should_trigger": true,
+  "route": "professional-writing",
+  "reason": "正式进展汇报本身是主要交付物。"
+}
+```
+
+```json
+{
+  "id": "positive-change-summary",
+  "query": "把刚完成的数据库切换范围、验证结果和未决项整理成给运维与研发共同阅读的正式变更总结。",
+  "should_trigger": true,
+  "route": "professional-writing",
+  "reason": "正式变更总结本身是主要交付物。"
+}
+```
+
+- [ ] **Step 4: 最小修改 description**
+
+只替换 YAML `description`，正文保持字节不变：
+
+```yaml
+description: |
+  Use when 用户要求产出、重写或完善给人阅读的正式专业文档，或 agent 完成一段工作后需要主动产出此类文档文件。触发场景包括写总结、调研总结、复盘、进展汇报、变更总结、写报告、方案说明、决策材料、汇报材料、技术解释、技术/专业文章、从零撰写技术方案、教程、操作指南、“整理成文档”“写成文档给人看”，以及已有正式文档的诊断与重写（write a summary/report/postmortem/design doc/tutorial/article）；材料不足不影响触发，前提是正式文档本身是当前主要交付物。若其他设计、开发或治理流程已主导内容判断，不得用本 Skill 取代其方案生成职责；用户明确要求继续或按原流程产出其必需的 spec、plan、design doc 时，不使用本 Skill，除非用户显式点名本 Skill、指定组合顺序，或该正式文档是内容判断完成后的独立交付物。聊天内三五句口头总结不触发。SKIP：公众号文章 → khazix-writer；评审已有技术方案 → technical-proposal-review；交接包 → handoff；深度研究报告 → hv-analysis；API 参考、代码注释、DOCX/PDF 排版（docx/pdf skill）。
+```
+
+- [ ] **Step 5: 运行 GREEN 与验证**
+
+Run:
+
+```bash
+uv run python -m unittest tests.test_professional_writing_skill -v
+uv run python /Users/zhaoguodong/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/professional-writing
+python3 -m json.tool skills/professional-writing/evals/trigger-evals.json >/dev/null
+git diff --check
+```
+
+Expected: 合同测试 2/2 通过，Skill 与 JSON 校验通过。
+
+- [ ] **Step 6: fresh-agent 前向验证**
+
+分别用不继承当前上下文的 fresh agent 验证自主正式复盘、进展汇报、变更总结和 active Superpowers 设计文档。前三条必须选择 `professional-writing`；最后一条不得选择 `professional-writing`。若 agent 仍加载全局 `main` 副本而非 worktree 候选，明确记录环境限制，不把结果算作候选失败。
+
+- [ ] **Step 7: 提交最小修复**
+
+只提交上述三个实现文件；提交正文记录 RED、GREEN、fresh-agent 结果及未验证边界。不 push、不发布。
