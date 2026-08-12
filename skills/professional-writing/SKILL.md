@@ -1,7 +1,7 @@
 ---
 name: professional-writing
 description: |
-  专业文档写作与重写 skill，覆盖四类：总结与汇报（调研总结、复盘、进展汇报、变更总结）、技术解释与专业文章、方案与决策文档、教程与操作指南。当用户要求写总结、调研总结、写报告、复盘、方案说明、决策材料、汇报材料、技术文章、专业文章、教程、操作指南、"整理成文档"、"写成文档给人看"（write a summary/report/postmortem/design doc/tutorial/article），或 agent 完成一段工作后需要产出给人阅读的文档文件时使用；也用于诊断和重写已有的结构差的文档（"帮我改一下这份文档/报告"）。仅当产出物是给人阅读的正式文档时触发，聊天内三五句口头总结不触发。SKIP：公众号文章 → khazix-writer；评审已有技术方案 → technical-proposal-review；交接包 → handoff；深度研究报告 → hv-analysis；API 参考、代码注释、DOCX/PDF 排版（docx/pdf skill）。
+  Use when 用户的首要目标是产出、重写或完善一份给人阅读的正式专业文档，包括总结与汇报、技术解释与专业文章、方案与决策文档（含从零撰写技术方案）、教程与操作指南，以及已有正式文档的诊断与重写（write a summary/report/postmortem/design doc/tutorial/article）；即使材料不足，只要正式文档本身是主要交付物也应触发。不得仅因其他设计、开发或治理流程会生成 spec、plan 或 design doc 而触发；当这些流程已经主导当前任务，文档只是其必需产物时继续使用原流程。用户显式点名本 Skill 或指定组合顺序时按其要求执行。聊天内三五句口头总结不触发。SKIP：公众号文章 → khazix-writer；评审已有技术方案 → technical-proposal-review；交接包 → handoff；深度研究报告 → hv-analysis；API 参考、代码注释、DOCX/PDF 排版（docx/pdf skill）。
 ---
 
 # 专业文档写作

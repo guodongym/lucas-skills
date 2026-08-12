@@ -1,0 +1,145 @@
+{
+  "skill_name": "professional-writing",
+  "evals": [
+    {
+      "id": "positive-standalone-technical-proposal",
+      "query": "请单独写一份从 MySQL 迁移到 PostgreSQL 的技术方案，给架构委员会评审；现有约束如下，缺的信息先列出来问我。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "正式技术方案本身是主要交付物，且用户要求从零撰写。"
+    },
+    {
+      "id": "positive-material-based-report",
+      "query": "根据这份调研材料写成给管理层阅读的正式总结报告。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "用户提供材料并要求产出正式报告。"
+    },
+    {
+      "id": "positive-incomplete-design-document",
+      "query": "资料还不完整，但请先起草一份服务拆分的设计文档，缺口单独列出来。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "设计文档是独立的正式主要交付物，材料不足不改变路由。"
+    },
+    {
+      "id": "positive-decision-memo",
+      "query": "帮我写一份是否采购日志平台的决策材料，供技术委员会选择。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "决策材料是面向读者的正式文档。"
+    },
+    {
+      "id": "positive-technical-explanation",
+      "query": "写一篇解释零停机数据库迁移原理的专业文章，给后端工程师看。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "技术解释文章是独立的专业写作交付物。"
+    },
+    {
+      "id": "positive-operation-guide",
+      "query": "整理成一份生产事故值班交接的操作指南，供新同事照着执行。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "操作指南是明确的正式文档交付物。"
+    },
+    {
+      "id": "positive-rewrite-summary",
+      "query": "把这份流水账式项目总结重写成可发给干系人的正式复盘。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "用户要求重写已有正式总结。"
+    },
+    {
+      "id": "positive-rewrite-existing-technical-proposal",
+      "query": "不评审结论，只把已有技术方案改写得清楚、适合架构委员会阅读。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "任务是表达重写而非评审已有技术方案。"
+    },
+    {
+      "id": "mixed-superpowers-draft-professional-writing-verify",
+      "query": "请先用 Superpowers 起草方案，再由 professional-writing 验证并润色成正式 design doc。",
+      "should_trigger": true,
+      "route": "mixed",
+      "reason": "用户明确指定 Superpowers 与本 Skill 的组合顺序。"
+    },
+    {
+      "id": "mixed-design-judgment-then-authoring",
+      "query": "先形成服务边界的设计判断，再由 professional-writing 写成完整技术方案。",
+      "should_trigger": true,
+      "route": "mixed",
+      "reason": "用户要求先完成设计判断，再用本 Skill 成稿。"
+    },
+    {
+      "id": "negative-active-superpowers-design-doc",
+      "query": "继续刚才的 Superpowers 设计流程：方案已经确认，现在按该流程写入可评审的设计文档，实施等我复核后再开始。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "设计文档是已选设计流程的必需产物，不能仅因进入写文档阶段切换主 Skill。"
+    },
+    {
+      "id": "negative-superpowers-feature-design",
+      "query": "为通知中心设计新功能，先走 Superpowers 的需求澄清和软件设计流程。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "软件功能设计应由 Superpowers 主导。"
+    },
+    {
+      "id": "negative-implementation-plan",
+      "query": "根据已确认的需求写 plan，列出实施步骤、测试和 review 检查点。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "实施计划属于开发流程产物。"
+    },
+    {
+      "id": "negative-review-existing-technical-proposal",
+      "query": "请评审这份技术方案，找出风险和遗漏，不要改写。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "已有技术方案评审应路由到 technical-proposal-review。"
+    },
+    {
+      "id": "negative-code-review",
+      "query": "review 这个分支的代码改动，重点找回归和测试缺口。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "代码 review 应使用 code-change-review。"
+    },
+    {
+      "id": "negative-wechat-article",
+      "query": "把这些素材写成一篇公众号文章，保留个人叙事风格。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "公众号文章应路由到 khazix-writer。"
+    },
+    {
+      "id": "negative-deep-research",
+      "query": "研究 PostgreSQL 的发展和竞品，做一份横纵分析的深度研究报告。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "深度研究应使用 hv-analysis。"
+    },
+    {
+      "id": "negative-handoff-package",
+      "query": "整理一个给下一位 agent 的交接包，包含上下文、命令和待办。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "交接包应路由到 handoff。"
+    },
+    {
+      "id": "negative-api-reference-doc",
+      "query": "为这个 SDK 生成 API 参考 design doc，列清每个接口和参数。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "API 参考不属于本 Skill 的正式专业文档范围。"
+    },
+    {
+      "id": "negative-docx-layout-and-chat-summary",
+      "query": "把现有技术方案排成 DOCX 并在聊天里用三句话总结 design doc 的结论。",
+      "should_trigger": false,
+      "route": "other-skill",
+      "reason": "DOCX 排版应使用 docx skill，聊天内三句总结不触发。"
+    }
+  ]
+}
