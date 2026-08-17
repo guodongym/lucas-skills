@@ -133,8 +133,6 @@ class TargetAdapter:
     home: Path
     root: Path
     surfaces: tuple[str, ...]
-    manifest_path: Path | None = None
-    manifest_content: str | None = None
 
 
 @dataclass(frozen=True)
@@ -166,11 +164,10 @@ class ManagedState:
 
 @dataclass(frozen=True)
 class InventorySource:
-    root: Path
+    path: Path
     tools: tuple[str, ...]
     surfaces: tuple[str, ...]
     source_type: str
-    flat_markdown: bool = False
 
 
 @dataclass(frozen=True)
@@ -229,80 +226,23 @@ class ContainerChange:
     reason: str
 
 
-@dataclass(frozen=True)
-class BridgeRemoval:
-    adapter_key: str
-    path: Path
-    expected: PathSnapshot
-    legacy_root: Path
-    legacy_entries: tuple[tuple[str, PathSnapshot, Path], ...]
-    required_links: tuple[tuple[Path, Path], ...]
-    reason: str
 
 
 @dataclass(frozen=True)
 class AdoptionPlan:
     link_changes: tuple[PlannedChange, ...]
     container_changes: tuple[ContainerChange, ...]
-    bridge_removals: tuple[BridgeRemoval, ...]
     snapshot_path: Path
     repository: RepositoryScan | None = None
 
 
-ANTIGRAVITY_MANIFEST = """{
-  \"$schema\": \"https://antigravity.google/schemas/v1/plugin.json\",
-  \"name\": \"lucas-skills\",
-  \"description\": \"Global skills managed by lucas-skills.\"
-}\n"""
 
 
 def build_adapters(home: Path) -> tuple[TargetAdapter, ...]:
-    plugin_root = home / ".gemini/antigravity-cli/plugins/lucas-skills"
     return (
-        TargetAdapter(
-            "claude-shared",
-            "claude",
-            home,
-            home / ".claude/skills",
-            ("claude-desktop", "claude-cli"),
-        ),
-        TargetAdapter(
-            "codex-shared",
-            "codex",
-            home,
-            home / ".codex/skills",
-            ("codex-desktop", "codex-cli"),
-        ),
-        TargetAdapter(
-            "copilot-shared",
-            "copilot",
-            home,
-            home / ".copilot/skills",
-            ("copilot-desktop", "copilot-cli"),
-        ),
-        TargetAdapter(
-            "antigravity-desktop",
-            "antigravity",
-            home,
-            home / ".gemini/config/skills",
-            ("antigravity-desktop",),
-        ),
-        TargetAdapter(
-            "antigravity-cli",
-            "antigravity",
-            home,
-            plugin_root / "skills",
-            ("antigravity-cli",),
-            plugin_root / "plugin.json",
-            ANTIGRAVITY_MANIFEST,
-        ),
-        TargetAdapter(
-            "workbuddy-desktop",
-            "workbuddy",
-            home,
-            home / ".workbuddy/skills",
-            ("workbuddy-desktop",),
-        ),
+        TargetAdapter("claude-shared", "claude", home, home / ".claude/skills", ("claude-desktop", "claude-cli")),
+        TargetAdapter("codex-shared", "codex", home, home / ".codex/skills", ("codex-desktop", "codex-cli")),
+        TargetAdapter("copilot-shared", "copilot", home, home / ".copilot/skills", ("copilot-desktop", "copilot-cli")),
     )
 
 
@@ -314,14 +254,11 @@ def detect_surfaces(
         "claude-desktop": (applications / "Claude.app", applications / "Claude Code.app"),
         "codex-desktop": (applications / "ChatGPT.app", applications / "Codex.app"),
         "copilot-desktop": (applications / "GitHub Copilot.app",),
-        "antigravity-desktop": (applications / "Antigravity.app",),
-        "workbuddy-desktop": (applications / "WorkBuddy.app",),
     }
     cli_commands = {
         "claude-cli": "claude",
         "codex-cli": "codex",
         "copilot-cli": "copilot",
-        "antigravity-cli": "agy",
     }
     result = {
         key: SurfaceStatus(key, any(path.exists() for path in paths), "application")
@@ -490,7 +427,7 @@ def scan_managed_state(
     if not adapters:
         return ManagedState(repository, (), tuple(surfaces.values()), ())
     home = adapters[0].home
-    legacy_roots = (home / ".cc-switch/skills", home / ".gemini/skills")
+    legacy_roots = (home / ".cc-switch/skills",)
     targets = tuple(
         _classify_target(skill, adapter, surfaces, legacy_roots, repository.skills_root)
         for adapter in adapters
@@ -501,61 +438,12 @@ def scan_managed_state(
 
 def _fixed_inventory_sources(home: Path) -> list[InventorySource]:
     return [
-        InventorySource(
-            home / ".claude/skills",
-            ("claude",),
-            ("claude-desktop", "claude-cli"),
-            "user-root",
-        ),
-        InventorySource(
-            home / ".codex/skills",
-            ("codex",),
-            ("codex-desktop", "codex-cli"),
-            "user-root",
-        ),
-        InventorySource(
-            home / ".codex/skills/.system",
-            ("codex",),
-            ("codex-desktop", "codex-cli"),
-            "built-in",
-        ),
-        InventorySource(
-            home / ".copilot/skills",
-            ("copilot",),
-            ("copilot-desktop", "copilot-cli"),
-            "user-root",
-        ),
-        InventorySource(
-            home / ".agents/skills",
-            ("copilot",),
-            ("copilot-desktop", "copilot-cli"),
-            "shared-user-root",
-        ),
-        InventorySource(
-            home / ".gemini/config/skills",
-            ("antigravity",),
-            ("antigravity-desktop",),
-            "user-root",
-        ),
-        InventorySource(
-            home / ".gemini/antigravity-cli/skills",
-            ("antigravity",),
-            ("antigravity-cli",),
-            "user-root",
-            True,
-        ),
-        InventorySource(
-            home / ".workbuddy/skills",
-            ("workbuddy",),
-            ("workbuddy-desktop",),
-            "user-root",
-        ),
-        InventorySource(
-            home / "Library/Application Support/com.github.githubapp/app-skills",
-            ("copilot",),
-            ("copilot-desktop",),
-            "built-in",
-        ),
+        InventorySource(home / ".claude/skills", ("claude",), ("claude-desktop", "claude-cli"), "user-root"),
+        InventorySource(home / ".codex/skills", ("codex",), ("codex-desktop", "codex-cli"), "user-root"),
+        InventorySource(home / ".codex/skills/.system", ("codex",), ("codex-desktop", "codex-cli"), "built-in"),
+        InventorySource(home / ".copilot/skills", ("copilot",), ("copilot-desktop", "copilot-cli"), "user-root"),
+        InventorySource(home / ".agents/skills", ("copilot",), ("copilot-desktop", "copilot-cli"), "shared-user-root"),
+        InventorySource(home / "Library/Application Support/com.github.githubapp/app-skills", ("copilot",), ("copilot-desktop",), "built-in"),
     ]
 
 
@@ -663,12 +551,11 @@ def _scan_inventory_source(
     source: InventorySource,
     managed_paths: set[Path],
 ) -> list[InventoryRecord]:
-    if not source.root.is_dir():
+    if not source.path.is_dir():
         return []
-    candidates = set(source.root.glob("*.md")) if source.flat_markdown else set()
-    candidates.update(
-        path for path in source.root.iterdir() if path.is_dir() or path.is_symlink()
-    )
+    candidates = {
+        path for path in source.path.iterdir() if path.is_dir() or path.is_symlink()
+    }
     records: list[InventoryRecord] = []
     for candidate in sorted(candidates, key=lambda path: path.name):
         if candidate.name.startswith("."):
@@ -740,29 +627,11 @@ def _scan_inventory_source(
 
 
 def scan_inventory(state: ManagedState, home: Path) -> tuple[InventoryRecord, ...]:
-    plugin_sources = [
-        InventorySource(
-            path,
-            ("antigravity",),
-            ("antigravity-desktop",),
-            "plugin",
-        )
-        for path in home.glob(".gemini/config/plugins/*/skills")
-    ]
-    plugin_sources.extend(
-        InventorySource(
-            path,
-            ("antigravity",),
-            ("antigravity-cli",),
-            "plugin",
-        )
-        for path in home.glob(".gemini/antigravity-cli/plugins/*/skills")
-    )
     codex_sources, _issues = _enabled_codex_plugin_sources(home)
     managed_paths = {skill.path.resolve() for skill in state.repository.skills}
     records = [
         record
-        for source in [*_fixed_inventory_sources(home), *plugin_sources, *codex_sources]
+        for source in [*_fixed_inventory_sources(home), *codex_sources]
         for record in _scan_inventory_source(source, managed_paths)
     ]
     duplicate_counts = Counter(
@@ -860,7 +729,6 @@ def plan_set(
 def _write_snapshot(plan: AdoptionPlan) -> None:
     plan.snapshot_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "created_at": datetime.now(UTC).isoformat(),
         "links": [
             {
                 "path": str(item.target),
@@ -876,14 +744,6 @@ def _write_snapshot(plan: AdoptionPlan) -> None:
                 "link_target": item.expected.link_target,
             }
             for item in plan.container_changes
-        ],
-        "bridges": [
-            {
-                "path": str(item.path),
-                "kind": item.expected.kind,
-                "link_target": item.expected.link_target,
-            }
-            for item in plan.bridge_removals
         ],
     }
     plan.snapshot_path.write_text(
@@ -922,114 +782,6 @@ def _inspect_repository_container(repository: RepositoryScan) -> tuple[bool, str
             return False, "repository skills root contains invalid entries"
     return True, "repository skills root contains only managed skills"
 
-
-def _inspect_antigravity_legacy_container(
-    home: Path,
-    repository: RepositoryScan,
-) -> tuple[bool, str]:
-    plugin_skills = home / ".gemini/config/plugins/custom-skills/skills"
-    if not plugin_skills.is_symlink():
-        return False, "legacy custom-skills entry not found"
-    resolved_root = plugin_skills.resolve(strict=False)
-    if not resolved_root.is_dir():
-        return False, "legacy custom-skills entry is broken"
-    expected = {skill.path.resolve() for skill in repository.skills}
-    children = [path for path in resolved_root.iterdir() if not path.name.startswith(".")]
-    if not children or any(
-        not path.is_symlink() or path.resolve(strict=False) not in expected
-        for path in children
-    ):
-        return False, "mixed or unmanaged entries in legacy custom-skills container"
-    return True, "safe legacy custom-skills container"
-
-
-def _plan_antigravity_legacy_bridge(
-    state: ManagedState,
-    existing_changes: Sequence[PlannedChange],
-) -> tuple[list[PlannedChange], BridgeRemoval | None]:
-    home = state.adapters[0].home
-    bridge = home / ".gemini/config/plugins/custom-skills/skills"
-    if not _lexists(bridge):
-        return [], None
-    desktop = next(
-        adapter for adapter in state.adapters if adapter.key == "antigravity-desktop"
-    )
-    surfaces = {surface.key: surface for surface in state.surfaces}
-    if not _adapter_available(desktop, surfaces):
-        return [
-            PlannedChange(
-                "unavailable",
-                "*",
-                desktop.key,
-                state.repository.skills_root,
-                bridge,
-                snapshot_path(bridge),
-                "Antigravity Desktop surface is not installed",
-            )
-        ], None
-    safe, reason = _inspect_antigravity_legacy_container(home, state.repository)
-    if not safe:
-        blocked = PlannedChange(
-            "blocked",
-            "*",
-            desktop.key,
-            state.repository.skills_root,
-            bridge,
-            snapshot_path(bridge),
-            reason,
-        )
-        return [blocked], None
-    legacy_root = bridge.resolve(strict=False)
-    legacy_entries = tuple(
-        (child.name, snapshot_path(child), child.resolve(strict=False))
-        for child in sorted(legacy_root.iterdir(), key=lambda path: path.name)
-        if not child.name.startswith(".")
-    )
-    existing_by_target = {
-        change.target: change
-        for change in existing_changes
-        if change.adapter_key == desktop.key
-    }
-    changes: list[PlannedChange] = []
-    required: list[tuple[Path, Path]] = []
-    for skill in state.repository.skills:
-        target = desktop.root / skill.slug
-        current = snapshot_path(target)
-        existing = existing_by_target.get(target)
-        if existing is not None:
-            required.append((target, skill.path))
-            continue
-        if current.kind == "missing":
-            action, message = "create", "move Antigravity skill to official user root"
-        elif _target_is_direct_link(target, skill.path):
-            action, message = (
-                "no-op",
-                "official user-root link already resolves to repository",
-            )
-        else:
-            action, message = "blocked", "official Antigravity target is occupied"
-        changes.append(
-            PlannedChange(
-                action,
-                skill.slug,
-                desktop.key,
-                skill.path,
-                target,
-                current,
-                message,
-            )
-        )
-        required.append((target, skill.path))
-    removal = BridgeRemoval(
-        desktop.key,
-        bridge,
-        snapshot_path(bridge),
-        legacy_root,
-        legacy_entries,
-        tuple(required),
-        "remove verified legacy custom-skills bridge",
-    )
-    return changes, removal
 
 
 def plan_adoption(state: ManagedState, state_dir: Path) -> AdoptionPlan:
@@ -1100,16 +852,9 @@ def plan_adoption(state: ManagedState, state_dir: Path) -> AdoptionPlan:
                 "replace legacy link with direct repository link",
             )
         )
-    bridge_changes, bridge_removal = _plan_antigravity_legacy_bridge(
-        state,
-        link_changes,
-    )
-    link_changes.extend(bridge_changes)
-    bridge_removals = () if bridge_removal is None else (bridge_removal,)
     return AdoptionPlan(
         tuple(link_changes),
         tuple(container_changes),
-        bridge_removals,
         state_dir / "snapshots" / f"{timestamp}.json",
         state.repository,
     )
@@ -1232,7 +977,7 @@ def _entry_is_managed_link(
     direct = absolute_raw == expected
     legacy = allow_legacy and any(
         _under(absolute_raw, root)
-        for root in (adapter.home / ".cc-switch/skills", adapter.home / ".gemini/skills")
+        for root in (adapter.home / ".cc-switch/skills",)
     )
     return (direct or legacy) and absolute_raw.resolve(strict=False) == expected
 
@@ -1626,58 +1371,8 @@ def _apply_link_adoption(
         os.close(fd)
 
 
-def _apply_bridge_removal(change: BridgeRemoval) -> None:
-    if snapshot_path(change.path) != change.expected:
-        raise _StateChangedError("bridge changed after planning")
-    legacy_root = change.path.resolve(strict=False)
-    if legacy_root != change.legacy_root or not legacy_root.is_dir():
-        raise _StateChangedError("legacy custom-skills container changed after planning")
-    current_entries = {
-        child.name: child
-        for child in legacy_root.iterdir()
-        if not child.name.startswith(".")
-    }
-    expected_entries = {
-        name: (expected, source)
-        for name, expected, source in change.legacy_entries
-    }
-    if set(current_entries) != set(expected_entries):
-        raise _StateChangedError("legacy custom-skills container changed after planning")
-    for name, child in current_entries.items():
-        expected, source = expected_entries[name]
-        if (
-            snapshot_path(child) != expected
-            or not child.is_symlink()
-            or not _source_still_valid(source)
-            or child.resolve(strict=False) != source
-        ):
-            raise _StateChangedError(
-                f"legacy custom-skills entry changed after planning: {name}"
-            )
-    for target, source in change.required_links:
-        if not _target_is_direct_link(target, source):
-            raise _StateChangedError(f"required direct link missing: {target}")
-    change.path.unlink()
-
 
 def _prepare_adapter(adapter: TargetAdapter) -> None:
-    if adapter.manifest_path is None:
-        adapter.root.mkdir(parents=True, exist_ok=True)
-        return
-    plugin_root = adapter.manifest_path.parent
-    if plugin_root.exists() and not plugin_root.is_dir():
-        raise OSError("plugin root is not a directory")
-    plugin_root.mkdir(parents=True, exist_ok=True)
-    if adapter.manifest_path.exists():
-        data = json.loads(adapter.manifest_path.read_text(encoding="utf-8"))
-        if data.get("name") != "lucas-skills":
-            raise _TargetConflictError("plugin manifest belongs to another owner")
-    else:
-        temporary = plugin_root / f".plugin-{uuid.uuid4().hex}.tmp"
-        temporary.write_text(adapter.manifest_content or "", encoding="utf-8")
-        os.replace(temporary, adapter.manifest_path)
-    if _lexists(adapter.root) and not adapter.root.is_dir():
-        raise OSError("plugin skills path is not a directory")
     adapter.root.mkdir(parents=True, exist_ok=True)
 
 
@@ -1768,7 +1463,6 @@ def apply_adoption(
 ) -> BatchResult:
     has_writes = bool(
         plan.container_changes
-        or plan.bridge_removals
         or any(change.action in {"create", "remove"} for change in plan.link_changes)
     )
     if has_writes:
@@ -1829,28 +1523,5 @@ def apply_adoption(
             results.append(_operation_result(False, "permission-denied", change, str(exc)))
         except (OSError, RuntimeError, ValueError) as exc:
             results.append(_operation_result(False, "adoption-failed", change, str(exc)))
-    for change in plan.bridge_removals:
-        try:
-            _apply_bridge_removal(change)
-            results.append(
-                OperationResult(
-                    True,
-                    "applied",
-                    "*",
-                    change.adapter_key,
-                    change.path,
-                    change.reason,
-                )
-            )
-        except (OSError, RuntimeError) as exc:
-            results.append(
-                OperationResult(
-                    False,
-                    "bridge-removal-failed",
-                    "*",
-                    change.adapter_key,
-                    change.path,
-                    str(exc),
-                )
-            )
+
     return BatchResult(all(item.ok for item in results), tuple(results))

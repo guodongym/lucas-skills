@@ -47,9 +47,9 @@ from .skills import (
 from .server import _serve
 
 
-TOOLS = ("claude", "codex", "copilot", "antigravity", "workbuddy")
+TOOLS = ("claude", "codex", "copilot")
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
-INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot", "antigravity")
+INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot")
 FINGERPRINT_PATTERN = r"[0-9a-f]{64}"
 
 
@@ -345,7 +345,6 @@ def _empty_adoption_changes() -> dict[str, object]:
     return {
         "link_changes": (),
         "container_changes": (),
-        "bridge_removals": (),
         "snapshot_path": None,
     }
 
@@ -516,7 +515,6 @@ def _adoption_changes(plan: AdoptionPlan) -> dict[str, object]:
     return {
         "link_changes": plan.link_changes,
         "container_changes": plan.container_changes,
-        "bridge_removals": plan.bridge_removals,
         "snapshot_path": plan.snapshot_path,
     }
 
@@ -625,7 +623,7 @@ def _write_text(
         count = len(changes) if isinstance(changes, (list, tuple)) else sum(
             len(items)
             for key, items in changes.items()
-            if key.endswith("_changes") or key == "bridge_removals"
+            if key.endswith("_changes")
         ) if isinstance(changes, dict) else 0
         stdout.write(f"Changes: {count}\n")
     if "results" in payload:

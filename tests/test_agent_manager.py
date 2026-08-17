@@ -15,6 +15,7 @@ from tools.agent_manager import cli as agent_manager_cli
 from tools.agent_manager.cli import main
 from tools.agent_manager.instructions import InstructionPlanError
 from tools.agent_manager.skills import (
+    _fixed_inventory_sources,
     _enabled_codex_plugin_sources,
     apply_adoption,
     apply_plan,
@@ -113,13 +114,10 @@ class ReadmeTests(unittest.TestCase):
             "~/.claude/skills/<skill>",
             "~/.codex/skills/<skill>",
             "~/.copilot/skills/<skill>",
-            "~/.gemini/config/skills/<skill>",
-            "~/.gemini/antigravity-cli/plugins/lucas-skills/skills/<skill>",
             "~/.agents/AGENTS.md",
             "~/.claude/CLAUDE.md",
             "~/.codex/AGENTS.md",
             "~/.copilot/copilot-instructions.md",
-            "~/.gemini/GEMINI.md",
         ):
             self.assertIn(path, readme)
         for obsolete in ("pip install pyyaml", "python " "vendor.py"):
@@ -127,6 +125,9 @@ class ReadmeTests(unittest.TestCase):
 
     def test_documents_independent_apply_and_archive_safety_gates(self) -> None:
         readme = Path("README.md").read_text(encoding="utf-8")
+        manager_docs = readme[
+            readme.index("## Agent Manager"):readme.index("## 添加新的上游来源")
+        ]
         for text in (
             "文本输出仅提供摘要",
             "完整字段",
@@ -136,35 +137,14 @@ class ReadmeTests(unittest.TestCase):
             "单独取得明确授权",
             "旧状态归档",
             "独立授权",
-            "WorkBuddy",
-            "WorkBuddy.app",
-            "~/.workbuddy/skills/<skill>",
-            "五个工具族、九个检测表面",
-            "六个 Skill 根目录",
-            "五个 Instructions 文件入口",
+            "三个工具族、六个检测表面",
+            "三个 Skill 根目录",
+            "四个 Instructions 文件入口",
+            "Cursor/Grok 兼容消费",
+            "~/.cursor/skills",
+            "~/.grok/skills",
         ):
-            self.assertIn(text, readme)
-        self.assertIn(
-            "| WorkBuddy | `WorkBuddy.app` | 无受管 CLI | "
-            "`~/.workbuddy/skills/<skill>` |",
-            readme,
-        )
-        self.assertIn(
-            "`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录、"
-            "Antigravity CLI 用户目录、Copilot Desktop 内置目录和 WorkBuddy 用户 Skill "
-            "根目录 `~/.workbuddy/skills`；这些库存来源不因此变为受管目标。",
-            readme,
-        )
-        self.assertIn(
-            "启用 WorkBuddy Skill 后，请新建一个 WorkBuddy 任务验证发现结果；"
-            "不承诺热重载。",
-            readme,
-        )
-        self.assertIn(
-            "WorkBuddy 的自定义指令位于“个性化 → 自定义指令”，同样保持手工边界，"
-            "不是 `AGENTS.md` target。",
-            readme,
-        )
+            self.assertIn(text, manager_docs)
         instructions_start = readme.index("| target | Instructions 目标路径 | 覆盖范围 |")
         instructions_end = readme.index("\n\nCopilot Desktop", instructions_start)
         instructions_rows = [
@@ -172,13 +152,10 @@ class ReadmeTests(unittest.TestCase):
             for line in readme[instructions_start:instructions_end].splitlines()
             if line.startswith("| `")
         ]
-        self.assertEqual(len(instructions_rows), 5)
+        self.assertEqual(len(instructions_rows), 4)
         self.assertEqual(
             [row.split("|")[1].strip() for row in instructions_rows],
-            ["`shared`", "`claude`", "`codex`", "`copilot`", "`antigravity`"],
-        )
-        self.assertNotIn(
-            "`workbuddy`", readme[instructions_start:instructions_end]
+            ["`shared`", "`claude`", "`codex`", "`copilot`"],
         )
         self.assertLess(
             readme.index(
@@ -252,37 +229,30 @@ class ManagedStateTests(unittest.TestCase):
                     "claude-shared",
                     "codex-shared",
                     "copilot-shared",
-                    "antigravity-desktop",
-                    "antigravity-cli",
-                    "workbuddy-desktop",
                 },
             )
             self.assertEqual(adapters["claude-shared"].root, home / ".claude/skills")
             self.assertEqual(adapters["codex-shared"].root, home / ".codex/skills")
             self.assertEqual(adapters["copilot-shared"].root, home / ".copilot/skills")
-            self.assertEqual(
-                adapters["antigravity-desktop"].root,
-                home / ".gemini/config/skills",
-            )
-            self.assertEqual(
-                adapters["antigravity-cli"].root,
-                home / ".gemini/antigravity-cli/plugins/lucas-skills/skills",
-            )
-            self.assertEqual(
-                adapters["workbuddy-desktop"].root,
-                home / ".workbuddy/skills",
-            )
-            self.assertEqual(adapters["workbuddy-desktop"].tool, "workbuddy")
-            self.assertEqual(
-                adapters["workbuddy-desktop"].surfaces,
-                ("workbuddy-desktop",),
-            )
 
-    def test_detects_exact_surfaces_codex_fallback_and_agy_cli(self) -> None:
+    def test_cli_and_server_allow_lists_match_the_three_tool_contract(self) -> None:
+        from tools.agent_manager import server as agent_manager_server
+
+        self.assertEqual(agent_manager_cli.TOOLS, ("claude", "codex", "copilot"))
+        self.assertEqual(
+            agent_manager_cli.INSTRUCTION_TARGETS,
+            ("shared", "claude", "codex", "copilot"),
+        )
+        self.assertEqual(agent_manager_server.TOOLS, agent_manager_cli.TOOLS)
+        self.assertEqual(
+            agent_manager_server.INSTRUCTION_TARGETS,
+            agent_manager_cli.INSTRUCTION_TARGETS,
+        )
+
+    def test_detects_exact_surfaces_and_codex_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             applications = Path(tmp) / "Applications"
             (applications / "Codex.app").mkdir(parents=True)
-            (applications / "WorkBuddy.app").mkdir(parents=True)
             commands: list[str] = []
 
             surfaces = detect_surfaces(
@@ -296,18 +266,13 @@ class ManagedStateTests(unittest.TestCase):
                     "claude-desktop",
                     "codex-desktop",
                     "copilot-desktop",
-                    "antigravity-desktop",
-                    "workbuddy-desktop",
                     "claude-cli",
                     "codex-cli",
                     "copilot-cli",
-                    "antigravity-cli",
                 },
             )
             self.assertTrue(surfaces["codex-desktop"].installed)
-            self.assertEqual(commands, ["claude", "codex", "copilot", "agy"])
-            self.assertTrue(surfaces["workbuddy-desktop"].installed)
-            self.assertEqual(surfaces["workbuddy-desktop"].detector, "application")
+            self.assertEqual(commands, ["claude", "codex", "copilot"])
 
     def test_prefers_chatgpt_app_over_codex_app(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -329,7 +294,7 @@ class ManagedStateTests(unittest.TestCase):
             self.assertIn("ChatGPT.app", checked)
             self.assertNotIn("Codex.app", checked)
 
-    def test_classifies_direct_legacy_conflict_broken_and_unavailable(self) -> None:
+    def test_classifies_direct_legacy_and_conflict(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             repo = root / "repo"
@@ -350,16 +315,16 @@ class ManagedStateTests(unittest.TestCase):
             legacy.parent.mkdir(parents=True)
             legacy.symlink_to(legacy_root / "docx")
 
-            conflict = by_key["antigravity-desktop"].root / "docx"
+            conflict = by_key["copilot-shared"].root / "docx"
             conflict.mkdir(parents=True)
 
-            broken = by_key["copilot-shared"].root / "docx"
-            broken.parent.mkdir(parents=True)
-            broken.symlink_to(home / "missing/docx")
-
-            installed = {"claude-cli": "/bin/claude", "codex-cli": "/bin/codex"}
+            installed = {
+                "claude": "/bin/claude",
+                "codex": "/bin/codex",
+                "copilot": "/bin/copilot",
+            }
             surfaces = detect_surfaces(
-                which=lambda command: installed.get(f"{command}-cli"),
+                which=installed.get,
                 applications=root / "Applications",
             )
             state = scan_managed_state(scan, adapters, surfaces)
@@ -367,12 +332,7 @@ class ManagedStateTests(unittest.TestCase):
 
             self.assertEqual(statuses[("claude-shared", "docx")].state, LinkState.ENABLED)
             self.assertEqual(statuses[("codex-shared", "docx")].state, LinkState.LEGACY)
-            self.assertEqual(
-                statuses[("antigravity-desktop", "docx")].state,
-                LinkState.UNAVAILABLE,
-            )
-            self.assertEqual(statuses[("copilot-shared", "docx")].state, LinkState.UNAVAILABLE)
-            self.assertTrue(os.path.lexists(broken))
+            self.assertEqual(statuses[("copilot-shared", "docx")].state, LinkState.CONFLICT)
 
 
 class InventoryTests(unittest.TestCase):
@@ -498,50 +458,19 @@ class InventoryTests(unittest.TestCase):
             )
             self.assertTrue((claude_root / "review").is_symlink())
 
-    def test_lists_workbuddy_managed_external_and_broken_skills_without_mutation(self) -> None:
+    def test_fixed_inventory_sources_are_the_six_supported_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            managed = write_skill(repo, "docx", "docx")
-            workbuddy_root = home / ".workbuddy/skills"
-            workbuddy_root.mkdir(parents=True)
-            (workbuddy_root / "docx").symlink_to(managed)
-            private = workbuddy_root / "private"
-            private.mkdir()
-            (private / "SKILL.md").write_text(
-                "---\nname: private\ndescription: private Skill\n---\n",
-                encoding="utf-8",
-            )
-            broken = workbuddy_root / "broken"
-            broken.symlink_to(home / "missing")
-
-            state = build_test_state(repo, home)
-            before = self._tree_snapshot(home)
-            records = scan_inventory(state, home)
-
-            self.assertEqual(self._tree_snapshot(home), before)
-            self.assertTrue(
-                any(
-                    record.slug == "docx"
-                    and record.source_type == "managed"
-                    and record.tools == ("workbuddy",)
-                    and record.surfaces == ("workbuddy-desktop",)
-                    for record in records
-                )
-            )
-            self.assertTrue(
-                any(
-                    record.slug == "private"
-                    and record.source_type == "local-copy"
-                    and record.tools == ("workbuddy",)
-                    for record in records
-                )
-            )
-            self.assertTrue(
-                any(
-                    record.slug == "broken" and record.source_type == "broken"
-                    for record in records
-                )
+            home = Path(tmp) / "home"
+            self.assertEqual(
+                [source.path for source in _fixed_inventory_sources(home)],
+                [
+                    home / ".claude/skills",
+                    home / ".codex/skills",
+                    home / ".codex/skills/.system",
+                    home / ".copilot/skills",
+                    home / ".agents/skills",
+                    home / "Library/Application Support/com.github.githubapp/app-skills",
+                ],
             )
 
     def test_codex_plugin_sources_prefer_remote_and_newest_manifest(self) -> None:
@@ -585,45 +514,11 @@ class InventoryTests(unittest.TestCase):
             sources, issues = _enabled_codex_plugin_sources(home)
 
             self.assertEqual(
-                [source.root for source in sources],
+                [source.path for source in sources],
                 [newest / "custom-skills"],
             )
             self.assertEqual([issue.code for issue in issues], ["plugin-manifest-missing"])
             self.assertEqual(issues[0].path, cache / "market/missing")
-
-    def test_lists_managed_flat_markdown_and_antigravity_plugin_skills(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            managed_skill = write_skill(repo, "docx", "docx")
-            managed_link = home / ".codex/skills/docx"
-            managed_link.parent.mkdir(parents=True)
-            managed_link.symlink_to(managed_skill)
-            flat = home / ".gemini/antigravity-cli/skills/flat.md"
-            flat.parent.mkdir(parents=True)
-            flat.write_text(
-                "---\nname: flat\ndescription: flat markdown\n---\n",
-                encoding="utf-8",
-            )
-            plugin_skill = home / ".gemini/config/plugins/demo/skills/plugin-skill"
-            plugin_skill.mkdir(parents=True)
-            (plugin_skill / "SKILL.md").write_text(
-                "---\nname: plugin-skill\ndescription: plugin skill\n---\n",
-                encoding="utf-8",
-            )
-            state = build_test_state(repo, home)
-
-            records = scan_inventory(state, home)
-            by_slug = {record.slug: record for record in records}
-
-            self.assertEqual(by_slug["docx"].source_type, "managed")
-            self.assertEqual(by_slug["flat"].source_type, "local-copy")
-            self.assertEqual(by_slug["flat"].surfaces, ("antigravity-cli",))
-            self.assertEqual(by_slug["plugin-skill"].source_type, "plugin")
-            self.assertEqual(
-                by_slug["plugin-skill"].surfaces,
-                ("antigravity-desktop",),
-            )
 
     def test_codex_manifest_failures_become_issues_and_do_not_stop_scan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -687,7 +582,7 @@ class InventoryTests(unittest.TestCase):
             ):
                 sources, issues = _enabled_codex_plugin_sources(home)
 
-            self.assertEqual([source.root for source in sources], [valid_skills])
+            self.assertEqual([source.path for source in sources], [valid_skills])
             self.assertEqual(len(issues), 5)
             self.assertEqual(
                 {issue.code for issue in issues},
@@ -750,7 +645,7 @@ class InventoryTests(unittest.TestCase):
             records = scan_inventory(build_test_state(repo, home), home)
 
             self.assertEqual(
-                [source.root for source in sources],
+                [source.path for source in sources],
                 [version_roots["valid"] / "skills"],
             )
             self.assertEqual(len(issues), 3)
@@ -763,7 +658,7 @@ class InventoryTests(unittest.TestCase):
                 {"valid-skill"},
             )
 
-    def test_flat_markdown_symlink_is_listed_once_without_false_duplicate(self) -> None:
+    def test_markdown_symlink_is_listed_once_without_false_duplicate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             repo, home = root / "repo", root / "home"
@@ -774,7 +669,7 @@ class InventoryTests(unittest.TestCase):
                 "---\nname: flat\ndescription: linked markdown\n---\n",
                 encoding="utf-8",
             )
-            linked = home / ".gemini/antigravity-cli/skills/flat.md"
+            linked = home / ".codex/skills/flat.md"
             linked.parent.mkdir(parents=True)
             linked.symlink_to(external)
 
@@ -824,11 +719,11 @@ class ManagedStateFilesystemTests(unittest.TestCase):
             repo, home, applications = root / "repo", root / "home", root / "Applications"
             write_skill(repo, "docx", "docx")
             (applications / "ChatGPT.app").mkdir(parents=True)
-            (applications / "Antigravity.app").mkdir(parents=True)
+            (applications / "Claude.app").mkdir(parents=True)
             (applications / "GitHub Copilot.app").mkdir(parents=True)
-            conflict = home / ".gemini/config/skills/docx"
+            conflict = home / ".copilot/skills/docx"
             conflict.mkdir(parents=True)
-            broken = home / ".copilot/skills/docx"
+            broken = home / ".claude/skills/docx"
             broken.parent.mkdir(parents=True)
             broken.symlink_to(home / "missing/docx")
             adapters = build_adapters(home)
@@ -837,11 +732,8 @@ class ManagedStateFilesystemTests(unittest.TestCase):
             state = scan_managed_state(scan_repository(repo), adapters, surfaces)
             statuses = {(item.adapter_key, item.slug): item for item in state.targets}
 
-            self.assertEqual(
-                statuses[("antigravity-desktop", "docx")].state,
-                LinkState.CONFLICT,
-            )
-            self.assertEqual(statuses[("copilot-shared", "docx")].state, LinkState.ERROR)
+            self.assertEqual(statuses[("copilot-shared", "docx")].state, LinkState.CONFLICT)
+            self.assertEqual(statuses[("claude-shared", "docx")].state, LinkState.ERROR)
             self.assertTrue(surfaces["codex-desktop"].installed)
 
     def test_reports_conflict_when_adapter_root_is_a_file(self) -> None:
@@ -879,95 +771,6 @@ class ManagedStateFilesystemTests(unittest.TestCase):
             statuses = {(item.adapter_key, item.slug): item for item in state.targets}
 
             self.assertEqual(statuses[("codex-shared", "docx")].state, LinkState.ERROR)
-
-
-class WorkBuddyTests(unittest.TestCase):
-    def test_classifies_disabled_enabled_conflict_and_unavailable(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            skill = write_skill(repo, "docx", "docx")
-            target = home / ".workbuddy/skills/docx"
-
-            unavailable = build_test_state(repo, home)
-            statuses = {(item.adapter_key, item.slug): item for item in unavailable.targets}
-            self.assertEqual(
-                statuses[("workbuddy-desktop", "docx")].state,
-                LinkState.UNAVAILABLE,
-            )
-            self.assertFalse((home / ".workbuddy").exists())
-
-            disabled = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
-            statuses = {(item.adapter_key, item.slug): item for item in disabled.targets}
-            self.assertEqual(
-                statuses[("workbuddy-desktop", "docx")].state,
-                LinkState.DISABLED,
-            )
-
-            target.parent.mkdir(parents=True)
-            target.symlink_to(skill)
-            enabled = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
-            statuses = {(item.adapter_key, item.slug): item for item in enabled.targets}
-            self.assertEqual(
-                statuses[("workbuddy-desktop", "docx")].state,
-                LinkState.ENABLED,
-            )
-
-            target.unlink()
-            target.mkdir()
-            conflict = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
-            statuses = {(item.adapter_key, item.slug): item for item in conflict.targets}
-            self.assertEqual(
-                statuses[("workbuddy-desktop", "docx")].state,
-                LinkState.CONFLICT,
-            )
-            self.assertTrue(target.is_dir())
-
-    def test_set_on_and_off_apply_only_the_direct_repository_link(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            adapters = build_adapters(home)
-            by_key = {item.key: item for item in adapters}
-            state = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
-
-            plan = plan_set(state, ["docx"], ["workbuddy"], True)
-            self.assertEqual(len(plan.changes), 1)
-            change = plan.changes[0]
-            target = home / ".workbuddy/skills/docx"
-            self.assertEqual(change.adapter_key, "workbuddy-desktop")
-            self.assertEqual(change.target, target)
-            self.assertEqual(change.action, "create")
-
-            result = apply_plan(plan, by_key)
-            self.assertTrue(result.ok)
-            self.assertEqual(target.resolve(), (repo / "skills/docx").resolve())
-
-            off_state = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
-            off_plan = plan_set(off_state, ["docx"], ["workbuddy"], False)
-            off_result = apply_plan(off_plan, by_key)
-            self.assertTrue(off_result.ok)
-            self.assertFalse(target.exists())
-
-    def test_all_includes_workbuddy_without_changing_existing_local_directory(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            target = home / ".workbuddy/skills/docx"
-            target.mkdir(parents=True)
-            state = build_test_state(repo, home, installed_apps={"WorkBuddy.app"})
-            plan = plan_set(state, ["docx"], ["all"], True)
-            change = next(
-                item for item in plan.changes if item.adapter_key == "workbuddy-desktop"
-            )
-
-            self.assertEqual(change.action, "blocked")
-            result = apply_plan(plan, {item.key: item for item in state.adapters})
-            self.assertFalse(result.ok)
-            self.assertTrue(target.is_dir())
-            self.assertFalse(target.is_symlink())
 
 
 class AdoptionTests(unittest.TestCase):
@@ -1184,8 +987,8 @@ class AdoptionTests(unittest.TestCase):
                     }
                 ],
             )
+            self.assertEqual(set(payload), {"links", "containers"})
             self.assertEqual(payload["containers"], [])
-            self.assertEqual(payload["bridges"], [])
 
     def test_adopts_cc_switch_entry_links_and_writes_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1417,155 +1220,6 @@ class AdoptionTests(unittest.TestCase):
             self.assertEqual(Path(os.readlink(target)), cc_skill)
 
 
-class AntigravityTests(unittest.TestCase):
-    def test_unavailable_desktop_bridge_is_skipped_without_official_root_or_removal(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "pdf", "pdf")
-            legacy = home / ".gemini/skills"
-            legacy.mkdir(parents=True)
-            (legacy / "pdf").symlink_to(repo / "skills/pdf")
-            bridge = home / ".gemini/config/plugins/custom-skills/skills"
-            bridge.parent.mkdir(parents=True)
-            bridge.symlink_to(legacy)
-            state = build_test_state(repo, home)
-
-            plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
-
-            self.assertEqual(plan.container_changes, ())
-            self.assertEqual(plan.bridge_removals, ())
-            self.assertEqual(
-                [(item.adapter_key, item.action) for item in plan.link_changes],
-                [("antigravity-desktop", "unavailable")],
-            )
-            self.assertFalse((home / ".gemini/config/skills").exists())
-            self.assertTrue(bridge.is_symlink())
-
-    def test_enabling_cli_skill_creates_managed_plugin_manifest(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "pdf", "pdf")
-            state = build_test_state(repo, home, installed_commands={"agy": "/bin/agy"})
-            plan = plan_set(state, ["pdf"], ["antigravity"], True)
-
-            result = apply_plan(plan, {item.key: item for item in state.adapters})
-
-            manifest = home / ".gemini/antigravity-cli/plugins/lucas-skills/plugin.json"
-            self.assertTrue(result.ok)
-            self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["name"], "lucas-skills")
-            self.assertEqual(
-                (home / ".gemini/antigravity-cli/plugins/lucas-skills/skills/pdf").resolve(),
-                (repo / "skills/pdf").resolve(),
-            )
-
-    def test_refuses_mixed_custom_skills_container(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "pdf", "pdf")
-            legacy = home / ".gemini/skills"
-            legacy.mkdir(parents=True)
-            (legacy / "pdf").symlink_to(repo / "skills/pdf")
-            write_skill(home / "external", "private", "private")
-            (legacy / "private").symlink_to(home / "external/skills/private")
-            plugin_skills = home / ".gemini/config/plugins/custom-skills/skills"
-            plugin_skills.parent.mkdir(parents=True)
-            plugin_skills.symlink_to(legacy)
-            state = build_test_state(repo, home, installed_apps={"Antigravity.app"})
-
-            plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
-
-            self.assertTrue(any(item.action == "blocked" and "mixed" in item.reason for item in plan.link_changes))
-            self.assertTrue(plugin_skills.is_symlink())
-
-    def test_adopts_fully_managed_custom_skills_container(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "pdf", "pdf")
-            legacy = home / ".gemini/skills"
-            legacy.mkdir(parents=True)
-            (legacy / "pdf").symlink_to(repo / "skills/pdf")
-            plugin_root = home / ".gemini/config/plugins/custom-skills"
-            plugin_root.mkdir(parents=True)
-            (plugin_root / "plugin.json").write_text('{"name":"custom-skills"}\n', encoding="utf-8")
-            plugin_skills = plugin_root / "skills"
-            plugin_skills.symlink_to(legacy)
-            state = build_test_state(repo, home, installed_apps={"Antigravity.app"})
-
-            result = apply_adoption(
-                plan_adoption(state, home / ".local/state/lucas-skills-manager"),
-                {item.key: item for item in state.adapters},
-            )
-
-            desktop_link = home / ".gemini/config/skills/pdf"
-            self.assertTrue(result.ok)
-            self.assertFalse(os.path.lexists(plugin_skills))
-            self.assertTrue((plugin_root / "plugin.json").is_file())
-            self.assertTrue(desktop_link.is_symlink())
-            self.assertEqual(desktop_link.resolve(), (repo / "skills/pdf").resolve())
-
-    def test_keeps_bridge_when_legacy_container_changes_after_plan(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "pdf", "pdf")
-            legacy = home / ".gemini/skills"
-            legacy.mkdir(parents=True)
-            (legacy / "pdf").symlink_to(repo / "skills/pdf")
-            plugin_skills = home / ".gemini/config/plugins/custom-skills/skills"
-            plugin_skills.parent.mkdir(parents=True)
-            plugin_skills.symlink_to(legacy)
-            state = build_test_state(repo, home, installed_apps={"Antigravity.app"})
-            plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
-            external = write_skill(home / "external", "private", "private")
-            (legacy / "private").symlink_to(external)
-
-            result = apply_adoption(plan, {item.key: item for item in state.adapters})
-
-            desktop_link = home / ".gemini/config/skills/pdf"
-            self.assertFalse(result.ok)
-            self.assertEqual(
-                [item.code for item in result.results],
-                ["applied", "bridge-removal-failed"],
-            )
-            self.assertTrue(desktop_link.is_symlink())
-            self.assertEqual(desktop_link.resolve(), (repo / "skills/pdf").resolve())
-            self.assertTrue(plugin_skills.is_symlink())
-
-    def test_reuses_legacy_desktop_change_for_bridge_adoption(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "pdf", "pdf")
-            legacy = home / ".gemini/skills"
-            legacy.mkdir(parents=True)
-            legacy_skill = legacy / "pdf"
-            legacy_skill.symlink_to(repo / "skills/pdf")
-            plugin_skills = home / ".gemini/config/plugins/custom-skills/skills"
-            plugin_skills.parent.mkdir(parents=True)
-            plugin_skills.symlink_to(legacy)
-            desktop_link = home / ".gemini/config/skills/pdf"
-            desktop_link.parent.mkdir(parents=True)
-            desktop_link.symlink_to(legacy_skill)
-            state = build_test_state(repo, home, installed_apps={"Antigravity.app"})
-
-            plan = plan_adoption(state, home / ".local/state/lucas-skills-manager")
-            desktop_changes = [
-                item for item in plan.link_changes if item.target == desktop_link
-            ]
-            result = apply_adoption(plan, {item.key: item for item in state.adapters})
-
-            self.assertEqual(len(desktop_changes), 1)
-            self.assertEqual(desktop_changes[0].action, "create")
-            self.assertTrue(result.ok)
-            self.assertEqual([item.code for item in result.results], ["applied", "applied"])
-            self.assertEqual(Path(os.readlink(desktop_link)), (repo / "skills/pdf").resolve())
-            self.assertFalse(os.path.lexists(plugin_skills))
-
-
 class SetOperationTests(unittest.TestCase):
 
     def test_plan_is_read_only_and_apply_is_idempotent(self) -> None:
@@ -1644,13 +1298,13 @@ class SetOperationTests(unittest.TestCase):
             write_skill(repo, "pdf", "pdf")
             adapters = build_adapters(home)
             surfaces = detect_surfaces(
-                which=lambda command: "/bin/agy" if command == "agy" else None,
+                which=lambda _: None,
                 applications=root / "Applications",
             )
             state = scan_managed_state(scan_repository(repo), adapters, surfaces)
 
             result = apply_plan(
-                plan_set(state, ["pdf"], ["antigravity"], True),
+                plan_set(state, ["pdf"], ["claude"], True),
                 {item.key: item for item in adapters},
             )
 
@@ -2170,33 +1824,6 @@ class UmbrellaParserTests(unittest.TestCase):
             with self.subTest(argv=argv):
                 self.assert_parse_exit(argv, 2)
 
-    def test_workbuddy_skill_set_parser_executes_with_runtime_dependencies(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            applications = root / "Applications"
-            write_skill(repo, "pdf", "pdf")
-            (applications / "WorkBuddy.app").mkdir(parents=True)
-            output = io.StringIO()
-
-            code = main(
-                ["skills", "set", "pdf", "--tool", "workbuddy", "--on", "--json"],
-                home=home,
-                repo_root=repo,
-                stdout=output,
-                which=lambda _: None,
-                applications=applications,
-            )
-
-            self.assertEqual(code, 0)
-            self.assertEqual(
-                json.loads(output.getvalue())["changes"][0]["adapter_key"],
-                "workbuddy-desktop",
-            )
-
-
 class AggregateCliContractTests(unittest.TestCase):
     def invoke(self, argv: list[str], repo: Path, home: Path) -> tuple[int, dict[str, object]]:
         output = io.StringIO()
@@ -2242,7 +1869,7 @@ class AggregateCliContractTests(unittest.TestCase):
                 {"source", "source_sha256", "source_text", "targets", "manual_surfaces", "issues"},
             )
             self.assertEqual(payload["summary"]["skills_total"], 1)
-            self.assertEqual(payload["summary"]["instructions_total"], 5)
+            self.assertEqual(payload["summary"]["instructions_total"], 4)
             self.assertRegex(payload["scanned_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$")
 
     def test_domain_statuses_keep_the_common_envelope_and_one_container(self) -> None:
@@ -2389,8 +2016,8 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["surfaces"]), 9)
-            self.assertEqual(len(payload["skills"]["targets"]), 6)
+            self.assertEqual(len(payload["surfaces"]), 6)
+            self.assertEqual(len(payload["skills"]["targets"]), 3)
             self.assertEqual(payload["inventory"], [])
             self.assertEqual(payload["skills"]["issues"], [])
 
@@ -2416,9 +2043,12 @@ class CliTests(unittest.TestCase):
             self.assertIsNone(payload["code"])
             self.assertEqual(payload["message"], "")
             self.assertEqual(payload["skills"]["issues"], [])
+            self.assertEqual(
+                set(payload["changes"]),
+                {"link_changes", "container_changes", "snapshot_path"},
+            )
             self.assertEqual(payload["changes"]["link_changes"], [])
             self.assertEqual(payload["changes"]["container_changes"], [])
-            self.assertEqual(payload["changes"]["bridge_removals"], [])
             self.assertIsNotNone(payload["changes"]["snapshot_path"])
             self.assertEqual(payload["results"], [])
 
@@ -2559,7 +2189,6 @@ class CliTests(unittest.TestCase):
                 )
                 self.assertEqual(payload["changes"]["link_changes"], [])
                 self.assertEqual(payload["changes"]["container_changes"], [])
-                self.assertEqual(payload["changes"]["bridge_removals"], [])
                 self.assertEqual(payload["results"], [])
                 self.assertEqual(Path(os.readlink(target)), legacy)
                 self.assertFalse(
@@ -2592,9 +2221,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 6)
-            self.assertEqual(len(payload["surfaces"]), 9)
-            self.assertEqual(len(payload["skills"]["targets"]), 6)
+            self.assertEqual(len(payload["skills"]["adapters"]), 3)
+            self.assertEqual(len(payload["surfaces"]), 6)
+            self.assertEqual(len(payload["skills"]["targets"]), 3)
             self.assertEqual(
                 [issue["code"] for issue in payload["skills"]["issues"]],
                 ["invalid-frontmatter"],
@@ -2629,12 +2258,11 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["surfaces"]), 9)
-            self.assertEqual(len(payload["skills"]["targets"]), 6)
+            self.assertEqual(len(payload["surfaces"]), 6)
+            self.assertEqual(len(payload["skills"]["targets"]), 3)
             self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"]["link_changes"], [])
             self.assertEqual(payload["changes"]["container_changes"], [])
-            self.assertEqual(payload["changes"]["bridge_removals"], [])
             self.assertEqual(payload["results"], [])
 
     def test_skill_adopt_post_rescan_failure_preserves_execution_result(self) -> None:
@@ -2664,7 +2292,6 @@ class CliTests(unittest.TestCase):
                 {
                     "link_changes": plan.link_changes,
                     "container_changes": plan.container_changes,
-                    "bridge_removals": plan.bridge_removals,
                     "snapshot_path": plan.snapshot_path,
                 }
             )
@@ -2739,7 +2366,7 @@ class CliTests(unittest.TestCase):
             text = output.getvalue()
             self.assertEqual(code, 0)
             self.assertIn("Skills: 1/1", text)
-            self.assertIn("Instructions: 0/5", text)
+            self.assertIn("Instructions: 0/4", text)
             self.assertIn("Conflicts: 0", text)
             self.assertIn("Next:", text)
             self.assertNotIn("do not print this", text)
@@ -2771,9 +2398,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 6)
-            self.assertEqual(len(payload["surfaces"]), 9)
-            self.assertEqual(len(payload["skills"]["targets"]), 6)
+            self.assertEqual(len(payload["skills"]["adapters"]), 3)
+            self.assertEqual(len(payload["surfaces"]), 6)
+            self.assertEqual(len(payload["skills"]["targets"]), 3)
             self.assertEqual(payload["inventory"], [])
             self.assertEqual(payload["skills"]["issues"], [])
 
@@ -2801,9 +2428,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 6)
-            self.assertEqual(len(payload["surfaces"]), 9)
-            self.assertEqual(len(payload["skills"]["targets"]), 6)
+            self.assertEqual(len(payload["skills"]["adapters"]), 3)
+            self.assertEqual(len(payload["surfaces"]), 6)
+            self.assertEqual(len(payload["skills"]["targets"]), 3)
             self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"], [])
             self.assertEqual(payload["results"], [])
@@ -2885,39 +2512,6 @@ class CliTests(unittest.TestCase):
             self.assertEqual(payload["changes"][0]["action"], "requires-adopt")
             self.assertTrue(target_root.is_symlink())
 
-    def test_adopt_preview_exposes_blocked_change_as_target_conflict(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            skill = write_skill(repo, "docx", "docx")
-            legacy_root = home / "legacy-antigravity"
-            legacy_root.mkdir(parents=True)
-            (legacy_root / "docx").symlink_to(skill)
-            bridge = home / ".gemini/config/plugins/custom-skills/skills"
-            bridge.parent.mkdir(parents=True)
-            bridge.symlink_to(legacy_root)
-            occupied = home / ".gemini/config/skills/docx"
-            occupied.mkdir(parents=True)
-            applications = root / "Applications"
-            (applications / "Antigravity.app").mkdir(parents=True)
-            output = io.StringIO()
-
-            code = main(
-                ["skills", "adopt", "--json"],
-                home=home,
-                repo_root=repo,
-                stdout=output,
-                which=lambda _: None,
-                applications=applications,
-            )
-
-            payload = json.loads(output.getvalue())
-            self.assertEqual(code, 1)
-            self.assertFalse(payload["ok"])
-            self.assertEqual(payload["code"], "target-conflict")
-            self.assertEqual(payload["changes"]["link_changes"][0]["action"], "blocked")
-            self.assertTrue(bridge.is_symlink())
-
     def test_status_json_contains_tools_surfaces_and_targets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
@@ -2937,39 +2531,10 @@ class CliTests(unittest.TestCase):
             payload = json.loads(output.getvalue())
             self.assertEqual(code, 0)
             self.assertEqual(payload["skills"]["records"][0]["slug"], "pdf")
-            self.assertEqual(len(payload["skills"]["adapters"]), 6)
-            self.assertEqual(len(payload["surfaces"]), 9)
-            self.assertIn(
-                "workbuddy-desktop",
-                {adapter["key"] for adapter in payload["skills"]["adapters"]},
-            )
-            self.assertEqual(len(payload["instructions"]["targets"]), 5)
+            self.assertEqual(len(payload["skills"]["adapters"]), 3)
+            self.assertEqual(len(payload["surfaces"]), 6)
+            self.assertEqual(len(payload["instructions"]["targets"]), 4)
             self.assertEqual(payload["skills"]["issues"], [])
-
-    def test_workbuddy_skill_set_preview_is_non_mutating(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            applications = root / "Applications"
-            write_skill(repo, "pdf", "pdf")
-            (applications / "WorkBuddy.app").mkdir(parents=True)
-            output = io.StringIO()
-
-            code = main(
-                ["skills", "set", "pdf", "--tool", "workbuddy", "--on", "--json"],
-                home=home,
-                repo_root=repo,
-                stdout=output,
-                which=lambda _: None,
-                applications=applications,
-            )
-
-            payload = json.loads(output.getvalue())
-            self.assertEqual(code, 0)
-            self.assertEqual(len(payload["changes"]), 1)
-            self.assertEqual(payload["changes"][0]["adapter_key"], "workbuddy-desktop")
-            self.assertEqual(payload["changes"][0]["action"], "create")
-            self.assertFalse((home / ".workbuddy").exists())
 
     def test_batch_partial_failure_returns_one_with_per_item_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3002,36 +2567,3 @@ class CliTests(unittest.TestCase):
             )
             self.assertTrue((home / ".claude/skills/docx").is_symlink())
             self.assertTrue(occupied.is_dir())
-
-    def test_unavailable_surface_does_not_make_cli_fail(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "pdf", "pdf")
-            output = io.StringIO()
-
-            code = main(
-                [
-                    "skills",
-                    "set",
-                    "pdf",
-                    "--tool",
-                    "antigravity",
-                    "--on",
-                    "--apply",
-                    "--json",
-                ],
-                home=home,
-                repo_root=repo,
-                stdout=output,
-                which=lambda command: "/bin/agy" if command == "agy" else None,
-                applications=root / "Applications",
-            )
-
-            payload = json.loads(output.getvalue())
-            self.assertEqual(code, 0)
-            self.assertTrue(payload["ok"])
-            self.assertIn(
-                "unavailable",
-                {item["code"] for item in payload["results"]},
-            )

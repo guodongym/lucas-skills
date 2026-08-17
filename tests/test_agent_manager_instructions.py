@@ -184,13 +184,10 @@ class InstructionCliContractTests(unittest.TestCase):
                     "codex-desktop",
                     "codex-cli",
                     "copilot-cli",
-                    "antigravity-desktop",
-                    "antigravity-cli",
                 ],
                 "claude": ["claude-desktop", "claude-cli"],
                 "codex": ["codex-desktop", "codex-cli"],
                 "copilot": ["copilot-cli"],
-                "antigravity": ["antigravity-desktop", "antigravity-cli"],
             },
         )
 
@@ -594,7 +591,6 @@ class InstructionPlanTests(unittest.TestCase):
             "claude": "foreign-link",
             "codex": "broken",
             "copilot": "directory",
-            "antigravity": "special",
         }
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -615,7 +611,6 @@ class InstructionPlanTests(unittest.TestCase):
                 "claude": "replace",
                 "codex": "replace",
                 "copilot": "unsupported-target",
-                "antigravity": "unsupported-target",
             },
         )
 
@@ -678,7 +673,6 @@ class InstructionPlanTests(unittest.TestCase):
                     "claude": "no-op",
                     "codex": "blocked",
                     "copilot": "no-op",
-                    "antigravity": "no-op",
                 },
             )
             self.assertIsNone(left.snapshot_path)
@@ -725,6 +719,27 @@ class InstructionPlanTests(unittest.TestCase):
                     scan_instructions(repo, home), ["codex"], True, root / "state"
                 )
             self.assertEqual(raised.exception.code, "invalid-source")
+
+    def test_rejects_scan_missing_fixed_target_with_stable_code_and_message(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            scan = scan_instructions(repo, home)
+            invalid_scan = instructions.InstructionScan(
+                scan.repo_root,
+                scan.source,
+                scan.source_sha256,
+                scan.source_text,
+                scan.targets[:-1],
+                scan.manual_surfaces,
+                scan.issues,
+            )
+
+            with self.assertRaises(InstructionPlanError) as raised:
+                plan_instruction_set(invalid_scan, ["codex"], True, root / "state")
+
+        self.assertEqual(raised.exception.code, "invalid-scan")
+        self.assertEqual(str(raised.exception), "scan does not contain the fixed targets")
 
 
 class InstructionApplyTests(unittest.TestCase):
@@ -790,7 +805,7 @@ class InstructionApplyTests(unittest.TestCase):
                 scan_instructions(repo, home), ["codex"], False, root / "state"
             )
         elif action == "replace":
-            for key in ("shared", "claude", "copilot", "antigravity"):
+            for key in ("shared", "claude", "copilot"):
                 create_instruction_shape(home, repo, key, "enabled")
             target = create_instruction_shape(home, repo, "codex", "conflict")
             plan = plan_instruction_adoption(
@@ -1195,7 +1210,7 @@ class InstructionApplyTests(unittest.TestCase):
             self.assertEqual(restored.read_bytes(), original)
             self.assertEqual(stat.S_IMODE(restored.stat().st_mode), 0o640)
 
-    def test_five_target_adoption_preview_is_read_only_then_converges(self) -> None:
+    def test_four_target_adoption_preview_is_read_only_then_converges(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             repo, home = build_repository(root)
@@ -1203,7 +1218,6 @@ class InstructionApplyTests(unittest.TestCase):
             create_instruction_shape(home, repo, "shared", "enabled")
             create_instruction_shape(home, repo, "claude", "enabled")
             create_instruction_shape(home, repo, "codex", "conflict")
-            create_instruction_shape(home, repo, "antigravity", "indirect-link")
             create_instruction_parents(home, "copilot")
             before = filesystem_manifest(home)
 
@@ -1213,7 +1227,7 @@ class InstructionApplyTests(unittest.TestCase):
 
             self.assertEqual(filesystem_manifest(home), before)
             self.assertFalse(plan.snapshot_path.exists())
-            self.assertEqual(len(plan.changes), 5)
+            self.assertEqual(len(plan.changes), 4)
             result = apply_instruction_plan(
                 plan, home, expected_fingerprint=plan.fingerprint
             )
@@ -1426,7 +1440,7 @@ class InstructionApplyTests(unittest.TestCase):
             repo, home = build_repository(root)
             first = create_instruction_shape(home, repo, "shared", "conflict")
             create_instruction_shape(home, repo, "claude", "conflict")
-            for key in ("codex", "copilot", "antigravity"):
+            for key in ("codex", "copilot"):
                 create_instruction_shape(home, repo, key, "enabled")
             plan = plan_instruction_adoption(
                 scan_instructions(repo, home), root / "state", replace_existing=True
@@ -1539,7 +1553,7 @@ class InstructionApplyTests(unittest.TestCase):
             repo, home = build_repository(root)
             first = create_instruction_shape(home, repo, "shared", "conflict")
             create_instruction_shape(home, repo, "claude", "conflict")
-            for key in ("codex", "copilot", "antigravity"):
+            for key in ("codex", "copilot"):
                 create_instruction_shape(home, repo, key, "enabled")
             original = first.read_bytes()
             plan = plan_instruction_adoption(
@@ -1873,23 +1887,12 @@ class IncompleteTransactionTests(unittest.TestCase):
 
 
 class InstructionTargetTests(unittest.TestCase):
-    def test_builds_only_the_five_approved_targets_in_stable_order(self) -> None:
+    def test_builds_only_the_four_approved_targets_in_stable_order(self) -> None:
         home = Path("/tmp/agent-manager-home")
-        targets = build_instruction_targets(home)
 
         self.assertEqual(
-            [target.key for target in targets],
-            ["shared", "claude", "codex", "copilot", "antigravity"],
-        )
-        self.assertEqual(
-            [target.path for target in targets],
-            [
-                home / ".agents/AGENTS.md",
-                home / ".claude/CLAUDE.md",
-                home / ".codex/AGENTS.md",
-                home / ".copilot/copilot-instructions.md",
-                home / ".gemini/GEMINI.md",
-            ],
+            [target.key for target in build_instruction_targets(home)],
+            ["shared", "claude", "codex", "copilot"],
         )
 
     def test_reports_copilot_desktop_as_a_manual_surface(self) -> None:
@@ -2000,13 +2003,13 @@ class InstructionClassificationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo, home = build_repository(Path(tmp))
             shared = home / ".agents/AGENTS.md"
-            target = home / ".gemini/GEMINI.md"
+            target = home / ".codex/AGENTS.md"
             shared.parent.mkdir()
             target.parent.mkdir()
             shared.symlink_to(repo / "AGENTS.md")
             target.symlink_to(shared)
 
-            status = status_for(scan_instructions(repo, home), "antigravity")
+            status = status_for(scan_instructions(repo, home), "codex")
 
         self.assertEqual(status.state, InstructionState.INDIRECT_LINK)
         self.assertEqual(status.raw_target, str(shared))
@@ -2120,13 +2123,13 @@ class InstructionClassificationTests(unittest.TestCase):
     def test_classifies_symlink_cycle_as_broken(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo, home = build_repository(Path(tmp))
-            target = home / ".gemini/GEMINI.md"
-            other = home / ".gemini/other.md"
+            target = home / ".codex/AGENTS.md"
+            other = home / ".codex/other.md"
             target.parent.mkdir()
             target.symlink_to(other)
             other.symlink_to(target)
 
-            status = status_for(scan_instructions(repo, home), "antigravity")
+            status = status_for(scan_instructions(repo, home), "codex")
 
         self.assertEqual(status.state, InstructionState.BROKEN)
         self.assertIsNone(status.resolved_target)
@@ -2137,7 +2140,7 @@ class InstructionClassificationTests(unittest.TestCase):
             repo, home = build_repository(Path(tmp))
             link = home / ".agents/AGENTS.md"
             regular = home / ".codex/AGENTS.md"
-            broken = home / ".gemini/GEMINI.md"
+            broken = home / ".claude/CLAUDE.md"
             link.parent.mkdir()
             regular.parent.mkdir()
             broken.parent.mkdir()

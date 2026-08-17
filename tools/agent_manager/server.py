@@ -30,8 +30,8 @@ from .skills import (
 )
 
 
-TOOLS = ("claude", "codex", "copilot", "antigravity", "workbuddy")
-INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot", "antigravity")
+TOOLS = ("claude", "codex", "copilot")
+INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot")
 MAX_REQUEST_BODY = 64 * 1024
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; script-src 'self'; "
