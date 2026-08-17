@@ -6,7 +6,7 @@ Agent Manager 删除 Antigravity Desktop/CLI 与 WorkBuddy Desktop 的直接管�
 
 Agent Manager 的直接管理边界收敛为 Claude、Codex、GitHub Copilot。Cursor/Grok 只在 README 中作为现有 Claude 配置的兼容消费者说明，不进入工具枚举、状态矩阵、HTTP 参数、Web 列、库存工具标签或 Instructions 目标。MCP、插件、Hooks、Agents、兼容开关继续由各工具自身管理。
 
-在删除旧 adapter 前，先使用当前版本的安全状态机清理真实 HOME 中可证明属于本仓库的 Antigravity、WorkBuddy Skill 链接和 Antigravity Instructions 链接。普通文件、普通目录、外部链接和无法确认所有权的对象一律保留并报告。
+在删除旧 adapter 前，先把当前版本生成的完整停用 preview 保存到权限为 `0700` 的临时状态目录，再使用安全状态机清理真实 HOME 中可证明属于本仓库的 Antigravity、WorkBuddy Skill 链接和 Antigravity Instructions 链接。专用插件容器必须先绑定 inode、原子移入同级隔离目录并重新校验，之后才能通过已打开的目录描述符删除。普通文件、普通目录、外部链接和无法确认所有权的对象一律保留并报告。
 
 ## 2. 已验证事实
 
@@ -115,14 +115,14 @@ Cursor/Grok 不出现在该表中。它们发现或导入 Claude Skills 是工�
 
 真实 HOME 清理必须发生在旧 adapter 仍可识别所有权时：
 
-1. 重新生成 Antigravity、WorkBuddy 全部 Skill 停用 preview，以及 Antigravity Instructions 停用 preview。
-2. 复核变更数量和每个目标的所有权；Instructions 额外绑定 fresh fingerprint。Skill set 没有 fingerprint 参数，apply 必须依赖当前状态机的目标快照复核并立即读回结果。
-3. 应用只删除直接指向本仓库的软链。
-4. 确认 Antigravity `lucas-skills` 插件 manifest 与当前内置内容字节一致，目录中除 manifest 和空 `skills/` 外没有其他条目。
-5. 只删除经验证的 manifest，并用 `rmdir` 删除空的 manager-owned 插件目录。
-6. 保留 `~/.gemini/config/skills`、`~/.workbuddy/skills` 产品根及其中所有非本仓库内容。
+1. 用 `mktemp -d` 创建权限为 `0700` 的状态目录，在 apply 前原样保存 Antigravity、WorkBuddy 全部 Skill 停用 preview 和 Antigravity Instructions 停用 preview；同时保存每个目标的 `action`、`target`、`expected.kind`、`expected.link_target`、Instructions fingerprint，以及两个产品根的 device/inode 基线。
+2. 复核变更数量和每个目标的所有权；`remove` 只接受直接指向本仓库 source 的软链，`no-op` 只接受 `missing`。Instructions 额外绑定保存的 fresh fingerprint。Skill set 没有 fingerprint 参数，apply 必须依赖当前状态机的目标快照复核，并把 apply 返回的完整 change 集合与保存的 preview 逐项比较。
+3. 应用只删除基线中 action 为 `remove` 且仍保持原始 identity 的软链；原始 `no-op`/`missing` 目标继续缺失。
+4. 打开插件父目录、`lucas-skills` 容器、manifest 与 `skills/` 时使用 `O_NOFOLLOW`，目录额外使用 `O_DIRECTORY`，并用 `fstat` 保存 device/inode。确认 manifest 与当前内置内容字节一致，容器中除 manifest 和空 `skills/` 外没有其他条目。
+5. 在绑定的父目录描述符下创建不可预测、权限为 `0700` 的同级隔离目录，把经验证的容器原子移动进去；重新打开并逐一核对容器、manifest、`skills/` 的 device/inode、类型、内容与目录项后，才通过隔离目录描述符删除内部条目。任一 identity 或内容变化时，尝试原子恢复；无法恢复则保留隔离目录并停止，不删除其中任何条目。
+6. 保留 `~/.gemini/config/skills`、`~/.workbuddy/skills` 产品根及其中所有非本仓库内容，并在清理后核对两个产品根的 device/inode 基线。
 
-清理属于已授权的外部状态操作；仓库实现删除在清理读回成功后进行。若清理完成后实现被放弃或隔离 worktree 无法建立，必须在仍含旧 adapter 的 canonical checkout 重新生成启用 preview 并恢复旧链接，不能把“已停用但未删除代码”作为结束状态。
+清理属于已授权的外部状态操作；仓库实现删除在清理读回成功后进行。若清理完成后实现被放弃或隔离 worktree 无法建立，必须从保存的 pre-cleanup baseline 恢复且只恢复原 action 为 `remove` 的目标；原始 `no-op`/`missing` 目标不得由 `--all --on` 补建。Antigravity CLI 仅在确有对应 `remove` 目标时重建经校验的 manager-owned 容器、manifest 与所需链接。最终目标/link_target 集合必须与保存的 baseline 精确一致，不能把“已停用但未删除代码”作为结束状态。
 
 ### 5.4 CLI、HTTP、Web、库存与文档
 
@@ -139,6 +139,9 @@ Cursor/Grok 不出现在该表中。它们发现或导入 Claude Skills 是工�
 - 清理 preview 的 fingerprint、数量或目标发生变化时停止，不沿用旧值。
 - 普通文件、目录、外部链接、断链和所有权不明确的对象不删除。
 - 清理允许幂等重入：已缺失的受管链接或插件容器视为已完成；只要容器存在但 manifest/目录结构不再匹配，就保留现场并停止。
+- 安全判断必须使用显式异常，不能依赖会被 `PYTHONOPTIMIZE=1/2` 移除的 `assert`；删除动作必须通过已绑定的目录描述符执行，不能在校验后重新按 `Path` 跟随路径删除。
+- 插件容器移入隔离目录后，任一 inode、类型、内容或目录项变化都必须在删除前触发恢复；恢复目标已被占用时保留权限为 `0700` 的隔离现场并报告绝对路径。
+- 回滚只消费权限受限状态目录中保存的 baseline；只恢复原 action 为 `remove` 的精确 target/link_target，最终逐项比较恢复结果，不能使用批量 `--all --on`。
 - 删除旧代码后不再扫描 `.gemini`、`.workbuddy` 或 Antigravity 插件路径。
 - Cursor/Grok 未发现 Claude Skills 时，只在文档中指导用户检查各工具兼容或导入设置；Agent Manager 不替其修复设置。
 - MCP 同名覆盖、重名 Skill、OAuth 或重复进程由工具自身诊断；README 指向 Cursor 设置和 `grok inspect`，Manager 不声称已解决。

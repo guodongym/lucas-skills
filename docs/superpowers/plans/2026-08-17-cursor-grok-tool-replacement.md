@@ -39,122 +39,645 @@
 - Consumes: 当前 `main` 上仍包含 `antigravity`、`workbuddy` adapter 的 Agent Manager。
 - Produces: 旧受管软链数量为零；专用插件容器删除或已确认缺失；产品根和非本仓库内容原样保留。
 
-- [ ] **Step 1: 重新锚定 canonical checkout、记录原生路径基线并刷新 preview**
+- [ ] **Step 1: 重新锚定 canonical checkout，并持久化精确的 pre-cleanup baseline**
 
-Run:
+Run in one shell; if the shell changes, re-export the printed `CLEANUP_STATE_DIR` exactly before continuing:
 
 ```bash
 git status --short --branch
 ls -ld /Users/zhaoguodong/.cursor/skills /Users/zhaoguodong/.grok/skills /Users/zhaoguodong/.grok/AGENTS.md 2>/dev/null || true
-uv run agent-manager skills set --all --tool antigravity --off --json
-uv run agent-manager skills set --all --tool workbuddy --off --json
-uv run agent-manager instructions set --target antigravity --off --json
+
+umask 077
+export CLEANUP_STATE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/lucas-skills-cleanup.XXXXXX")
+chmod 700 "$CLEANUP_STATE_DIR"
+printf 'CLEANUP_STATE_DIR=%s\n' "$CLEANUP_STATE_DIR"
+
+uv run agent-manager skills set --all --tool antigravity --off --json > "$CLEANUP_STATE_DIR/antigravity-skills.preview.json"
+uv run agent-manager skills set --all --tool workbuddy --off --json > "$CLEANUP_STATE_DIR/workbuddy-skills.preview.json"
+uv run agent-manager instructions set --target antigravity --off --json > "$CLEANUP_STATE_DIR/antigravity-instructions.preview.json"
+
+uv run python - <<'PY'
+import json
+import os
+import re
+import stat
+from pathlib import Path
+
+STATE = Path(os.environ["CLEANUP_STATE_DIR"])
+REPOSITORY = Path("/Users/zhaoguodong/Codes/ai-coding/lucas-skills")
+ROOTS = {
+    "antigravity-desktop": Path("/Users/zhaoguodong/.gemini/config/skills"),
+    "antigravity-cli": Path("/Users/zhaoguodong/.gemini/antigravity-cli/plugins/lucas-skills/skills"),
+    "workbuddy-desktop": Path("/Users/zhaoguodong/.workbuddy/skills"),
+}
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def load(name: str) -> dict[str, object]:
+    with (STATE / name).open(encoding="utf-8") as stream:
+        value = json.load(stream)
+    require(isinstance(value, dict), f"{name}: payload must be an object")
+    return value
+
+
+def validate_skills(name: str, adapters: set[str], count: int) -> list[dict[str, object]]:
+    payload = load(name)
+    require(payload.get("ok") is True, f"{name}: preview is not ok")
+    changes = payload.get("changes")
+    require(isinstance(changes, list) and len(changes) == count, f"{name}: unexpected change count")
+    for change in changes:
+        require(isinstance(change, dict), f"{name}: change must be an object")
+        adapter = change.get("adapter_key")
+        require(adapter in adapters, f"{name}: unexpected adapter {adapter!r}")
+        target = Path(str(change.get("target")))
+        root = ROOTS[str(adapter)]
+        require(target.parent == root, f"{name}: target escaped fixed root: {target}")
+        slug = change.get("slug")
+        source = Path(str(change.get("source")))
+        require(source == REPOSITORY / "skills" / str(slug), f"{name}: source is not the canonical repository Skill")
+        expected = change.get("expected")
+        require(isinstance(expected, dict), f"{name}: expected snapshot is missing")
+        action = change.get("action")
+        require(action in {"remove", "no-op"}, f"{name}: unexpected action {action!r}")
+        if action == "remove":
+            link_target = expected.get("link_target")
+            require(expected.get("kind") == "symlink" and isinstance(link_target, str), f"{name}: remove is not an owned symlink")
+            raw = Path(link_target)
+            absolute = raw if raw.is_absolute() else target.parent / raw
+            require(Path(os.path.abspath(absolute)) == source, f"{name}: symlink does not point directly to its source")
+        else:
+            require(expected.get("kind") == "missing" and expected.get("link_target") is None, f"{name}: no-op target is not missing")
+    return changes
+
+
+state_metadata = STATE.stat(follow_symlinks=False)
+require(stat.S_ISDIR(state_metadata.st_mode), "cleanup state is not a directory")
+require(stat.S_IMODE(state_metadata.st_mode) == 0o700, "cleanup state mode is not 0700")
+require(state_metadata.st_uid == os.geteuid(), "cleanup state owner changed")
+
+skills = [
+    *validate_skills("antigravity-skills.preview.json", {"antigravity-desktop", "antigravity-cli"}, 4),
+    *validate_skills("workbuddy-skills.preview.json", {"workbuddy-desktop"}, 2),
+]
+
+instruction_payload = load("antigravity-instructions.preview.json")
+require(instruction_payload.get("ok") is True, "Instructions preview is not ok")
+instruction_changes = instruction_payload.get("changes")
+require(isinstance(instruction_changes, list) and len(instruction_changes) == 1, "Instructions preview must contain one change")
+instruction = instruction_changes[0]
+require(isinstance(instruction, dict), "Instructions change must be an object")
+require(instruction.get("target") == "/Users/zhaoguodong/.gemini/GEMINI.md", "unexpected Instructions target")
+require(instruction.get("source") == str(REPOSITORY / "AGENTS.md"), "unexpected Instructions source")
+require(instruction.get("action") in {"remove", "no-op"}, "unexpected Instructions action")
+instruction_expected = instruction.get("expected")
+require(isinstance(instruction_expected, dict), "Instructions expected snapshot is missing")
+if instruction.get("action") == "remove":
+    require(
+        instruction_expected.get("kind") == "symlink"
+        and instruction_expected.get("link_target") == str(REPOSITORY / "AGENTS.md"),
+        "Instructions remove is not the canonical managed symlink",
+    )
+else:
+    require(
+        instruction_expected.get("kind") == "missing"
+        and instruction_expected.get("link_target") is None,
+        "Instructions no-op target is not missing",
+    )
+fingerprint = instruction_payload.get("fingerprint")
+require(isinstance(fingerprint, str) and re.fullmatch(r"[0-9a-f]{64}", fingerprint) is not None, "invalid Instructions fingerprint")
+
+product_roots = []
+for product_root in (ROOTS["antigravity-desktop"], ROOTS["workbuddy-desktop"]):
+    metadata = product_root.stat(follow_symlinks=False)
+    require(stat.S_ISDIR(metadata.st_mode), f"product root is not a real directory: {product_root}")
+    product_roots.append({"path": str(product_root), "device": metadata.st_dev, "inode": metadata.st_ino})
+
+baseline = {
+    "version": 1,
+    "skills": skills,
+    "instruction": instruction,
+    "instruction_fingerprint": fingerprint,
+    "product_roots": product_roots,
+}
+flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+state_fd = os.open(STATE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+try:
+    baseline_fd = os.open("baseline.json", flags, 0o600, dir_fd=state_fd)
+    with os.fdopen(baseline_fd, "w", encoding="utf-8") as stream:
+        json.dump(baseline, stream, ensure_ascii=False, indent=2)
+        stream.write("\n")
+finally:
+    os.close(state_fd)
+print(f"saved exact cleanup baseline: {STATE / 'baseline.json'}")
+PY
 ```
 
 Expected:
 
 - checkout 为干净的 `main`，已包含批准的 spec 与本 plan；
-- 记录 Cursor/Grok 三个原生路径在实现前是否存在及当前类型，后续只允许状态不变；
-- 两个 Skill preview 的 `ok` 均为 `true`，`changes` 只包含 `remove` 或 `no-op`；
-- Antigravity 目标只位于 `/Users/zhaoguodong/.gemini/config/skills/` 或 `/Users/zhaoguodong/.gemini/antigravity-cli/plugins/lucas-skills/skills/`；
-- WorkBuddy 目标只位于 `/Users/zhaoguodong/.workbuddy/skills/`；
-- Instructions preview 只有 `/Users/zhaoguodong/.gemini/GEMINI.md` 一个 `remove` 或 `no-op`；`remove` 时 `expected.kind` 必须为 `symlink` 且指向本仓库 `AGENTS.md`；
-- 任一目标、动作或 ownership 不符合以上条件时停止。
+- 状态目录是当前用户持有的 `0700` 真目录，三个原始 preview 和 `0600` `baseline.json` 均在任何 apply 前写入；记录其绝对路径到执行报告；
+- Antigravity 恰有 4 个、WorkBuddy 恰有 2 个目标；每项只为 `remove` 的 canonical-repository 直接软链或 `no-op` 的 `missing` 目标；
+- Instructions 恰有一个相同语义的目标，并保存当前 fingerprint；两个产品根保存 device/inode；
+- 任一数量、目标、动作、link_target、ownership 或权限不符合时停止，不执行 Step 2。
 
-- [ ] **Step 2: 应用两个已审查的 Skill 停用计划**
+- [ ] **Step 2: 应用 Skill 停用计划，并与保存的 preview 精确比较**
 
 Run:
 
 ```bash
-uv run agent-manager skills set --all --tool antigravity --off --apply --json
-uv run agent-manager skills set --all --tool workbuddy --off --apply --json
-```
-
-Expected: 两个 payload 均为 `ok: true`；结果只包含 `applied` 或幂等 `no-op`，没有普通文件、普通目录或外部链接被删除。Skill set 没有 fingerprint 参数，由 apply 内部复核目标快照，执行后必须继续完成 Step 4 读回。
-
-- [ ] **Step 3: 幂等清理 Antigravity Instructions 和专用插件容器**
-
-Run:
-
-```bash
-cleanup_instruction_preview=$(uv run agent-manager instructions set --target antigravity --off --json)
-cleanup_instruction_action=$(
-  printf '%s' "$cleanup_instruction_preview" |
-  uv run python -c 'import json, sys; payload=json.load(sys.stdin); changes=payload["changes"]; assert payload["ok"] is True; assert len(changes) == 1; change=changes[0]; assert change["action"] in {"remove", "no-op"}; assert change["target"] == "/Users/zhaoguodong/.gemini/GEMINI.md"; expected=change["expected"]; assert change["action"] == "no-op" or (expected["kind"] == "symlink" and expected["link_target"] == "/Users/zhaoguodong/Codes/ai-coding/lucas-skills/AGENTS.md"); print(change["action"])'
-)
-if [[ "$cleanup_instruction_action" == "remove" ]]; then
-  cleanup_instruction_fingerprint=$(
-    printf '%s' "$cleanup_instruction_preview" |
-    uv run python -c 'import json, sys; print(json.load(sys.stdin)["fingerprint"])'
-  )
-  uv run agent-manager instructions set --target antigravity --off --apply --expect-fingerprint "$cleanup_instruction_fingerprint" --json
-else
-  test ! -e /Users/zhaoguodong/.gemini/GEMINI.md
-fi
+test -n "$CLEANUP_STATE_DIR"
+uv run agent-manager skills set --all --tool antigravity --off --apply --json > "$CLEANUP_STATE_DIR/antigravity-skills.apply.json"
+uv run agent-manager skills set --all --tool workbuddy --off --apply --json > "$CLEANUP_STATE_DIR/workbuddy-skills.apply.json"
 
 uv run python - <<'PY'
+import json
 import os
 from pathlib import Path
-from tools.agent_manager.skills import ANTIGRAVITY_MANIFEST
 
-root = Path("/Users/zhaoguodong/.gemini/antigravity-cli/plugins/lucas-skills")
-if not os.path.lexists(root):
-    print("plugin container already absent")
-else:
-    manifest = root / "plugin.json"
-    skills = root / "skills"
-    assert root.is_dir() and not root.is_symlink()
-    assert manifest.is_file() and not manifest.is_symlink()
-    assert manifest.read_text(encoding="utf-8") == ANTIGRAVITY_MANIFEST
-    assert sorted(item.name for item in root.iterdir()) == ["plugin.json", "skills"]
-    assert skills.is_dir() and not skills.is_symlink() and not any(skills.iterdir())
-    manifest.unlink()
-    skills.rmdir()
-    root.rmdir()
-    print("removed verified manager-owned plugin container")
+STATE = Path(os.environ["CLEANUP_STATE_DIR"])
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+for stem in ("antigravity-skills", "workbuddy-skills"):
+    with (STATE / f"{stem}.preview.json").open(encoding="utf-8") as stream:
+        preview = json.load(stream)
+    with (STATE / f"{stem}.apply.json").open(encoding="utf-8") as stream:
+        applied = json.load(stream)
+    require(applied.get("ok") is True, f"{stem}: apply failed")
+    require(applied.get("changes") == preview.get("changes"), f"{stem}: apply did not use the saved target set")
+    results = applied.get("results")
+    require(isinstance(results, list) and len(results) == len(preview["changes"]), f"{stem}: incomplete results")
+    require(all(item.get("ok") is True and item.get("code") in {"applied", "no-op"} for item in results), f"{stem}: unexpected result")
+print("Skill apply results exactly match the saved previews")
 PY
 ```
 
-Expected: Instructions 为一个 `applied` 或已缺失；插件容器打印 `removed verified...` 或 `already absent`。任何 assertion 失败都保留容器并停止。始终保留 `/Users/zhaoguodong/.gemini/config/skills` 与 `/Users/zhaoguodong/.workbuddy/skills` 产品根。
+Expected: 两个 payload 均为 `ok: true`，且 apply 返回的 `changes` 与对应 raw preview 逐字段相同；结果只包含 `applied` 或幂等 `no-op`。Skill set 没有 fingerprint 参数，由 apply 内部隔离并复核每个软链；比较失败时立即停止并按 Step 5 使用 baseline 补偿。
 
-- [ ] **Step 4: 读回清理结果**
+- [ ] **Step 3: 按保存的 fingerprint 清理 Instructions，并隔离删除专用插件容器**
+
+Run:
+
+```bash
+test -n "$CLEANUP_STATE_DIR"
+cleanup_instruction_action=$(uv run python -c 'import json, os; from pathlib import Path; print(json.loads((Path(os.environ["CLEANUP_STATE_DIR"]) / "baseline.json").read_text())["instruction"]["action"])')
+cleanup_instruction_fingerprint=$(uv run python -c 'import json, os; from pathlib import Path; print(json.loads((Path(os.environ["CLEANUP_STATE_DIR"]) / "baseline.json").read_text())["instruction_fingerprint"])')
+if [[ "$cleanup_instruction_action" == "remove" ]]; then
+  uv run agent-manager instructions set --target antigravity --off --apply --expect-fingerprint "$cleanup_instruction_fingerprint" --json > "$CLEANUP_STATE_DIR/antigravity-instructions.apply.json"
+else
+  uv run python -c 'import os; raise SystemExit(1 if os.path.lexists("/Users/zhaoguodong/.gemini/GEMINI.md") else 0)'
+fi
+
+uv run python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+STATE = Path(os.environ["CLEANUP_STATE_DIR"])
+with (STATE / "baseline.json").open(encoding="utf-8") as stream:
+    baseline = json.load(stream)
+if baseline["instruction"]["action"] == "remove":
+    with (STATE / "antigravity-instructions.preview.json").open(encoding="utf-8") as stream:
+        preview = json.load(stream)
+    with (STATE / "antigravity-instructions.apply.json").open(encoding="utf-8") as stream:
+        applied = json.load(stream)
+    if applied.get("ok") is not True:
+        raise RuntimeError("Instructions apply failed")
+    if applied.get("changes") != preview.get("changes") or applied.get("fingerprint") != baseline["instruction_fingerprint"]:
+        raise RuntimeError("Instructions apply did not use the saved baseline")
+    results = applied.get("results")
+    if not isinstance(results, list) or len(results) != 1 or results[0].get("code") not in {"applied", "no-op"}:
+        raise RuntimeError("Instructions apply returned an unexpected result")
+print("Instructions cleanup matches the saved baseline")
+PY
+
+uv run python - <<'PY'
+import os
+import stat
+import uuid
+from pathlib import Path
+from tools.agent_manager.skills import ANTIGRAVITY_MANIFEST
+
+PARENT = Path("/Users/zhaoguodong/.gemini/antigravity-cli/plugins")
+CONTAINER = "lucas-skills"
+ISOLATED = "container"
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def identity(metadata: os.stat_result) -> tuple[int, int]:
+    return metadata.st_dev, metadata.st_ino
+
+
+def read_bytes(fd: int) -> bytes:
+    os.lseek(fd, 0, os.SEEK_SET)
+    chunks = []
+    while True:
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            return b"".join(chunks)
+        chunks.append(chunk)
+
+
+def close_fd(fd: int | None) -> None:
+    if fd is not None:
+        os.close(fd)
+
+
+try:
+    parent_fd = os.open(PARENT, DIRECTORY_FLAGS)
+except FileNotFoundError:
+    print("plugin container already absent (plugin parent missing)")
+    raise SystemExit(0)
+container_fd = None
+manifest_fd = None
+skills_fd = None
+quarantine_fd = None
+isolated_fd = None
+quarantine_name = None
+quarantine_identity = None
+moved = False
+deletion_started = False
+try:
+    parent_metadata = os.fstat(parent_fd)
+    require(stat.S_ISDIR(parent_metadata.st_mode), "plugin parent is not a directory")
+    parent_identity = identity(parent_metadata)
+    named_parent = os.stat(PARENT, follow_symlinks=False)
+    require(identity(named_parent) == parent_identity, "plugin parent identity changed after opening")
+    try:
+        container_fd = os.open(CONTAINER, DIRECTORY_FLAGS, dir_fd=parent_fd)
+    except FileNotFoundError:
+        print("plugin container already absent")
+    if container_fd is not None:
+        container_metadata = os.fstat(container_fd)
+        require(stat.S_ISDIR(container_metadata.st_mode), "plugin container is not a directory")
+        container_identity = identity(container_metadata)
+
+        manifest_fd = os.open("plugin.json", FILE_FLAGS, dir_fd=container_fd)
+        manifest_metadata = os.fstat(manifest_fd)
+        require(stat.S_ISREG(manifest_metadata.st_mode), "plugin manifest is not a regular file")
+        manifest_identity = identity(manifest_metadata)
+        expected_manifest = ANTIGRAVITY_MANIFEST.encode("utf-8")
+        require(manifest_metadata.st_size == len(expected_manifest), "plugin manifest size changed")
+        require(read_bytes(manifest_fd) == expected_manifest, "plugin manifest content changed")
+
+        skills_fd = os.open("skills", DIRECTORY_FLAGS, dir_fd=container_fd)
+        skills_metadata = os.fstat(skills_fd)
+        require(stat.S_ISDIR(skills_metadata.st_mode), "plugin skills entry is not a directory")
+        skills_identity = identity(skills_metadata)
+        require(sorted(os.listdir(container_fd)) == ["plugin.json", "skills"], "plugin container has external entries")
+        require(os.listdir(skills_fd) == [], "plugin skills directory is not empty")
+
+        quarantine_name = f".lucas-skills-quarantine-{uuid.uuid4().hex}"
+        os.mkdir(quarantine_name, 0o700, dir_fd=parent_fd)
+        quarantine_fd = os.open(quarantine_name, DIRECTORY_FLAGS, dir_fd=parent_fd)
+        quarantine_metadata = os.fstat(quarantine_fd)
+        quarantine_identity = identity(quarantine_metadata)
+        require(stat.S_ISDIR(quarantine_metadata.st_mode), "quarantine is not a directory")
+        require(stat.S_IMODE(quarantine_metadata.st_mode) == 0o700, "quarantine mode is not 0700")
+        require(quarantine_metadata.st_uid == os.geteuid(), "quarantine owner changed")
+        named_quarantine = os.stat(quarantine_name, dir_fd=parent_fd, follow_symlinks=False)
+        require(identity(named_quarantine) == quarantine_identity, "quarantine identity changed after creation")
+        named_container = os.stat(CONTAINER, dir_fd=parent_fd, follow_symlinks=False)
+        require(identity(named_container) == container_identity, "plugin container changed before isolation")
+
+        os.rename(CONTAINER, ISOLATED, src_dir_fd=parent_fd, dst_dir_fd=quarantine_fd)
+        moved = True
+        isolated_fd = os.open(ISOLATED, DIRECTORY_FLAGS, dir_fd=quarantine_fd)
+        require(identity(os.fstat(isolated_fd)) == container_identity, "isolated container identity changed")
+        require(sorted(os.listdir(isolated_fd)) == ["plugin.json", "skills"], "isolated container entries changed")
+
+        check_manifest_fd = os.open("plugin.json", FILE_FLAGS, dir_fd=isolated_fd)
+        try:
+            check_manifest_metadata = os.fstat(check_manifest_fd)
+            require(stat.S_ISREG(check_manifest_metadata.st_mode), "isolated manifest type changed")
+            require(identity(check_manifest_metadata) == manifest_identity, "isolated manifest identity changed")
+            require(read_bytes(check_manifest_fd) == expected_manifest, "isolated manifest content changed")
+        finally:
+            os.close(check_manifest_fd)
+
+        check_skills_fd = os.open("skills", DIRECTORY_FLAGS, dir_fd=isolated_fd)
+        try:
+            check_skills_metadata = os.fstat(check_skills_fd)
+            require(identity(check_skills_metadata) == skills_identity, "isolated skills identity changed")
+            require(os.listdir(check_skills_fd) == [], "isolated skills directory changed")
+        finally:
+            os.close(check_skills_fd)
+
+        close_fd(manifest_fd)
+        manifest_fd = None
+        close_fd(skills_fd)
+        skills_fd = None
+        deletion_started = True
+        os.unlink("plugin.json", dir_fd=isolated_fd)
+        os.rmdir("skills", dir_fd=isolated_fd)
+        require(os.listdir(isolated_fd) == [], "isolated container is not empty after entry deletion")
+        close_fd(isolated_fd)
+        isolated_fd = None
+        close_fd(container_fd)
+        container_fd = None
+        os.rmdir(ISOLATED, dir_fd=quarantine_fd)
+        moved = False
+        named_quarantine = os.stat(quarantine_name, dir_fd=parent_fd, follow_symlinks=False)
+        require(identity(named_quarantine) == quarantine_identity, "quarantine identity changed before removal")
+        os.rmdir(quarantine_name, dir_fd=parent_fd)
+        quarantine_name = None
+        print("removed isolated manager-owned plugin container")
+except BaseException:
+    if moved and not deletion_started and quarantine_fd is not None:
+        try:
+            os.stat(CONTAINER, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            try:
+                os.rename(ISOLATED, CONTAINER, src_dir_fd=quarantine_fd, dst_dir_fd=parent_fd)
+            except OSError:
+                pass
+            else:
+                moved = False
+    if moved and quarantine_name is not None:
+        print(f"plugin container retained without deletion at {PARENT / quarantine_name / ISOLATED}")
+    raise
+finally:
+    close_fd(isolated_fd)
+    close_fd(skills_fd)
+    close_fd(manifest_fd)
+    close_fd(container_fd)
+    close_fd(quarantine_fd)
+    if quarantine_name is not None and not moved:
+        try:
+            named_quarantine = os.stat(quarantine_name, dir_fd=parent_fd, follow_symlinks=False)
+            if quarantine_identity is not None and identity(named_quarantine) == quarantine_identity:
+                os.rmdir(quarantine_name, dir_fd=parent_fd)
+        except (FileNotFoundError, OSError):
+            pass
+    os.close(parent_fd)
+PY
+```
+
+Expected: Instructions 仅在 baseline action 为 `remove` 时使用保存的 fingerprint apply；原始 `no-op` 保持缺失。插件容器缺失时幂等通过；存在时，父目录、容器、manifest、`skills/` 均通过 `O_NOFOLLOW`/`O_DIRECTORY` 与 `fstat` 绑定，容器原子移入唯一 `0700` 同级隔离目录并二次核对后，内部条目才通过 `dir_fd` 删除。任一 identity 或内容变化时不删除：能恢复则恢复，不能恢复则保留隔离现场并停止。整个流程不依赖优化模式会移除的检查语句。
+
+- [ ] **Step 4: 读回清理结果并确认产品根 identity 不变**
 
 Run:
 
 ```bash
 uv run agent-manager skills status --json
 uv run agent-manager instructions status --json
-test ! -e /Users/zhaoguodong/.gemini/antigravity-cli/plugins/lucas-skills
-test -d /Users/zhaoguodong/.gemini/config/skills
-test -d /Users/zhaoguodong/.workbuddy/skills
+
+uv run python - <<'PY'
+import json
+import os
+import stat
+from pathlib import Path
+
+STATE = Path(os.environ["CLEANUP_STATE_DIR"])
+with (STATE / "baseline.json").open(encoding="utf-8") as stream:
+    baseline = json.load(stream)
+if os.path.lexists("/Users/zhaoguodong/.gemini/antigravity-cli/plugins/lucas-skills"):
+    raise RuntimeError("plugin container still exists")
+for expected in baseline["product_roots"]:
+    metadata = os.stat(expected["path"], follow_symlinks=False)
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise RuntimeError(f"product root changed type: {expected['path']}")
+    if (metadata.st_dev, metadata.st_ino) != (expected["device"], expected["inode"]):
+        raise RuntimeError(f"product root identity changed: {expected['path']}")
+print("product root identities match the saved baseline")
+PY
+
 git status --short --branch
 ```
 
-Expected: Antigravity/WorkBuddy target 不再有 `enabled` 或 `legacy`；Antigravity Instructions 为 `missing`；插件目录不存在；两个产品根仍在；仓库仍干净。
+Expected: Antigravity/WorkBuddy target 不再有 `enabled` 或 `legacy`；Antigravity Instructions 为 `missing`；插件目录不存在；两个产品根的 device/inode 与 baseline 相同；仓库仍干净。保留状态目录直至实现成功且不再需要补偿。
 
-- [ ] **Step 5: 仅在实现中止时恢复旧支持**
+- [ ] **Step 5: 仅在实现中止时按 baseline 精确恢复旧状态**
 
-Trigger: Task 1 已完成，但隔离 worktree 无法建立、实现被明确放弃，或后续任务无法继续且用户要求恢复原状。正常实现路径跳过本步骤。
+Trigger: Task 1 已完成，但隔离 worktree 无法建立、实现被明确放弃，或后续任务无法继续且用户要求恢复原状。正常实现路径跳过本步骤。必须使用 Step 1 保存的同一个 `CLEANUP_STATE_DIR`；只恢复原 action 为 `remove` 的 target/link_target，原始 `no-op`/`missing` 不创建。
 
-Run from the same canonical checkout after reviewing the fresh `create`/`no-op` previews:
+Run from the same canonical checkout:
 
 ```bash
-uv run agent-manager skills set --all --tool antigravity --on --json
-uv run agent-manager skills set --all --tool workbuddy --on --json
-uv run agent-manager instructions set --target antigravity --on --json
-uv run agent-manager skills set --all --tool antigravity --on --apply --json
-uv run agent-manager skills set --all --tool workbuddy --on --apply --json
+test -n "$CLEANUP_STATE_DIR"
 
-restore_instruction_preview=$(uv run agent-manager instructions set --target antigravity --on --json)
-restore_instruction_fingerprint=$(
-  printf '%s' "$restore_instruction_preview" |
-  uv run python -c 'import json, sys; payload=json.load(sys.stdin); assert payload["ok"] is True; assert all(change["action"] in {"create", "no-op"} for change in payload["changes"]); print(payload["fingerprint"])'
+uv run python - <<'PY'
+import json
+import os
+import stat
+from collections import defaultdict
+from pathlib import Path
+from tools.agent_manager.skills import ANTIGRAVITY_MANIFEST
+
+STATE = Path(os.environ["CLEANUP_STATE_DIR"])
+ROOTS = {
+    "antigravity-desktop": Path("/Users/zhaoguodong/.gemini/config/skills"),
+    "antigravity-cli": Path("/Users/zhaoguodong/.gemini/antigravity-cli/plugins/lucas-skills/skills"),
+    "workbuddy-desktop": Path("/Users/zhaoguodong/.workbuddy/skills"),
+}
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def readlink_or_missing(target: Path) -> str | None:
+    try:
+        metadata = target.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    require(stat.S_ISLNK(metadata.st_mode), f"target is not a symlink: {target}")
+    return os.readlink(target)
+
+
+with (STATE / "baseline.json").open(encoding="utf-8") as stream:
+    baseline = json.load(stream)
+require(baseline.get("version") == 1, "unsupported cleanup baseline")
+changes = baseline.get("skills")
+require(isinstance(changes, list), "cleanup baseline has no Skill changes")
+removals = [change for change in changes if change.get("action") == "remove"]
+product_identities = {
+    item["path"]: (item["device"], item["inode"])
+    for item in baseline["product_roots"]
+}
+
+cli_removals = [change for change in removals if change.get("adapter_key") == "antigravity-cli"]
+if cli_removals:
+    plugin_parent = Path("/Users/zhaoguodong/.gemini/antigravity-cli/plugins")
+    parent_fd = os.open(plugin_parent, DIRECTORY_FLAGS)
+    try:
+        try:
+            os.mkdir("lucas-skills", 0o755, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+        container_fd = os.open("lucas-skills", DIRECTORY_FLAGS, dir_fd=parent_fd)
+        try:
+            allowed = {"plugin.json", "skills"}
+            require(set(os.listdir(container_fd)).issubset(allowed), "plugin container has external entries")
+            expected_manifest = ANTIGRAVITY_MANIFEST.encode("utf-8")
+            try:
+                manifest_fd = os.open("plugin.json", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=container_fd)
+            except FileNotFoundError:
+                manifest_fd = os.open("plugin.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=container_fd)
+                with os.fdopen(manifest_fd, "wb") as stream:
+                    stream.write(expected_manifest)
+                manifest_fd = os.open("plugin.json", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=container_fd)
+            try:
+                metadata = os.fstat(manifest_fd)
+                require(stat.S_ISREG(metadata.st_mode), "plugin manifest is not a regular file")
+                require(metadata.st_size == len(expected_manifest), "plugin manifest size differs")
+                require(os.read(manifest_fd, len(expected_manifest) + 1) == expected_manifest, "plugin manifest content differs")
+            finally:
+                os.close(manifest_fd)
+            try:
+                os.mkdir("skills", 0o755, dir_fd=container_fd)
+            except FileExistsError:
+                pass
+            skills_fd = os.open("skills", DIRECTORY_FLAGS, dir_fd=container_fd)
+            try:
+                expected_names = {Path(str(change["target"])).name for change in cli_removals}
+                require(set(os.listdir(skills_fd)).issubset(expected_names), "plugin skills directory has external entries")
+            finally:
+                os.close(skills_fd)
+        finally:
+            os.close(container_fd)
+    finally:
+        os.close(parent_fd)
+
+by_adapter: dict[str, list[dict[str, object]]] = defaultdict(list)
+for change in removals:
+    adapter = str(change.get("adapter_key"))
+    require(adapter in ROOTS, f"unexpected adapter in baseline: {adapter}")
+    by_adapter[adapter].append(change)
+
+for adapter, adapter_changes in by_adapter.items():
+    root = ROOTS[adapter]
+    root_fd = os.open(root, DIRECTORY_FLAGS)
+    try:
+        root_metadata = os.fstat(root_fd)
+        if str(root) in product_identities:
+            require(
+                (root_metadata.st_dev, root_metadata.st_ino) == product_identities[str(root)],
+                f"product root identity changed before rollback: {root}",
+            )
+        for change in adapter_changes:
+            target = Path(str(change.get("target")))
+            require(target.parent == root, f"target escaped fixed root: {target}")
+            expected = change.get("expected")
+            require(isinstance(expected, dict), f"missing expected snapshot: {target}")
+            link_target = expected.get("link_target")
+            require(expected.get("kind") == "symlink" and isinstance(link_target, str), f"baseline target was not a symlink: {target}")
+            source = Path(str(change.get("source")))
+            raw = Path(link_target)
+            absolute = raw if raw.is_absolute() else target.parent / raw
+            require(Path(os.path.abspath(absolute)) == source, f"baseline ownership changed: {target}")
+            current = readlink_or_missing(target)
+            if current is None:
+                os.symlink(link_target, target.name, dir_fd=root_fd)
+                current = os.readlink(target.name, dir_fd=root_fd)
+            require(current == link_target, f"refused to overwrite changed target: {target}")
+    finally:
+        os.close(root_fd)
+
+for change in changes:
+    target = Path(str(change["target"]))
+    expected_link = change["expected"]["link_target"] if change["action"] == "remove" else None
+    require(readlink_or_missing(target) == expected_link, f"Skill target differs from baseline: {target}")
+print(f"restored exactly {len(removals)} Skill links; preserved {len(changes) - len(removals)} missing targets")
+PY
+
+rollback_instruction_action=$(uv run python -c 'import json, os; from pathlib import Path; print(json.loads((Path(os.environ["CLEANUP_STATE_DIR"]) / "baseline.json").read_text())["instruction"]["action"])')
+if [[ "$rollback_instruction_action" == "remove" ]]; then
+  uv run agent-manager instructions set --target antigravity --on --json > "$CLEANUP_STATE_DIR/antigravity-instructions.rollback-preview.json"
+  rollback_instruction_fingerprint=$(uv run python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+state = Path(os.environ["CLEANUP_STATE_DIR"])
+baseline = json.loads((state / "baseline.json").read_text())
+preview = json.loads((state / "antigravity-instructions.rollback-preview.json").read_text())
+changes = preview.get("changes")
+if preview.get("ok") is not True or not isinstance(changes, list) or len(changes) != 1:
+    raise RuntimeError("invalid Instructions rollback preview")
+change = changes[0]
+original = baseline["instruction"]
+if change.get("action") != "create" or change.get("target") != original["target"] or change.get("source") != original["expected"]["link_target"]:
+    raise RuntimeError("Instructions rollback preview does not restore the exact baseline link")
+print(preview["fingerprint"])
+PY
+  )
+  uv run agent-manager instructions set --target antigravity --on --apply --expect-fingerprint "$rollback_instruction_fingerprint" --json > "$CLEANUP_STATE_DIR/antigravity-instructions.rollback-apply.json"
+else
+  uv run python -c 'import os; raise SystemExit(1 if os.path.lexists("/Users/zhaoguodong/.gemini/GEMINI.md") else 0)'
+fi
+
+uv run python - <<'PY'
+import json
+import os
+import stat
+from pathlib import Path
+
+STATE = Path(os.environ["CLEANUP_STATE_DIR"])
+with (STATE / "baseline.json").open(encoding="utf-8") as stream:
+    baseline = json.load(stream)
+
+
+def actual_link(target: str) -> str | None:
+    path = Path(target)
+    try:
+        metadata = path.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISLNK(metadata.st_mode):
+        raise RuntimeError(f"restored target is not a symlink: {target}")
+    return os.readlink(path)
+
+
+expected_pairs = sorted(
+    (change["target"], change["expected"]["link_target"] if change["action"] == "remove" else None)
+    for change in baseline["skills"]
 )
-uv run agent-manager instructions set --target antigravity --on --apply --expect-fingerprint "$restore_instruction_fingerprint" --json
+actual_pairs = sorted((target, actual_link(target)) for target, _link in expected_pairs)
+if actual_pairs != expected_pairs:
+    raise RuntimeError(f"Skill target/link set differs from baseline: expected={expected_pairs!r}, actual={actual_pairs!r}")
+
+instruction = baseline["instruction"]
+expected_instruction = instruction["expected"]["link_target"] if instruction["action"] == "remove" else None
+actual_instruction = actual_link(instruction["target"])
+if actual_instruction != expected_instruction:
+    raise RuntimeError("Instructions target/link differs from baseline")
+
+for expected in baseline["product_roots"]:
+    metadata = os.stat(expected["path"], follow_symlinks=False)
+    if not stat.S_ISDIR(metadata.st_mode) or (metadata.st_dev, metadata.st_ino) != (expected["device"], expected["inode"]):
+        raise RuntimeError(f"product root differs from baseline: {expected['path']}")
+
+cli_links = [change for change in baseline["skills"] if change["adapter_key"] == "antigravity-cli" and change["action"] == "remove"]
+container = Path("/Users/zhaoguodong/.gemini/antigravity-cli/plugins/lucas-skills")
+if cli_links and not container.is_dir():
+    raise RuntimeError("required manager-owned CLI plugin container was not restored")
+if not cli_links and os.path.lexists(container):
+    raise RuntimeError("CLI plugin container was recreated without an original remove target")
+print("rollback target/link set exactly matches the saved baseline")
+PY
+
 uv run agent-manager status --json
 ```
 
-Expected: 旧 Skills/Instructions 恢复为 Task 1 前状态，Antigravity CLI enable 自动重建 manager-owned manifest；报告已执行补偿。本 Task 不创建 Git 提交。
+Expected: 只恢复 baseline 中原 action 为 `remove` 的精确链接；原始 `no-op`/`missing` 保持缺失。仅当存在 Antigravity CLI `remove` 时，创建内容固定的 manager-owned manifest、`skills/` 与那些精确链接。Instructions 仅在原 action 为 `remove` 时执行单目标 fingerprint apply。最终比较的 Skill 与 Instructions target/link_target 集合和两个产品根 identity 与 baseline 完全一致。本 Task 不创建 Git 提交。
 
 ---
 
