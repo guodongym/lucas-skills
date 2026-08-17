@@ -10,6 +10,33 @@
 
 ---
 
+## [v0.6.0] - 2026-08-18
+
+**定位**：Agent Manager 收敛为只直接管理 Claude、Codex、GitHub Copilot 三个工具族；Cursor/Grok 保持为复用既有 Claude 配置的兼容消费者，不新增原生写入或独立开关。
+
+### ⚠️ 破坏性管理边界
+
+* 移除 Antigravity Desktop/CLI 与 WorkBuddy Desktop 的 adapter、surface、Instructions、库存、Web 和活动测试合同；CLI/HTTP 不再接受 `antigravity`、`workbuddy`，也不再接受 Antigravity Instructions target。
+* 直接管理范围固定为 3 个 adapters、6 个 surfaces、4 个自动 Instructions targets；仅保留 Copilot Desktop 手工表面。
+
+### 🔄 Cursor/Grok 兼容消费与旧状态清理
+
+* Agent Manager 不写入 `~/.cursor/skills`、`~/.grok/skills` 或 `~/.grok/AGENTS.md`，也不管理二者的 MCP、插件、Hooks、Agents 或兼容开关；Cursor/Grok 的 Claude 配置可见性由各自工具和设置决定。
+* 删除旧 adapter 前，真实 HOME 已按 ownership preview 清理 32 个 Antigravity 与 16 个 WorkBuddy 本仓库 Skill 软链接、1 个 Antigravity Instructions 软链接及经内容和目录结构双重验证的专用插件容器；产品根和非本仓库对象保持不变。
+* Grok smoke 与 Cursor Desktop 新会话 smoke 通过，均从 Claude 来源发现能力；Cursor CLI 未覆盖：当前 PATH 没有 `cursor` 或 `cursor-agent` 命令，未安装、改 PATH、创建软链接或将其写为已支持。
+
+### 🛡️ 安全与验证
+
+* 清理仅删除可证明直接指向本仓库的软链接；普通文件、目录、外部链接、断链或所有权不明对象均保留并停止，preview/fingerprint、冲突、快照、回滚、竞态与恢复语义不变。
+* 最终全量测试 266/266 通过；`uv lock --check`、`git diff --check` 和旧工具、bridge、Cursor/Grok 原生写入路径残留检查均通过。独立 review 为 Critical 0、Important 0。
+
+### 📄 关联文档
+
+* [Cursor/Grok 兼容复用设计](docs/superpowers/specs/2026-08-17-cursor-grok-tool-replacement-design.md)
+* [旧工具支持清理实施计划](docs/superpowers/plans/2026-08-17-cursor-grok-tool-replacement.md)
+
+---
+
 ## [v0.5.1] - 2026-08-12
 
 **定位**：修复 `professional-writing` 的触发边界，在保留独立技术方案写作与正式汇报召回的同时，避免它抢占已有设计、开发或治理流程的文档产物。
