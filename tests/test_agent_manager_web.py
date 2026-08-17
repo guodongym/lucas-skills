@@ -1161,21 +1161,19 @@ class WebPageTests(unittest.TestCase):
             self.javascript.index("textarea.select();"),
         )
 
-    def test_build_topology_returns_five_tool_routes_with_text_status_and_line_semantics(self) -> None:
+    def test_build_topology_returns_three_tool_routes_with_text_status_and_line_semantics(self) -> None:
         state = {
             "repo_root": "/Users/test/Codes/lucas-skills",
             "skills": {
                 "adapters": [
                     {"key": "claude-shared", "tool": "claude", "home": "/Users/test", "root": "/Users/test/.claude/skills"},
-                    {"key": "codex", "tool": "codex", "home": "/Users/test", "root": "/Users/test/.codex/skills"},
-                    {"key": "copilot", "tool": "copilot", "home": "/Users/test", "root": "/Users/test/.copilot/skills"},
-                    {"key": "antigravity", "tool": "antigravity", "home": "/Users/test", "root": "/Users/test/.gemini/antigravity/skills"},
+                    {"key": "codex-shared", "tool": "codex", "home": "/Users/test", "root": "/Users/test/.codex/skills"},
+                    {"key": "copilot-shared", "tool": "copilot", "home": "/Users/test", "root": "/Users/test/.copilot/skills"},
                 ],
                 "targets": [
                     {"tool": "claude", "state": "enabled"},
                     {"tool": "codex", "state": "enabled"},
                     {"tool": "copilot", "state": "conflict"},
-                    {"tool": "antigravity", "state": "disabled"},
                 ],
             },
             "instructions": {
@@ -1183,24 +1181,21 @@ class WebPageTests(unittest.TestCase):
                     {"key": "claude", "state": "enabled", "path": "/Users/test/.claude/CLAUDE.md"},
                     {"key": "codex", "state": "enabled", "path": "/Users/test/.codex/AGENTS.md"},
                     {"key": "copilot", "state": "manual", "path": "/Users/test/.copilot/copilot-instructions.md"},
-                    {"key": "antigravity", "state": "broken", "path": "/Users/test/.gemini/AGENTS.md"},
                 ],
             },
         }
-        result = self._run_exports(
+        topology = self._run_exports(
             f"AgentManagerTest.buildTopology({json.dumps(state)})"
         )
         self.assertEqual(
-            [route["tool"] for route in result],
-            ["claude", "codex", "copilot", "antigravity", "workbuddy"],
+            [route["tool"] for route in topology],
+            ["claude", "codex", "copilot"],
         )
-        self.assertTrue(all(route["skills"]["lineStyle"] == "solid" for route in result))
-        self.assertTrue(all(route["instructions"]["lineStyle"] == "dashed" for route in result))
-        self.assertEqual(result[0]["skills"]["statusLabel"], "正常")
-        self.assertEqual(result[2]["skills"]["statusLabel"], "需要处理")
-        self.assertEqual(result[3]["skills"]["statusLabel"], "未启用")
-        self.assertEqual(result[3]["instructions"]["statusLabel"], "需要处理")
-        self.assertTrue(all(route["skills"]["countLabel"] is None for route in result))
+        self.assertTrue(all(route["skills"]["lineStyle"] == "solid" for route in topology))
+        self.assertTrue(all(route["instructions"]["lineStyle"] == "dashed" for route in topology))
+        self.assertEqual(topology[0]["skills"]["statusLabel"], "正常")
+        self.assertEqual(topology[2]["skills"]["statusLabel"], "需要处理")
+        self.assertTrue(all(route["skills"]["countLabel"] is None for route in topology))
 
     def test_topology_skills_badge_counts_enabled_slugs_against_repository(self) -> None:
         payload = {
@@ -1301,89 +1296,13 @@ class WebPageTests(unittest.TestCase):
         )
         self.assertNotIn("previewInstruction(channel.", self.javascript)
 
-    def test_multi_adapter_routes_are_partial_and_preserve_every_root_and_message(self) -> None:
-        payload = {
-            "repo_root": "/Users/test/Codes/lucas-skills",
-            "surfaces": [
-                {"key": "antigravity-desktop", "installed": True, "detector": "application"},
-                {"key": "antigravity-cli", "installed": True, "detector": "command:agy"},
-            ],
-            "skills": {
-                "adapters": [
-                    {
-                        "key": "antigravity-desktop",
-                        "tool": "antigravity",
-                        "home": "/Users/test",
-                        "root": "/Users/test/.gemini/config/skills",
-                        "surfaces": ["antigravity-desktop"],
-                    },
-                    {
-                        "key": "antigravity-cli",
-                        "tool": "antigravity",
-                        "home": "/Users/test",
-                        "root": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-                        "surfaces": ["antigravity-cli"],
-                    },
-                ],
-                "targets": [
-                    {
-                        "slug": "docx",
-                        "adapter_key": "antigravity-desktop",
-                        "tool": "antigravity",
-                        "state": "enabled",
-                        "path": "/Users/test/.gemini/config/skills/docx",
-                        "message": "desktop route enabled",
-                    },
-                    {
-                        "slug": "docx",
-                        "adapter_key": "antigravity-cli",
-                        "tool": "antigravity",
-                        "state": "disabled",
-                        "path": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills/docx",
-                        "message": "CLI route disabled",
-                    },
-                ],
-            },
-            "instructions": {"targets": []},
-        }
-        topology = self._run_exports(
-            f"AgentManagerTest.buildTopology({json.dumps(payload)})"
-        )
-        route = next(item for item in topology if item["tool"] == "antigravity")
-        self.assertEqual(route["skills"]["status"], "partial")
-        self.assertEqual(route["skills"]["statusLabel"], "部分启用")
-        self.assertEqual(
-            [root["fullPath"] for root in route["skills"]["roots"]],
-            [
-                "/Users/test/.gemini/config/skills",
-                "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-            ],
-        )
-        self.assertEqual(
-            route["skills"]["messages"],
-            ["desktop route enabled", "CLI route disabled"],
-        )
 
-        aggregate = self._run_exports(
-            "AgentManagerTest.aggregateSkillTarget("
-            f"{json.dumps(payload['skills']['targets'])}, 'antigravity')"
-        )
-        self.assertEqual(aggregate["state"], "partial")
-        self.assertEqual(len(aggregate["records"]), 2)
-        self.assertEqual(
-            [record["path"] for record in aggregate["records"]],
-            [
-                "/Users/test/.gemini/config/skills/docx",
-                "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills/docx",
-            ],
-        )
 
     def test_shared_instruction_surfaces_affect_every_family_and_preserve_coverage(self) -> None:
         family_surfaces = {
             "claude": ["claude-desktop", "claude-cli"],
             "codex": ["codex-desktop", "codex-cli"],
             "copilot": ["copilot-cli"],
-            "antigravity": ["antigravity-desktop", "antigravity-cli"],
         }
         shared_surfaces = [
             surface
@@ -1397,7 +1316,6 @@ class WebPageTests(unittest.TestCase):
                 for surface in (
                     "claude-desktop", "claude-cli", "codex-desktop", "codex-cli",
                     "copilot-desktop", "copilot-cli",
-                    "antigravity-desktop", "antigravity-cli",
                 )
             ],
             "skills": {
@@ -1460,7 +1378,7 @@ class WebPageTests(unittest.TestCase):
                 for route in broken
                 if route["tool"] in managed_tools
             ],
-            ["attention", "attention", "attention", "attention"],
+            ["attention", "attention", "attention"],
         )
         self.assertEqual(
             [
@@ -1468,7 +1386,7 @@ class WebPageTests(unittest.TestCase):
                 for route in missing
                 if route["tool"] in managed_tools
             ],
-            ["partial", "partial", "partial", "partial"],
+            ["partial", "partial", "partial"],
         )
         for route in (item for item in broken if item["tool"] in managed_tools):
             roots = route["instructions"]["roots"]
@@ -1493,10 +1411,6 @@ class WebPageTests(unittest.TestCase):
                 "configure Copilot Desktop manually",
             ],
         )
-        workbuddy = next(route for route in broken if route["tool"] == "workbuddy")
-        self.assertEqual(workbuddy["instructions"]["status"], "muted")
-        self.assertEqual(workbuddy["instructions"]["statusLabel"], "手动配置")
-        self.assertIn("自定义指令", workbuddy["instructions"]["messages"][0])
 
     def test_surface_rows_preserve_desktop_and_cli_install_truth(self) -> None:
         surfaces = [
@@ -1514,95 +1428,9 @@ class WebPageTests(unittest.TestCase):
             ],
         )
 
-    def test_workbuddy_topology_is_desktop_only_with_manual_custom_instructions(self) -> None:
-        payload = {
-            "repo_root": "/Users/test/Codes/lucas-skills",
-            "surfaces": [
-                {
-                    "key": "workbuddy-desktop",
-                    "installed": True,
-                    "detector": "application",
-                },
-            ],
-            "skills": {
-                "records": [{"slug": "docx"}],
-                "adapters": [
-                    {
-                        "key": "workbuddy-desktop",
-                        "tool": "workbuddy",
-                        "home": "/Users/test",
-                        "root": "/Users/test/.workbuddy/skills",
-                        "surfaces": ["workbuddy-desktop"],
-                    },
-                ],
-                "targets": [
-                    {
-                        "slug": "docx",
-                        "adapter_key": "workbuddy-desktop",
-                        "tool": "workbuddy",
-                        "state": "disabled",
-                        "path": "/Users/test/.workbuddy/skills/docx",
-                    },
-                ],
-            },
-            "instructions": {"targets": [], "manual_surfaces": []},
-        }
-        topology = self._run_exports(
-            f"AgentManagerTest.buildTopology({json.dumps(payload)})"
-        )
-        route = next(
-            (item for item in topology if item["tool"] == "workbuddy"),
-            None,
-        )
 
-        self.assertIsNotNone(route)
-        self.assertEqual(route["label"], "WorkBuddy")
-        self.assertEqual(
-            route["surfaces"],
-            [
-                {
-                    "key": "workbuddy-desktop",
-                    "label": "Desktop",
-                    "installed": True,
-                },
-            ],
-        )
-        self.assertEqual(
-            route["skills"]["roots"][0]["fullPath"],
-            "/Users/test/.workbuddy/skills",
-        )
-        self.assertEqual(route["instructions"]["status"], "muted")
-        self.assertEqual(route["instructions"]["statusLabel"], "手动配置")
-        self.assertIn("自定义指令", route["instructions"]["messages"][0])
 
-    def test_load_path_rows_keep_repository_and_every_adapter_root(self) -> None:
-        payload = {
-            "repo_root": "/Users/test/Codes/lucas-skills",
-            "skills": {
-                "adapters": [
-                    {"key": "antigravity-desktop", "tool": "antigravity", "home": "/Users/test", "root": "/Users/test/.gemini/config/skills", "surfaces": ["antigravity-desktop"]},
-                    {"key": "antigravity-cli", "tool": "antigravity", "home": "/Users/test", "root": "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills", "surfaces": ["antigravity-cli"]},
-                ]
-            },
-        }
-        rows = self._run_exports(
-            f"AgentManagerTest.loadPathRows({json.dumps(payload)})"
-        )
-        self.assertEqual(
-            [row["path"] for row in rows],
-            [
-                "/Users/test/Codes/lucas-skills/skills",
-                "/Users/test/.gemini/config/skills",
-                "/Users/test/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-            ],
-        )
-        self.assertEqual(
-            [row["displayPath"] for row in rows[1:]],
-            [
-                "~/.gemini/config/skills",
-                "~/.gemini/antigravity-cli/plugins/lucas-skills/skills",
-            ],
-        )
+
 
     def test_copy_path_falls_back_then_guides_manual_copy(self) -> None:
         path = "/Users/test/.claude/skills"
@@ -1671,23 +1499,17 @@ class WebPageTests(unittest.TestCase):
         for heading in ("Skill", "来源", "工具", "状态", "路径", "操作"):
             self.assertIn(f">{heading}</th>", self.page)
 
-    def test_workbuddy_is_available_in_skill_and_inventory_tool_selects(self) -> None:
-        option = '<option value="workbuddy">WorkBuddy</option>'
-        for select_id in ("skills-bulk-tool", "inventory-tool-filter"):
-            select_start = self.page.index(f'<select id="{select_id}"')
-            select_end = self.page.index("</select>", select_start)
-            self.assertIn(option, self.page[select_start:select_end])
 
-    def test_skills_table_has_workbuddy_header_and_six_column_empty_states(self) -> None:
-        self.assertIn('<th scope="col">WorkBuddy</th>', self.page)
-        self.assertIn('<td colspan="6">正在读取 Skills…</td>', self.page)
+
+    def test_skills_table_has_three_tool_headers_and_four_column_empty_states(self) -> None:
+        self.assertIn('id="skills-body"><tr><td colspan="4"', self.page)
         render_skills_start = self.javascript.index("  function renderSkills(payload) {")
         render_skills_end = self.javascript.index(
             "\n  function renderInstructions(payload) {",
             render_skills_start,
         )
         render_skills = self.javascript[render_skills_start:render_skills_end]
-        self.assertIn('cell.setAttribute("colspan", "6")', render_skills)
+        self.assertIn('cell.setAttribute("colspan", "4")', render_skills)
 
     def test_inventory_refresh_preserves_filters_and_clear_restores_defaults(self) -> None:
         for contract in (
@@ -1774,14 +1596,7 @@ class WebPageTests(unittest.TestCase):
         self.assertEqual(result["flags"][2]["raw"], "invalid-skill:missing SKILL.md")
         self.assertEqual(result["flags"][3]["raw"], "mystery")
 
-    def test_inventory_tool_label_recognizes_workbuddy(self) -> None:
-        self.assertEqual(
-            self._run_exports(
-                "typeof AgentManagerTest.inventoryToolLabel === 'function' "
-                "? AgentManagerTest.inventoryToolLabel('workbuddy') : null"
-            ),
-            "WorkBuddy",
-        )
+
 
     def test_filter_inventory_records_combines_all_filters(self) -> None:
         records = self._inventory_filter_records()

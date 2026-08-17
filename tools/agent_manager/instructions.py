@@ -155,18 +155,11 @@ _TARGETS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
             "codex-desktop",
             "codex-cli",
             "copilot-cli",
-            "antigravity-desktop",
-            "antigravity-cli",
         ),
     ),
     ("claude", ".claude/CLAUDE.md", ("claude-desktop", "claude-cli")),
     ("codex", ".codex/AGENTS.md", ("codex-desktop", "codex-cli")),
     ("copilot", ".copilot/copilot-instructions.md", ("copilot-cli",)),
-    (
-        "antigravity",
-        ".gemini/GEMINI.md",
-        ("antigravity-desktop", "antigravity-cli"),
-    ),
 )
 
 
@@ -409,7 +402,7 @@ def _parent_expectation_dict(expected: ParentExpectation) -> dict[str, object]:
 def _home_from_scan(scan: InstructionScan) -> Path:
     statuses = {status.key: status for status in scan.targets}
     if set(statuses) != {key for key, _relative, _surfaces in _TARGETS}:
-        raise InstructionPlanError("invalid-scan", "scan does not contain the five fixed targets")
+        raise InstructionPlanError("invalid-scan", "scan does not contain the fixed targets")
     shared = statuses["shared"].path
     home = _absolute(shared.parent.parent)
     expected = {target.key: target.path for target in build_instruction_targets(home)}

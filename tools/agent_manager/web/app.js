@@ -5,13 +5,6 @@
     { key: "claude", label: "Claude" },
     { key: "codex", label: "Codex" },
     { key: "copilot", label: "Copilot" },
-    { key: "antigravity", label: "Antigravity" },
-    {
-      key: "workbuddy",
-      label: "WorkBuddy",
-      surfaces: ["desktop"],
-      instructionsManual: true,
-    },
   ];
   const ATTENTION_STATES = new Set(["conflict", "error", "broken", "legacy"]);
   const NAV_ICONS = {
@@ -266,7 +259,6 @@
     return [
       ...asArray(changes.link_changes),
       ...asArray(changes.container_changes),
-      ...asArray(changes.bridge_removals),
     ];
   }
 
@@ -662,15 +654,6 @@
           || asArray(target.surfaces).some((surface) => familySurfaceKeys.has(surface))
         )),
       ];
-      const presentedInstructions = family.instructionsManual && toolInstructions.length === 0
-        ? [{
-          key: `${family.key}-custom-instructions`,
-          state: "manual",
-          path: "",
-          surfaces: [`${family.key}-desktop`],
-          message: "WorkBuddy 自定义指令需在应用内的“个性化 → 自定义指令”手工维护。",
-        }]
-        : toolInstructions;
       const skillRoots = pathRows
         .filter((row) => row.tool === family.key)
         .map((row) => {
@@ -685,7 +668,7 @@
           };
         });
       const instructionHome = toolAdapters[0] && toolAdapters[0].home;
-      const instructionRoots = presentedInstructions.map((instruction) => {
+      const instructionRoots = toolInstructions.map((instruction) => {
         const declaredSurfaces = asArray(instruction.surfaces);
         const applicableSurfaces = declaredSurfaces.length
           ? declaredSurfaces.filter((surface) => familySurfaceKeys.has(surface))
@@ -722,11 +705,11 @@
         },
         instructions: {
           lineStyle: "dashed",
-          ...routeStatus(presentedInstructions, true),
+          ...routeStatus(toolInstructions, true),
           roots: instructionRoots,
-          messages: uniqueMessages(presentedInstructions),
+          messages: uniqueMessages(toolInstructions),
           attentionKey: (() => {
-            const flagged = presentedInstructions.filter((target) => (
+            const flagged = toolInstructions.filter((target) => (
               target.state === "conflict" || target.state === "broken"
             ));
             return flagged.length === 1 ? flagged[0].key : null;
@@ -1730,7 +1713,7 @@
     if (!filtered.length) {
       const row = node("tr");
       const cell = node("td", rows.length ? "没有符合筛选条件的 Skill。" : "仓库中没有可展示的 Skill。", "empty-cell");
-      cell.setAttribute("colspan", "6");
+      cell.setAttribute("colspan", "4");
       row.appendChild(cell);
       body.appendChild(row);
       syncWriteBusy();

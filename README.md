@@ -81,14 +81,13 @@ uv run upstream-sync sync --upstream anthropics-skills
 
 ## Agent Manager
 
-Agent Manager 以本仓库 `skills/` 和 `AGENTS.md` 为唯一受管源，统一管理 Skills 与个人约束。它覆盖 Claude、Codex、GitHub Copilot、Antigravity、WorkBuddy 五个工具族、九个检测表面；前置条件是本机已安装 `uv`：
+Agent Manager 以本仓库 `skills/` 和 `AGENTS.md` 为唯一受管源，统一管理 Claude、Codex、GitHub Copilot 三个工具族、六个检测表面。前置条件是本机已安装 `uv`：
 
 ```bash
 uv --version
 ```
 
-管理器通过仓库级 `pyproject.toml` 和 `uv.lock` 使用隔离环境，无需单独安装 PyYAML。
-运行时分别位于 `tools/agent_manager/` 和 `tools/upstream_sync/`。
+管理器通过仓库级 `pyproject.toml` 和 `uv.lock` 使用隔离环境，无需单独安装 PyYAML。运行时分别位于 `tools/agent_manager/` 和 `tools/upstream_sync/`。
 
 ### 命令层级、状态与诊断
 
@@ -113,19 +112,17 @@ Skills 常见状态为 `enabled`、`disabled`、`conflict` 和 `broken`。Instru
 
 ### 工具表面与受管路径
 
-Desktop 和 CLI 分别检测，共五个工具族、九个检测表面。Skills 共使用六个 Skill 根目录：
+Desktop 和 CLI 分别检测，共三个工具族、六个检测表面。Skills 共使用三个 Skill 根目录：
 
 | 工具 | Desktop 检测 | CLI 检测 | Skill 加载位置 |
 | --- | --- | --- | --- |
 | Claude | `Claude.app` 或 `Claude Code.app` | `claude` | `~/.claude/skills/<skill>` |
 | Codex | 优先 `ChatGPT.app`，兼容 `Codex.app` fallback | `codex` | `~/.codex/skills/<skill>` |
 | GitHub Copilot | `GitHub Copilot.app` | `copilot` | `~/.copilot/skills/<skill>` |
-| Antigravity | `Antigravity.app` | `agy` | Desktop：`~/.gemini/config/skills/<skill>`；CLI：`~/.gemini/antigravity-cli/plugins/lucas-skills/skills/<skill>` |
-| WorkBuddy | `WorkBuddy.app` | 无受管 CLI | `~/.workbuddy/skills/<skill>` |
 
-Antigravity CLI 的受管插件清单位于 `~/.gemini/antigravity-cli/plugins/lucas-skills/plugin.json`。`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录、Antigravity CLI 用户目录、Copilot Desktop 内置目录和 WorkBuddy 用户 Skill 根目录 `~/.workbuddy/skills`；这些库存来源不因此变为受管目标。启用 WorkBuddy Skill 后，请新建一个 WorkBuddy 任务验证发现结果；不承诺热重载。
+`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录，以及 Copilot Desktop 内置目录；这些库存来源不因此变为受管目标。
 
-Instructions 共使用五个 Instructions 文件入口，全部以仓库 `AGENTS.md` 为来源：
+Instructions 共使用四个 Instructions 文件入口，全部以仓库 `AGENTS.md` 为来源：
 
 | target | Instructions 目标路径 | 覆盖范围 |
 | --- | --- | --- |
@@ -133,11 +130,8 @@ Instructions 共使用五个 Instructions 文件入口，全部以仓库 `AGENTS
 | `claude` | `~/.claude/CLAUDE.md` | Claude CLI 与 Desktop Code session |
 | `codex` | `~/.codex/AGENTS.md` | Codex CLI 与 ChatGPT Desktop Codex mode |
 | `copilot` | `~/.copilot/copilot-instructions.md` | GitHub Copilot CLI |
-| `antigravity` | `~/.gemini/GEMINI.md` | Antigravity Desktop 与 CLI |
 
 Copilot Desktop 的全局 instructions 由应用 Settings 管理，是手工边界；管理器只显示 manual 状态、复制规则内容和操作说明，不写应用内部数据。
-
-WorkBuddy 的自定义指令位于“个性化 → 自定义指令”，同样保持手工边界，不是 `AGENTS.md` target。
 
 ### Preview、apply 与安全门
 
@@ -181,12 +175,32 @@ uv run agent-manager serve --open
 
 ### 从旧链接迁移
 
-Skills `adopt` 识别 cc-switch 单项链接、Copilot 整目录链接和 Antigravity 旧入口；Instructions `adopt` 识别间接链接、同内容副本、缺失目标和冲突目标。两者都必须先 preview，并且不会卸载 cc-switch 或删除 `~/.cc-switch`。
+Skills `adopt` 识别 cc-switch 单项链接和 Copilot 整目录链接；Instructions `adopt` 识别间接链接、同内容副本、缺失目标和冲突目标。两者都必须先 preview，并且不会卸载 cc-switch 或删除 `~/.cc-switch`。
 
 ```bash
 uv run agent-manager skills adopt --json
 uv run agent-manager instructions adopt --json
 ```
+
+### Cursor/Grok 兼容消费
+
+Cursor 和 Grok 不是 Agent Manager 的受管工具。Agent Manager 不写入
+`~/.cursor/skills`、`~/.grok/skills` 或 `~/.grok/AGENTS.md`，也不管理二者的
+MCP、插件、Hooks、Agents 或兼容开关。
+
+- Cursor 可通过自身的兼容发现或第三方导入复用 Claude Skills；Desktop 与 CLI
+  需要分别新建会话确认，不能从一端成功推断另一端成功。
+- Grok 默认兼容扫描 Claude Skills 与规则；可用 `grok inspect --json` 检查实际来源。
+
+不要再把同一仓库 Skill 链接到 Cursor/Grok 原生目录，否则可能新增重复来源。
+
+官方参考：
+
+- Cursor Skills：<https://cursor.com/cn/docs/skills>
+- Cursor Rules：<https://cursor.com/cn/docs/rules>
+- Cursor CLI：<https://cursor.com/cn/docs/cli/using>
+- Grok Skills/Plugins：<https://docs.x.ai/build/features/skills-plugins-marketplaces>
+- Grok CLI：<https://docs.x.ai/build/cli/reference>
 
 ### 集成后验收门
 

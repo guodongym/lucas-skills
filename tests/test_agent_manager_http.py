@@ -150,7 +150,7 @@ class HttpServerTests(unittest.TestCase):
             root = Path(tmp).resolve()
             repo, home = root / "repo", root / "home"
             write_skill(repo, "docx", "docx")
-            for parent in (".agents", ".claude", ".codex", ".copilot", ".gemini"):
+            for parent in (".agents", ".claude", ".codex", ".copilot"):
                 (home / parent).mkdir(parents=True)
             occupied = home / ".codex/AGENTS.md"
             occupied.write_text("foreign instructions\n", encoding="utf-8")
@@ -226,59 +226,6 @@ class HttpServerTests(unittest.TestCase):
                     applied_replacement["fingerprint"], replace_preview["fingerprint"]
                 )
                 self.assertEqual(applied_replacement["changes"], replace_preview["changes"])
-
-    def test_workbuddy_skill_set_preview_and_apply(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            applications = root / "Applications"
-            skill = write_skill(repo, "docx", "docx")
-            (applications / "WorkBuddy.app").mkdir(parents=True)
-            target = home / ".workbuddy/skills/docx"
-            request = {
-                "skill": "docx",
-                "all": False,
-                "tool": "workbuddy",
-                "on": True,
-                "apply": False,
-            }
-
-            with running_http_server(repo, home, applications) as (
-                _server,
-                _thread,
-                base_url,
-            ):
-                preview_response = self._write_request(
-                    base_url,
-                    "/api/skills/set",
-                    request,
-                )
-                self.assertEqual(preview_response.status, 200)
-                preview = json.loads(preview_response.read())
-                self.assertEqual(len(preview["changes"]), 1)
-                self.assertEqual(
-                    preview["changes"][0]["adapter_key"],
-                    "workbuddy-desktop",
-                )
-                self.assertEqual(preview["changes"][0]["action"], "create")
-                self.assertFalse(target.exists())
-
-                request["apply"] = True
-                applied = json.loads(
-                    self._write_request(base_url, "/api/skills/set", request).read()
-                )
-                self.assertTrue(applied["ok"])
-                self.assertTrue(target.is_symlink())
-                self.assertEqual(target.resolve(), skill.resolve())
-
-                request["tool"] = "unknown"
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(base_url, "/api/skills/set", request)
-                self.assertEqual(caught.exception.code, 400)
-                self.assertEqual(
-                    self._error_payload(caught.exception)["code"],
-                    "invalid-request",
-                )
 
     def test_write_requires_exact_host_origin_and_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -671,51 +618,6 @@ class HttpServerTests(unittest.TestCase):
                             )
                             self.assertNotIn("sensitive-external-file", body)
 
-    def test_manifest_owner_conflict_is_409_but_invalid_manifest_is_500(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            write_skill(repo, "docx", "docx")
-            manifest = home / ".gemini/antigravity-cli/plugins/lucas-skills/plugin.json"
-            manifest.parent.mkdir(parents=True)
-            manifest.write_text('{"name":"other-owner"}\n', encoding="utf-8")
-
-            with running_http_server(
-                repo,
-                home,
-                root / "Applications",
-                lambda command: "/bin/agy" if command == "agy" else None,
-            ) as (_server, _thread, base_url):
-                request = {
-                    "skill": "docx",
-                    "all": False,
-                    "tool": "antigravity",
-                    "on": True,
-                    "apply": True,
-                }
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(base_url, "/api/skills/set", request)
-                self.assertEqual(caught.exception.code, 409)
-                self.assertEqual(
-                    self._error_payload(caught.exception)["code"],
-                    "target-conflict",
-                )
-
-                manifest.write_text("{\n", encoding="utf-8")
-                with self.assertRaises(urllib.error.HTTPError) as caught:
-                    self._write_request(base_url, "/api/skills/set", request)
-                self.assertEqual(caught.exception.code, 500)
-                self.assertEqual(
-                    self._error_payload(caught.exception)["code"],
-                    "internal-error",
-                )
-
-            self.assertFalse(
-                os.path.lexists(
-                    home / ".gemini/antigravity-cli/plugins/lucas-skills/skills/docx"
-                )
-            )
-
     def test_trace_and_connect_are_structured_405_for_static_and_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
@@ -843,46 +745,6 @@ class HttpServerTests(unittest.TestCase):
                 )
                 self.assertTrue((home / ".claude/skills/docx").is_symlink())
                 self.assertTrue(occupied.is_dir())
-
-    def test_conflicted_adoption_preview_is_http_200_with_complete_plan(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp).resolve()
-            repo, home = root / "repo", root / "home"
-            skill = write_skill(repo, "docx", "docx")
-            legacy_root = home / "legacy-antigravity"
-            legacy_root.mkdir(parents=True)
-            (legacy_root / "docx").symlink_to(skill)
-            bridge = home / ".gemini/config/plugins/custom-skills/skills"
-            bridge.parent.mkdir(parents=True)
-            bridge.symlink_to(legacy_root)
-            (home / ".gemini/config/skills/docx").mkdir(parents=True)
-            applications = root / "Applications"
-            (applications / "Antigravity.app").mkdir(parents=True)
-
-            with running_http_server(repo, home, applications) as (
-                _server,
-                _thread,
-                base_url,
-            ):
-                response = self._write_request(
-                    base_url,
-                    "/api/skills/adopt",
-                    {"apply": False},
-                )
-                self.assertEqual(response.status, 200)
-                preview = json.loads(response.read())
-                self.assertFalse(preview["ok"])
-                self.assertEqual(preview["code"], "target-conflict")
-                self.assertEqual(
-                    [item["action"] for item in preview["changes"]["link_changes"]],
-                    ["blocked"],
-                )
-                self.assertEqual(len(preview["changes"]["bridge_removals"]), 1)
-                self.assertEqual(
-                    preview["changes"]["bridge_removals"][0]["path"],
-                    str(bridge),
-                )
-                self.assertTrue(bridge.is_symlink())
 
     def test_target_conflict_is_409_and_preserves_occupied_target(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1070,7 +932,7 @@ class HttpServerTests(unittest.TestCase):
             root = Path(tmp).resolve()
             repo, home = root / "repo", root / "home"
             write_skill(repo, "docx", "docx")
-            for parent in (".agents", ".claude", ".codex", ".copilot", ".gemini"):
+            for parent in (".agents", ".claude", ".codex", ".copilot"):
                 (home / parent).mkdir(parents=True)
             (home / ".codex/AGENTS.md").write_text("foreign\n", encoding="utf-8")
             with running_http_server(repo, home, root / "Applications") as (
@@ -1160,7 +1022,6 @@ class HttpServerTests(unittest.TestCase):
                 "claude": home / ".claude/CLAUDE.md",
                 "codex": home / ".codex/AGENTS.md",
                 "copilot": home / ".copilot/copilot-instructions.md",
-                "antigravity": home / ".gemini/GEMINI.md",
             }
             for target in targets.values():
                 target.parent.mkdir(parents=True)
@@ -1215,7 +1076,6 @@ class HttpServerTests(unittest.TestCase):
                     ("claude", "permission-denied", str(targets["claude"])),
                     ("codex", "not-applied", str(targets["codex"])),
                     ("copilot", "not-applied", str(targets["copilot"])),
-                    ("antigravity", "not-applied", str(targets["antigravity"])),
                 ],
             )
             self.assertTrue(all(not target.exists() for target in targets.values()))
@@ -1233,7 +1093,6 @@ class HttpServerTests(unittest.TestCase):
                 "claude": home / ".claude/CLAUDE.md",
                 "codex": home / ".codex/AGENTS.md",
                 "copilot": home / ".copilot/copilot-instructions.md",
-                "antigravity": home / ".gemini/GEMINI.md",
             }
             for target in targets.values():
                 target.parent.mkdir(parents=True)
@@ -1310,11 +1169,10 @@ class HttpServerTests(unittest.TestCase):
                 "claude": home / ".claude/CLAUDE.md",
                 "codex": home / ".codex/AGENTS.md",
                 "copilot": home / ".copilot/copilot-instructions.md",
-                "antigravity": home / ".gemini/GEMINI.md",
             }
             for target in targets.values():
                 target.parent.mkdir(parents=True, exist_ok=True)
-            for key in ("claude", "copilot", "antigravity"):
+            for key in ("claude", "copilot"):
                 targets[key].symlink_to(source)
             targets["codex"].write_bytes(b"conflicting instructions\n")
             intent = {
@@ -1351,7 +1209,6 @@ class HttpServerTests(unittest.TestCase):
                         "claude": "no-op",
                         "codex": "blocked",
                         "copilot": "no-op",
-                        "antigravity": "no-op",
                     },
                 )
 
@@ -1410,7 +1267,7 @@ class HttpServerTests(unittest.TestCase):
                 self.assertTrue(all(not result["ok"] for result in payload["results"]))
             self.assertFalse(targets["shared"].exists())
             self.assertEqual(targets["codex"].read_bytes(), b"conflicting instructions\n")
-            for key in ("claude", "copilot", "antigravity"):
+            for key in ("claude", "copilot"):
                 self.assertTrue(targets[key].is_symlink())
                 self.assertEqual(targets[key].resolve(), source.resolve())
             self.assertFalse((home / ".local").exists())

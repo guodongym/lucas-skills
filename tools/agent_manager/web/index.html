@@ -82,7 +82,7 @@
             </div>
             <div id="skills-bulk-controls" class="operation-bar" hidden>
               <span id="skills-selection-count">已选择 0 项</span>
-              <label>目标工具<select id="skills-bulk-tool"><option value="all">全部工具</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="copilot">Copilot</option><option value="antigravity">Antigravity</option><option value="workbuddy">WorkBuddy</option></select></label>
+              <label>目标工具<select id="skills-bulk-tool"><option value="all">全部工具</option><option value="claude">Claude</option><option value="codex">Codex</option><option value="copilot">Copilot</option></select></label>
               <button id="skills-enable-button" type="button">启用所选</button>
               <button id="skills-disable-button" type="button">停用所选</button>
               <button id="skills-adopt-button" type="button">接管旧链接</button>
@@ -90,8 +90,8 @@
             <p class="scroll-hint">表格可横向滚动以查看全部工具。</p>
             <div class="table-scroller">
               <table id="skills-table">
-                <thead><tr><th scope="col"><label class="select-all-label"><input id="skills-select-all" type="checkbox"> 全选 Skills</label></th><th scope="col">Claude</th><th scope="col">Codex</th><th scope="col">Copilot</th><th scope="col">Antigravity</th><th scope="col">WorkBuddy</th></tr></thead>
-                <tbody id="skills-body"><tr><td colspan="6">正在读取 Skills…</td></tr></tbody>
+                <thead><tr><th scope="col"><label class="select-all-label"><input id="skills-select-all" type="checkbox"> 全选 Skills</label></th><th scope="col">Claude</th><th scope="col">Codex</th><th scope="col">Copilot</th></tr></thead>
+                <tbody id="skills-body"><tr><td colspan="4">正在读取 Skills…</td></tr></tbody>
               </table>
             </div>
           </div>
@@ -145,8 +145,6 @@
                   <option value="claude">Claude</option>
                   <option value="codex">Codex</option>
                   <option value="copilot">Copilot</option>
-                  <option value="antigravity">Antigravity</option>
-                  <option value="workbuddy">WorkBuddy</option>
                 </select>
               </label>
               <label>来源
