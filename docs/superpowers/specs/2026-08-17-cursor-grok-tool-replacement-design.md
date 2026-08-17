@@ -6,7 +6,7 @@ Agent Manager 删除 Antigravity Desktop/CLI 与 WorkBuddy Desktop 的直接管�
 
 Agent Manager 的直接管理边界收敛为 Claude、Codex、GitHub Copilot。Cursor/Grok 只在 README 中作为现有 Claude 配置的兼容消费者说明，不进入工具枚举、状态矩阵、HTTP 参数、Web 列、库存工具标签或 Instructions 目标。MCP、插件、Hooks、Agents、兼容开关继续由各工具自身管理。
 
-在删除旧 adapter 前，先把当前版本生成的完整停用 preview 保存到权限为 `0700` 的临时状态目录，再使用安全状态机清理真实 HOME 中可证明属于本仓库的 Antigravity、WorkBuddy Skill 链接和 Antigravity Instructions 链接。专用插件容器必须先绑定 inode、原子移入同级隔离目录并重新校验，之后才能通过已打开的目录描述符删除。普通文件、普通目录、外部链接和无法确认所有权的对象一律保留并报告。
+旧 adapter 删除前的一次性真实 HOME 清理已经完成：只移除了可证明属于本仓库的 Antigravity、WorkBuddy Skill 链接、Antigravity Instructions 链接，以及 ownership、manifest 内容和目录结构均通过检查的专用插件容器；产品根与外部内容保持不变。该迁移只作为已完成证据保留，不能从当前或未来 HEAD 重放。
 
 ## 2. 已验证事实
 
@@ -55,9 +55,9 @@ Antigravity 还带有插件 manifest、插件库存扫描和旧目录桥接；Wo
 
 1. Skill 工具枚举收敛为 `claude`、`codex`、`copilot`。
 2. 删除 Antigravity、WorkBuddy 的 adapter、surface、Instructions、库存、专用桥接、UI、文档与活动测试合同。
-3. 在删除旧实现前安全清理真实 HOME 中可证明属于本仓库的旧链接与专用插件容器。
+3. 固化删除旧实现前已完成的真实 HOME 一次性清理证据，并禁止从删除 adapter 后的 HEAD 重放旧迁移。
 4. README 说明 Cursor/Grok 可复用 Claude Skills，其他配置遵循各工具自身的兼容或导入设置；Cursor Desktop/CLI 的实际可见性分别验证，但二者都不属于 Agent Manager 的直接管理目标。
-5. 保持现有 preview、fingerprint、apply、冲突检测、快照与回滚语义。
+5. 保持当前受管工具的 preview、fingerprint、apply、冲突检测、快照与回滚语义。
 
 ### 3.2 非目标
 
@@ -113,16 +113,15 @@ Cursor/Grok 不出现在该表中。它们发现或导入 Claude Skills 是工�
 
 ### 5.3 旧支持清理
 
-真实 HOME 清理必须发生在旧 adapter 仍可识别所有权时：
+该一次性迁移已在旧 adapter 仍可识别 ownership 时执行完成。执行时仓库共有 18 个 Skill，观察结果为：
 
-1. 用 `mktemp -d` 创建权限为 `0700` 的状态目录，在 apply 前原样保存 Antigravity、WorkBuddy 全部 Skill 停用 preview 和 Antigravity Instructions 停用 preview；同时保存每个目标的 `action`、`target`、`expected.kind`、`expected.link_target`、Instructions fingerprint，以及两个产品根的 device/inode 基线。
-2. 复核变更数量和每个目标的所有权；`remove` 只接受直接指向本仓库 source 的软链，`no-op` 只接受 `missing`。Instructions 额外绑定保存的 fresh fingerprint。Skill set 没有 fingerprint 参数，apply 必须依赖当前状态机的目标快照复核，并把 apply 返回的完整 change 集合与保存的 preview 逐项比较。
-3. 应用只删除基线中 action 为 `remove` 且仍保持原始 identity 的软链；原始 `no-op`/`missing` 目标继续缺失。
-4. 打开插件父目录、`lucas-skills` 容器、manifest 与 `skills/` 时使用 `O_NOFOLLOW`，目录额外使用 `O_DIRECTORY`，并用 `fstat` 保存 device/inode。确认 manifest 与当前内置内容字节一致，容器中除 manifest 和空 `skills/` 外没有其他条目。
-5. 在绑定的父目录描述符下创建不可预测、权限为 `0700` 的同级隔离目录，把经验证的容器原子移动进去；重新打开并逐一核对容器、manifest、`skills/` 的 device/inode、类型、内容与目录项后，才通过隔离目录描述符删除内部条目。任一 identity 或内容变化时，尝试原子恢复；无法恢复则保留隔离目录并停止，不删除其中任何条目。
-6. 保留 `~/.gemini/config/skills`、`~/.workbuddy/skills` 产品根及其中所有非本仓库内容，并在清理后核对两个产品根的 device/inode 基线。
+- Antigravity Skill preview 36 项：32 `remove`、4 `no-op`；apply 与读回成功。
+- WorkBuddy Skill preview 18 项：16 `remove`、2 `no-op`；apply 与读回成功。
+- Antigravity Instructions preview 1 项：1 `remove`；fingerprint apply 与读回成功。
+- manager-owned `lucas-skills` 插件容器在 ownership、manifest 内容和“仅含 manifest 与空 `skills/`”结构检查通过后删除。
+- `~/.gemini/config/skills`、`~/.workbuddy/skills` 产品根保留；Cursor/Grok 三个原生路径清理前后均 absent；canonical checkout 保持 clean。
 
-清理属于已授权的外部状态操作；仓库实现删除在清理读回成功后进行。若清理完成后实现被放弃或隔离 worktree 无法建立，必须从保存的 pre-cleanup baseline 恢复且只恢复原 action 为 `remove` 的目标；原始 `no-op`/`missing` 目标不得由 `--all --on` 补建。Antigravity CLI 仅在确有对应 `remove` 目标时重建经校验的 manager-owned 容器、manifest 与所需链接。最终目标/link_target 集合必须与保存的 baseline 精确一致，不能把“已停用但未删除代码”作为结束状态。
+当时的 rollback Step 5 未触发。旧 adapter 删除后，本仓库不再保留可重放的 HOME 清理或恢复算法，也不得从当前或未来 HEAD 重跑该迁移。未来若需恢复或修复外部状态，必须以已记录的精确 removed set（Antigravity 32、WorkBuddy 16、Instructions 1）和届时现场为输入，重新设计并 review 一个独立 migration；不得批量启用或补建原 `no-op`/missing 目标。
 
 ### 5.4 CLI、HTTP、Web、库存与文档
 
@@ -136,12 +135,10 @@ Cursor/Grok 不出现在该表中。它们发现或导入 Claude Skills 是工�
 
 ## 6. 错误处理与安全边界
 
-- 清理 preview 的 fingerprint、数量或目标发生变化时停止，不沿用旧值。
-- 普通文件、目录、外部链接、断链和所有权不明确的对象不删除。
-- 清理允许幂等重入：已缺失的受管链接或插件容器视为已完成；只要容器存在但 manifest/目录结构不再匹配，就保留现场并停止。
-- 安全判断必须使用显式异常，不能依赖会被 `PYTHONOPTIMIZE=1/2` 移除的 `assert`；删除动作必须通过已绑定的目录描述符执行，不能在校验后重新按 `Path` 跟随路径删除。
-- 插件容器移入隔离目录后，任一 inode、类型、内容或目录项变化都必须在删除前触发恢复；恢复目标已被占用时保留权限为 `0700` 的隔离现场并报告绝对路径。
-- 回滚只消费权限受限状态目录中保存的 baseline；只恢复原 action 为 `remove` 的精确 target/link_target，最终逐项比较恢复结果，不能使用批量 `--all --on`。
+- Task 1 是已完成的一次性 migration 记录，不是当前 HEAD 的操作手册；不得复制或重跑其中的旧命令。
+- 已观察结果只证明当时精确的 32+16+1 个 remove 与 4+2 个 no-op/missing；不推导当前 HOME 状态，也不提供通用 rollback 能力。
+- 未来任何外部状态恢复或修复都必须重新盘点现场并走独立 review/preview/授权；不得批量启用旧工具或补建当时缺失的目标。
+- 普通文件、目录、外部链接、产品根和 ownership 不明确的对象继续属于保留边界。
 - 删除旧代码后不再扫描 `.gemini`、`.workbuddy` 或 Antigravity 插件路径。
 - Cursor/Grok 未发现 Claude Skills 时，只在文档中指导用户检查各工具兼容或导入设置；Agent Manager 不替其修复设置。
 - MCP 同名覆盖、重名 Skill、OAuth 或重复进程由工具自身诊断；README 指向 Cursor 设置和 `grok inspect`，Manager 不声称已解决。
@@ -158,7 +155,7 @@ Cursor/Grok 不出现在该表中。它们发现或导入 Claude Skills 是工�
 6. inventory 不再扫描 Antigravity/WorkBuddy 路径；
 7. README 区分“受管工具”和“兼容消费方”；
 8. 当前运行时代码、README 与活动测试没有旧工具支持残留；
-9. 真实 HOME 清理前后只读状态复核；
+9. 已完成的一次性真实 HOME 清理证据与不可重放门禁记录；
 10. `grok inspect --json` 继续能发现 Claude 来源；Cursor Desktop 与 Cursor CLI 分别在新会话中确认 Claude Skills 可见，不创建新链接。若工具兼容开关关闭或版本能力不足，记录为外部环境限制，不增加 Agent Manager 写入兜底。
 
 最终验证至少包括：
@@ -178,5 +175,5 @@ rg -n "antigravity|workbuddy|Antigravity|WorkBuddy" README.md tools tests
 2. Antigravity、WorkBuddy 的当前运行时、UI、库存、README 与活动测试支持全部移除。
 3. Instructions 只保留四个自动目标和 Copilot Desktop 手工表面。
 4. 本次变更不为 Cursor/Grok 新增目录、软链、状态或额外 Skill 来源；既有第三方导入造成的重名/重复由工具自身诊断。README 准确说明其兼容依赖与关闭开关后的限制。
-5. 真实 HOME 中本仓库旧链接及经双重校验的 Antigravity 插件容器完成清理，产品根与非本仓库对象保持原样。
+5. 一次性真实 HOME 清理结果已记录：Antigravity 32、WorkBuddy 16、Instructions 1 个受管链接完成移除，4+2 个 missing 目标未创建；经 ownership/content/shape 检查的 Antigravity 插件容器已删除，产品根与非本仓库对象保持原样。该记录不可从当前或未来 HEAD 重放。
 6. 全量自动测试通过；获批集成后从 canonical checkout 读回 Agent Manager 冲突与问题数为零。Grok 在当前兼容配置下仍能从 Claude 来源发现 Skills/Instructions，Cursor Desktop 与 CLI 分别完成 Claude Skill 可见性 smoke。环境兼容关闭时允许记录为外部限制，但不得把未验证状态写成已支持。
