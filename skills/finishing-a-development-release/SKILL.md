@@ -9,7 +9,7 @@ description: Use when a completed task branch or worktree must be released, espe
 
 - 先锚定 repo/worktree/branch/HEAD/base/upstream/remote 与授权。
 - 默认快速路径；只在可观察风险出现时升级。
-- 授权按动作分别确认：本地集成、push main、push annotated tag、创建平台 Release、删除 worktree、删除 branch 均不得从另一项授权推断。已有明确选择不得重复询问。
+- 按动作核对已有授权：本地集成、push main、push annotated tag、创建平台 Release、删除 worktree、删除 branch 不互相授予权限，但一次明确请求可以覆盖多项。目标、范围和风险未实质变化时沿用已有授权，不因阶段切换、子 Skill 菜单或最终汇报重复询问。
 - force-push、移动已有 tag、覆盖 ignored/untracked 私有配置、删除未合并 branch 各自需要明确、逐项且指向目标的授权；普通 push/tag/cleanup/branch-deletion 授权不涵盖它们。缺少该授权时停止对应动作。
 
 ## Skill Composition
@@ -18,7 +18,7 @@ description: Use when a completed task branch or worktree must be released, espe
 
 **REQUIRED SUB-SKILL:** 有 WIP/fixup/重复/乱序提交或用户明确要求整理历史时，先使用 `git-history-rewrite` 作预检；消费 no-op/改写结论、backup ref、tree identity 与远端安全结果，不复制改写操作或 force-push 规则。
 
-**REUSED CONTRACT:** Use `finishing-a-development-branch`; 消费已确认 base、既有集成选择、merged-tree identity 与所有权/cleanup 结论。编排器只保留既有选择、复用等价树证据、延后但不取消 cleanup；不得重写其集成选项、授权或删除规则。
+**REUSED CONTRACT:** Use `finishing-a-development-branch`; 消费已确认 base、既有集成选择、merged-tree identity 与所有权/cleanup 结论。按本合同复用选择和等价树证据，完成发布前延后 cleanup；仅在尚无集成选择时询问，不重新展示已回答的菜单。清理按下面的 Cleanup Gate 判断，保留对子 Skill 所发现唯一数据和所有权风险的检查。
 
 **REQUIRED SUB-SKILL:** Use `verification-before-completion` before any successful merge, verification, release, or cleanup claim. 消费 fresh 命令、结果与对应 tree identity；不得另建完成标准或以旧日志替代证据。
 
@@ -54,7 +54,7 @@ Provider capability 仅在已知、已认证且有本仓库或 provider 官方�
 
 仅在以下六项均为真时 cleanup：
 
-1. 用户明确授权该 worktree 的 cleanup。
+1. 用户明确授权该 worktree 的 cleanup；包括任务开始时已明确给出的“完成后清理此任务 worktree”授权。最终预检发现对象扩大、唯一数据或风险变化时，暂停对应删除并询问。
 2. 已集成的最终树有一次最终验证，或有符合等价条件的复用验证证据。
 3. main 已按授权 push 并回读。
 4. annotated tag 已按授权 push 并回读。

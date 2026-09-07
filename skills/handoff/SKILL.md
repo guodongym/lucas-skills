@@ -52,7 +52,7 @@ If the request is ambiguous, ask one short question:
 
 > 你是要 `review-spec-plan`、`execute-from-plan`、`review-implementation`、`review-and-fix`，还是 `continue-from-context`？
 
-Do not add low-frequency cleanup or branch deletion workflows unless the user explicitly requests them in this turn.
+Include cleanup or branch deletion only when they belong to the delegated scope and have explicit authorization in the conversation; preserve the authorized objects and conditions.
 
 ## Grounding Steps
 
@@ -77,8 +77,9 @@ Include this section in every handoff package, adapted to the task:
 
 1. 先读取并遵循目标仓库的本地指令，例如 AGENTS.md / CLAUDE.md / GEMINI.md。
 2. 如果当前环境有 Superpowers 或同类 workflow skill，先调用匹配流程；否则按同等工程流程手动执行。
-3. 不要只相信本交接摘要；先重新确认 repo/cwd/worktree/branch/diff，并对照包内 HEAD、工作区快照与未提交 diff 锚点（如有）。发现不一致时视为交接包已过期：停下向发起方确认，不要基于过期快照继续。
-4. 按本包声明的任务边界执行：review 保持只读；review+fix 在编辑任何文件前先报 findings，再做最小修复，再验证。
+3. 先核对 repo/cwd/worktree/branch 是否匹配交接目标或已有明确迁移授权。不一致时定位正确工作区，不得改写交接目标以匹配当前环境；仍无法确认时暂停该目标的执行并向发起方询问。
+4. 目标身份一致后，对照包内 HEAD、工作区快照与未提交 diff 锚点（如有）。可解释且不改变目标、授权和验收的正常进展，更新快照后继续；无法查明或存在实质冲突时，只暂停受影响部分并确认。
+5. 按本包声明的任务边界执行：review 保持只读；review+fix 在编辑任何文件前先报 findings，再做最小修复，再验证。
 ```
 
 Use "must" style only for safety and scope boundaries. Avoid over-constraining the receiving agent's implementation choices. Do not add generic process advice that the target repository's AGENTS.md already covers.
@@ -165,13 +166,13 @@ Use when the receiving agent should implement from an accepted spec or plan.
 Emphasize:
 
 - read the plan, then verify it still matches current repo state
-- include both the implementation plan path and its corresponding spec/design document path in the handoff
-- to infer the spec/design path, check in order: (1) links or "see also" references in the plan file header, (2) DESIGN/SPEC/ARCHITECTURE documents in the plan's own directory, (3) a docs/ search by feature name; if all three miss, mark it as "spec/design: 未提供，接手后向发起方确认" instead of omitting it
+- include the accepted plan path and any corresponding spec/design document that actually exists
+- to locate a referenced spec/design, check the plan header, its directory, then a focused docs/ search. If an independent plan already states the goal, constraints and acceptance, mark "spec/design: 无独立文档，按已批准 plan 执行"; missing a separate file is not a blocker. If a required decision is only in an unavailable reference, identify that gap and pause the dependent work
 - implement only the requested scope
 - keep changes surgical
 - run route-specific validation
-- stop on any externally visible behavior change the plan does not spell out: new dependencies, schema changes, API additions or signature changes, permission or auth boundary changes, and default-behavior changes. Implementation choices inside the plan's stated scope (log wording, local code structure) do not require a stop
-- keep the handoff short; if the plan or spec/design path is missing, make "locate the plan/spec pair" the first task rather than expanding into speculative steps
+- carry forward existing approval from the conversation and linked decisions. Ask before new, unapproved dependencies, schema/API contracts, permission boundaries or default-behavior decisions; omission from the plan alone does not revoke independently recorded approval. Implementation choices inside the accepted scope do not require a stop
+- keep the handoff short; locate missing requirement evidence only when it is needed to decide the next action, without inventing a plan/spec pair
 
 For this route, extend the default `定位` fields (repo/cwd/worktree/branch/HEAD/工作区) with:
 

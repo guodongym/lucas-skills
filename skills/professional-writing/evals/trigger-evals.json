@@ -132,7 +132,7 @@
       "query": "把这些素材写成一篇公众号文章，保留个人叙事风格。",
       "should_trigger": false,
       "route": "other-skill",
-      "reason": "公众号文章应路由到 khazix-writer。"
+      "reason": "通用公众号文章应路由到 human-writing；特定作者风格按用户指定的 Skill。"
     },
     {
       "id": "negative-deep-research",

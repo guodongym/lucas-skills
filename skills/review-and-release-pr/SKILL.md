@@ -17,15 +17,15 @@ Orchestrate an end-to-end PR decision without replacing specialized Skills. Requ
 
 ## Runtime capability gate
 
-Always require `github:github` or readable local `gh`, `code-change-review`, `superpowers:verification-before-completion`, and `finishing-a-development-release`.
+Use available `github:github` or local `gh` for PR evidence, `code-change-review` for independent review, and `superpowers:verification-before-completion` for completion evidence. Load `finishing-a-development-release` when authorized work reaches release; a later phase's missing tool does not block earlier independent work.
 
-Conditionally require:
+Use these specialized Skills when available and relevant:
 
 - `technical-proposal-review` when the PR cites a formal PRD, RFC, spec, or technical proposal.
 - `github:gh-address-comments` and `superpowers:receiving-code-review` when existing review comments, threads, or requested changes exist.
 - `superpowers:systematic-debugging` and `superpowers:test-driven-development` before `FIX`.
 
-Missing capability -> STOP. List the missing capability and affected phase. Do not install, authenticate, copy, skip, or approximate a missing Skill. Capability presence never grants authority.
+A missing Skill name is not a missing capability. Use existing equivalent tools or manual review when they preserve the same authority, review independence and evidence requirements; disclose the substitute. In particular, thread-aware `gh`/API data can replace a missing comment Skill only when identity, current head and resolved/outdated thread state can be verified. If no permitted equivalent exists, pause the affected phase and finish independent work. Do not install, authenticate, broaden access or claim an unavailable check passed. Capability presence never grants authority.
 
 ## States
 
@@ -41,11 +41,11 @@ P0/P1 always block merge. Proven constraint issues (`Violates`) and blocking Q (
 
 Record repository, PR number, PR URL, base branch, base SHA, head SHA, main, Draft/mergeable/check/review state, requirement sources, local worktree/branch/HEAD/WIP exclusions, selected GitHub backend, and runtime capabilities.
 
-Record authority independently for repair, PR comment, push, merge, tag/Release, production, and cleanup. Never infer one action from another.
+Record authority independently for repair, PR comment, push, merge, tag/Release, production, and cleanup. One explicit request may cover several actions; carry it across phases without asking again. Authority for one action alone does not authorize another.
 
 Probe the connector first. A private-repository 404 or NOT_FOUND with working identity is a connector_scope_gap, not proof of logout. Probe `gh auth status` and the target repository read-only. Lock one main GitHub backend for canonical PR facts and writes. Another backend may supply thread-aware read-only data only after repository, PR number, and head SHA match.
 
-Both GitHub backends unavailable -> STOP. Preserve the original errors and do not log in, refresh credentials, or change GitHub App installation scope.
+Both GitHub backends unavailable -> pause remote-dependent work. Continue any useful local review, label stale or missing remote evidence, and do not merge/release without the required fresh facts. Preserve original errors; do not log in, refresh credentials, or change GitHub App installation scope.
 
 Screen the anchored diff for the `code-change-review` rubric's Special attention triggers before Gate 1. This preliminary change inventory is not an independent correctness review; mark unchecked architecture, consumers and functions explicitly. Preserve observed changes in the attention report even if Gate 1 stops.
 
@@ -63,7 +63,7 @@ On STOP, deliver the gate result and preliminary Special attention through the c
 
 ## Phase 2: Verify existing review independently
 
-When existing review comments, threads, or requested changes exist, **REQUIRED SUB-SKILL:** use `github:gh-address-comments` for thread-aware state and `superpowers:receiving-code-review` to verify each actionable claim.
+When existing review comments, threads, or requested changes exist, use `github:gh-address-comments` for thread-aware state and `superpowers:receiving-code-review` to verify each actionable claim, or the equivalent path established by the runtime capability gate.
 
 Classify unresolved, resolved, outdated, informational, and duplicate threads. For each claim, verify evidence, reachability, impact, controls, root cause, and whether the proposed repair actually closes it. Keep these results separate from independent findings.
 
@@ -111,7 +111,7 @@ Coverage: preliminary at Gate 1 | independent review complete
 
 Refresh PR body, base SHA, head SHA, requirement and approval sources, main, review state, and checks. Prove the tested tree is the merge tree or has verifiable tree identity. Any material base SHA, head SHA, requirement, approval, main, or checks change invalidates affected evidence, including impact and constraint conclusions. Refresh the attention summary/comment when its content or anchored version changes.
 
-Only the latest independent review PASS may enter `finishing-a-development-release`, and only for already authorized push, merge, and release actions. cleanup always requires separate authority.
+Only the latest independent review PASS may enter `finishing-a-development-release`, and only for already authorized push, merge, and release actions. Cleanup needs authority for the concrete cleanup objects; an earlier explicit request covering them is sufficient while scope and risk remain unchanged.
 
 ## State summary
 

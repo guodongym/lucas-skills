@@ -9,7 +9,7 @@ description: Use when the user asks to review implemented code changes in a work
 
 Review implemented changes, not design intent alone. Assess impact and compliance with approved scope/architecture separately from reachable defects. Verify author and reviewer claims against evidence; distrust claims, not people. Say plainly when no supported defect exists.
 
-Default to read-only work. Do not implement fixes, modify tests, mutate Git state, publish comments, resolve threads, or write external systems unless the user separately authorizes that work.
+Default to read-only work on the reviewed checkout and external systems. Fixes, test edits, reviewed-checkout Git mutations, comments and thread resolution require authority for those actions; use approval already supplied in the conversation without asking again. Temporary isolated evidence retrieval follows the rule below.
 
 Before reviewing, read:
 
@@ -57,7 +57,7 @@ An explicit file range intersects the selected version snapshot. Read outside th
 
 For untracked files, obey ignore, secret, and local-configuration rules. Do not inspect ignored credentials or private configuration. If a non-ignored file cannot be classified safely, exclude it and state the coverage gap.
 
-For PRs, prefer live API or `gh pr diff` evidence. Do not fetch by default. If required objects are unavailable, mark the call-chain or test conclusion unverified; request authorization before fetch, clone, or other persistent Git writes.
+For PRs, prefer live API or `gh pr diff` evidence. When necessary objects are unavailable, an isolated temporary clone/fetch of the authorized repository may retrieve them without another approval, provided the reviewed checkout, its index/refs and unrelated WIP remain unchanged. Honor an explicit no-write/no-network restriction. If no permitted retrieval path works, mark affected conclusions unverified and continue independent review; ask only for access or mutations outside existing authority.
 
 ## 2. Establish the baseline
 
@@ -138,7 +138,7 @@ Use read-only Git inspection such as `status`, `diff`, `log`, `show`, and `merge
 3. Limit expected writes to ignored tool caches, ignored build outputs, or operating-system temporary paths.
 4. Re-read source, index, refs, and non-ignored untracked state afterward; they must match the baseline.
 
-Do not remove pre-existing ignored or untracked content. Skip tests with uncertain side effects, external-resource writes, Git writes, or unavailable prerequisites and mark the affected conclusion unverified.
+Do not remove pre-existing ignored or untracked content. Skip tests with uncertain side effects, external-resource writes, reviewed-checkout Git writes, or unavailable prerequisites and mark the affected conclusion unverified. Isolated evidence retrieval is not permission to relax these test boundaries.
 
 ## 5. Verify the smallest decisive surface
 
