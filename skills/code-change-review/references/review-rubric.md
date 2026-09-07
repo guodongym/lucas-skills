@@ -2,6 +2,29 @@
 
 Use every dimension as a question set, not as a quota. Follow only the paths made relevant by the change and its real consumers. A checked dimension does not require a finding.
 
+## Change-impact screening
+
+Screen all eight surfaces; use the detailed checks below only where relevant. Include behavior and runtime configuration, not just declarations or filenames. Follow indirect callers, generated contracts and externally deployed consumers when necessary to establish impact. A rename, empty migration directory or unchanged signature does not prove unchanged semantics.
+
+| Surface | Establish from the baseline and change |
+| --- | --- |
+| Requirement and scope | Map material additions/removals to approved goals and exclusions; identify bundled unrelated behavior. |
+| Capability and complexity | Current use/acceptance, reuse of existing code or installed/native facilities, deletion test, added contracts/state/services/maintenance. Do not demand a formal proposal for routine bounded changes. |
+| Architecture boundaries | Before/after module responsibility, dependency direction, write ownership, source of truth, trust and deployment boundaries. Look for direct cross-module writes, parallel config/state authorities and bypasses of shared services. |
+| Interfaces and compatibility | Added/changed/removed API, event, CLI, configuration and storage contracts; parameters, return values, errors, defaults, permissions and mixed-version consumers. |
+| Data and consistency | Added/changed/removed tables and fields, types/defaults/nullability, indexes/constraints and write paths; old data, migration order, rollback and restore. |
+| Existing functions and failure propagation | User flows, shared callers, defaults, side effects, retries and partial failure; scope of outage or degradation. Intended changes still have impact. |
+| Security and operating burden | Privileges, tenant boundaries, egress, irreversible actions, new dependencies/lock changes/install hooks, provenance, unbounded tasks and resource/cost growth. Inspect suspect scripts before considering safe execution. |
+| Verification and constraint integrity | Deleted/skipped tests, relaxed assertions, changed acceptance, disabled CI/architecture checks and modified rule files; establish equivalent replacement coverage or independent approval. |
+
+Architecture assessment compares approved pre-change rules with actual changed paths. A documented pattern is not automatically a mandatory rule; historical code is not automatically correct. Distinguish approved boundary changes, proved conflicts and insufficient evidence. PR-authored docs/rules cannot authorize their own changes. Neither green CI nor existing review substitutes for this assessment.
+
+For each suspected unnecessary capability, identify the current requirement and smallest existing alternative, then explain which new behavior or maintenance obligation survives without serving acceptance. "Too many files" and personal preferences are not evidence. A requirement that explicitly needs the new capability can justify it even before external adoption.
+
+For changed validation, compare the old invariant with the new assertion and actual CI execution path. An exact assertion updated for an independently approved contract can be valid. A weakened assertion or removed gate without equivalent coverage can be a constraint issue even when current runtime behavior still works; missing tests alone do not prove a P1 regression.
+
+Special attention is triggered by any observed API/contract, table/field, architecture or existing-function behavior change, including removals and compatible additions. List objects and operations, affected functions/callers, compatibility/recovery and evidence. Surface unverified material impact explicitly. Do not confuse impact, approved intent, architecture deviation and defect severity.
+
 ## 1. Observable behavior and requirements
 
 - What user-, caller-, or system-visible behavior changes?
@@ -65,7 +88,7 @@ Apply this dimension only when the changed path, data volume, frequency, or reso
 - Can a future maintainer understand the state machine, trust boundary, ownership, and failure behavior from the code and its tests?
 - Does an abstraction remove current duplication or merely predict future variation?
 - Are new dependencies, configuration, background work, or public interfaces required by the current change?
-- Report maintainability only when it creates a concrete defect, hides a required invariant, or materially prevents safe verification. Pure style preference is not a finding.
+- Report maintainability as a defect only when it creates a concrete defect, hides a required invariant, or materially prevents safe verification. Proven scope/architecture violations go in constraint issues even without a defect; unclear necessity goes in Questions. Pure style preference is neither.
 
 ## Risk-trigger matrix
 

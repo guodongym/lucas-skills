@@ -103,8 +103,8 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         )
         self.assertEqual(manifest["skill_name"], "code-change-review")
         evals = manifest["evals"]
-        self.assertEqual(len(evals), 24)
-        self.assertEqual(len({case["id"] for case in evals}), 24)
+        self.assertEqual(len(evals), 36)
+        self.assertEqual(len({case["id"] for case in evals}), 36)
 
         required = {
             "id",
@@ -128,7 +128,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         triggers = [case for case in evals if case["kind"] == "trigger"]
         behavior = [case for case in evals if case["kind"] == "behavior"]
         self.assertEqual(len(triggers), 12)
-        self.assertEqual(len(behavior), 12)
+        self.assertEqual(len(behavior), 24)
         self.assertEqual(
             {case["route"] for case in triggers},
             {"code-change-review", "other-skill", "mixed"},
@@ -143,9 +143,13 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
 
         categories = [case["category"] for case in behavior]
         self.assertEqual(categories.count("bug"), 4)
-        self.assertEqual(categories.count("safe"), 4)
-        self.assertEqual(categories.count("control"), 4)
-        bug_ids = {case["id"] for case in behavior if case["category"] == "bug"}
+        self.assertEqual(categories.count("safe"), 8)
+        self.assertEqual(categories.count("control"), 8)
+        self.assertEqual(categories.count("constraint"), 4)
+        bug_ids = {
+            case["id"] for case in behavior
+            if case["category"] in {"bug", "constraint"}
+        }
         safe_controls = {
             case["control_for"]
             for case in behavior

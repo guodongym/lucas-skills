@@ -1,0 +1,88 @@
+{
+  "skill_name": "review-and-release-pr",
+  "evals": [
+    {
+      "id": "constraint-stop",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills, or execute writes. Describe the next state and exact proposed comment behavior in Chinese. All required runtime capabilities are available, and phase progress is specified per scenario. PR example/app#42, base b1, head h1. Requirement initially passed but implementation review now proves new background services violate the approved synchronous-only boundary. Review: High, Violates, Not ready, C-01 with exact requirement and deploy.yaml:12 evidence. P0/P1=0; no missing verification. User authorized bounded bug fixes, comments and merge, but no new architecture decision.",
+      "expected_output": "STOP, no FIX or merge; report and comment special attention.",
+      "files": [],
+      "assertions": [
+        "Maps the confirmed constraint violation to STOP despite zero P0/P1.",
+        "Does not auto-remove architecture or reinterpret the requirement under bounded bug-fix authority.",
+        "Proposes a Special attention PR comment with architecture changes, C-01 and anchored base/head; no real writes."
+      ]
+    },
+    {
+      "id": "approved-high",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills, or execute writes. Describe the next state and exact proposed comment behavior in Chinese. All required runtime capabilities are available, and phase progress is specified per scenario. PR example/app#43 base b1 head h2. Independent owner approval D-17 covers new /schedules API, jobs table and worker. Review: High, Conforms, Ready; no findings/questions; all necessary verification passed for the final merge tree. User authorized PR comments and merge. No existing workflow comment.",
+      "expected_output": "PASS, mandatory special-attention comment then authorized handoff.",
+      "files": [],
+      "assertions": [
+        "High alone does not cause STOP or repeat architecture approval.",
+        "Proposes an explicit API/table/architecture Special attention comment even with Ready and zero defects.",
+        "Includes evidence/verification boundaries and readback before claiming notification; no real writes."
+      ]
+    },
+    {
+      "id": "unknown-scope",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills, or execute writes. Describe the next state and exact proposed comment behavior in Chinese. All required runtime capabilities are available, and phase progress is specified per scenario. PR example/app#44 base b1 head h3. Review: Undetermined impact with known direct-write path; Needs decision; Unable to determine. No architecture document; external consumer code and required owner scope decision unavailable. Q-01 is blocking; no confirmed violation or defect. User asked review only, no comment or repair authority.",
+      "expected_output": "STOP with draft, unknown stays unknown.",
+      "files": [],
+      "assertions": [
+        "Maps blocking decision to STOP/Unable to determine without inventing Violates or P1.",
+        "Produces or proposes the complete Special attention comment draft but no publication.",
+        "Names missing consumer/scope evidence and known existing-function effects."
+      ]
+    },
+    {
+      "id": "compatible-field-comment",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills, or execute writes. Describe the next state and exact proposed comment behavior in Chinese. All required runtime capabilities are available, and phase progress is specified per scenario. PR example/app#45 base b1 head h4. Review: Medium, Conforms, Ready; accounts.display_note added as optional nullable field for an approved support view. Old/new reads/writes and rollback verified; no defects or questions. User says: review and directly post these change reminders as PR comments; this is existing authority. One old workflow comment exists on head h0.",
+      "expected_output": "PASS and post field warning despite Medium/Ready.",
+      "files": [],
+      "assertions": [
+        "Does not suppress the field warning because impact is Medium or no defect exists.",
+        "Uses existing explicit comment authority without asking again.",
+        "Old head h0 does not suppress a new head h4 comment; require readback and do not claim simulated publication."
+      ]
+    },
+    {
+      "id": "same-head-comment",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills, or execute writes. Describe the next state and exact proposed comment behavior in Chinese. All required runtime capabilities are available, and phase progress is specified per scenario. PR example/app#45 base b1 head h4. Current Medium/Conforms/Ready assessment and accounts.display_note summary are identical to a verified existing comment previously authored by this workflow, including verification status and scope. Its URL is supplied: https://github.com/example/app/pull/45#issuecomment-123. User authorized comments.",
+      "expected_output": "Reuse identical verified comment without another write.",
+      "files": [],
+      "assertions": [
+        "Compares repository/PR, base/head and substantive summary, not merely PR number.",
+        "Reuses the verified identical workflow comment and surfaces its link; no duplicate proposed write."
+      ]
+    },
+    {
+      "id": "early-stop-comment-failure",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills, or execute writes. Describe the next state and exact proposed comment behavior in Chinese. All required runtime capabilities are available, and phase progress is specified per scenario. PR example/app#46 base b1 head h5. At Gate 1 a new public endpoint and a removed legacy table are already observed from the diff; the declared goal contradicts the owner request. Deep implementation review has not run. User authorized comments. A previous workflow comment has same base/head but different content (no table deletion). The simulated publish attempt returns HTTP 403; no comment ID or readback is available.",
+      "expected_output": "STOP, preliminary special attention and disclose failed publication.",
+      "files": [],
+      "assertions": [
+        "Retains preliminary endpoint/table deletion warning despite stopping before Phase 3; does not claim full architecture/function coverage.",
+        "Same head with materially different summary is not treated as an identical comment.",
+        "Reports publication failure, presents the comment draft and does not claim posted/notified or change credentials."
+      ]
+    },
+    {
+      "id": "bounded-defect-fix",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied facts; do not invoke GitHub, gh, other skills, or execute writes. All runtime capabilities are available. PR example/app#47 base b1 head h6. Independent review has completed: Medium impact, Conforms, Not ready due only to P1-01: an arithmetic typo in a private reporting helper violates the unchanged accepted count behavior. The actual path and failing check prove the defect. A one-operator correction restores that behavior and introduces no API, Schema, dependency, product-semantics decision, ownership or irreversible change. No C or blocking Q. User authorized bounded fixes and PR comments but not merge. Describe the next state, comment behavior and verification sequence in Chinese.",
+      "expected_output": "FIX after disclosure and attention; debugging/TDD then new-head independent review, no merge.",
+      "files": [],
+      "assertions": [
+        "Does not classify a bounded implementation bug as an additional scope violation or force an unnecessary owner decision.",
+        "Selects FIX only within supplied authority and direct scope; discloses P1 and existing-function Special attention.",
+        "Requires debugging/TDD and new-head independent review before any release; does not infer merge authority."
+      ]
+    }
+  ]
+}

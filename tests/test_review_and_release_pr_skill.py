@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -21,7 +22,7 @@ class ReviewAndReleasePrSkillTests(unittest.TestCase):
     def test_minimal_layout(self):
         self.assertEqual(
             {path.name for path in SKILL_ROOT.iterdir()},
-            {"SKILL.md", "agents"},
+            {"SKILL.md", "agents", "evals"},
         )
         self.assertEqual(
             {path.name for path in (SKILL_ROOT / "agents").iterdir()},
@@ -67,6 +68,24 @@ class ReviewAndReleasePrSkillTests(unittest.TestCase):
         self.assertGreaterEqual(len(interface["short_description"]), 25)
         self.assertLessEqual(len(interface["short_description"]), 64)
         self.assertIn("$review-and-release-pr", interface["default_prompt"])
+
+    def test_behavior_cases_are_independently_runnable(self):
+        manifest = json.loads(
+            (SKILL_ROOT / "evals" / "evals.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["skill_name"], "review-and-release-pr")
+        cases = manifest["evals"]
+        self.assertEqual(len({case["id"] for case in cases}), len(cases))
+        self.assertTrue(cases)
+        for case in cases:
+            self.assertEqual(case["kind"], "behavior")
+            self.assertTrue(case["prompt"])
+            self.assertTrue(case["expected_output"])
+            self.assertTrue(case["assertions"])
+            for relative in case["files"]:
+                fixture = (SKILL_ROOT / relative).resolve()
+                self.assertTrue(fixture.is_relative_to(SKILL_ROOT.resolve()))
+                self.assertTrue(fixture.is_file())
 
 
 if __name__ == "__main__":
