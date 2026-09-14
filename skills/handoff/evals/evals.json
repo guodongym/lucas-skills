@@ -14,7 +14,12 @@
         "The output references the provided plan path and tells the receiving agent to verify the current repo state.",
         "The output includes the receiving agent protocol or equivalent workflow guardrails.",
         "The output defines a findings-oriented return format with evidence, severity, and verdict.",
-        "Includes a one-to-two sentence why for the work that states motivation or trigger — not a restatement of the task itself, not a full background narrative; points to the plan/spec background section when one exists."
+        "Includes a one-to-two sentence why for the work that states motivation or trigger — not a restatement of the task itself, not a full background narrative; points to the plan/spec background section when one exists.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
       ]
     },
     {
@@ -31,7 +36,12 @@
         "The output includes scope boundaries and stop conditions for new dependencies, schema changes, core API changes, or broad behavior changes.",
         "The output includes acceptance criteria and validation suggestions.",
         "The output defines a return format covering changes, files changed, verification, deviations from plan, and remaining risks.",
-        "Includes a one-to-two sentence why for the work that states motivation or trigger — not a restatement of the task itself, not a full background narrative; points to the plan/spec background section when one exists."
+        "Includes a one-to-two sentence why for the work that states motivation or trigger — not a restatement of the task itself, not a full background narrative; points to the plan/spec background section when one exists.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
       ]
     },
     {
@@ -46,7 +56,12 @@
         "The output instructs the receiving agent to review the full current diff, not only the last commit or summary.",
         "The output asks for user-visible or end-to-end behavior checks.",
         "The output includes docs/spec/plan drift as part of the review surface.",
-        "The output keeps the review read-only and requires findings first with file or line evidence when available."
+        "The output keeps the review read-only and requires findings first with file or line evidence when available.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
       ]
     },
     {
@@ -61,7 +76,12 @@
         "The output requires an initial review findings pass before any edits.",
         "The output constrains fixes to confirmed issues inside the requested scope and forbids unrelated refactoring.",
         "The output requires focused validation after fixes.",
-        "The output defines a return format covering initial findings, fixes applied, files changed, verification, remaining risks, and intentionally unchanged items."
+        "The output defines a return format covering initial findings, fixes applied, files changed, verification, remaining risks, and intentionally unchanged items.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
       ]
     },
     {
@@ -76,7 +96,152 @@
         "The output includes repo/cwd/worktree/branch and relevant file or document context when available.",
         "The output separates confirmed facts from items that still need verification.",
         "The output provides concrete next steps and stop conditions for the receiving agent.",
-        "Includes a one-to-two sentence why for the work that states motivation or trigger — not a restatement of the task itself, not a full background narrative; points to the plan/spec background section when one exists."
+        "Includes a one-to-two sentence why for the work that states motivation or trigger — not a restatement of the task itself, not a full background narrative; points to the plan/spec background section when one exists.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "$handoff 开始开发代码，以 subagent 模式。前轮已批准计划，worktree 已建好，现在赶时间，直接开始吧。",
+      "expected_output": "An execute-from-plan package; imperative wording and earlier approval apply to the receiver, not the sender.",
+      "files": [],
+      "expectations": [
+        "The sender does not begin development, dispatch an implementer, or wait for task execution.",
+        "The package requires subagent-driven-development, bounded implementation tasks, independent task review, and final review.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "$handoff 执行这个已经过审的 plan，范围别扩大。plan 头部模板写着使用 superpowers:executing-plans。",
+      "expected_output": "An implementation handoff that explicitly requires the receiving subagent workflow despite generic plan boilerplate.",
+      "files": [],
+      "expectations": [
+        "The package selects subagent-driven-development for the receiver even though the prompt does not repeat the subagent requirement.",
+        "Task dependency order is preserved; it is not confused with permission to use a single implementation agent.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "前轮你已获准开发，但现在不是让你开始干，你给我交接包；剩下的代码交给另一个会话继续。",
+      "expected_output": "A continue-from-context package preserving approved scope and remaining work while ending sender execution.",
+      "files": [],
+      "expectations": [
+        "The current handoff request changes the sender deliverable even though implementation was approved earlier.",
+        "The receiver inherits the implementation scope without being asked to reapprove the whole plan.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "你先把刚刚确认的两处 plan 文档补齐并验证，再用 $handoff 给个交接说明；实现不需要你来干，不要提交。",
+      "expected_output": "When the approved document edits can be established, perform only that preparation and validation, then produce an implementation handoff with the post-edit snapshot. If essential edit details cannot be recovered, ask only for those details without inventing changes or claiming preparation is complete.",
+      "files": [],
+      "expectations": [
+        "The sender first tries to recover the two approved document edits from the conversation and available document; if essential details remain unavailable, it asks only for those details and does not invent edits or completion claims.",
+        "When the approved edit details are available, only those document edits and their validation are performed before the package; no commit or product implementation occurs.",
+        "After preparation, the package describes the post-preparation state and distinguishes document checks from product validation.",
+        "The sender performs only explicitly authorized preparation and validation; no delegated implementation, commit, dispatch, or task creation occurs.",
+        "When a package is produced, all receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "When a package is produced, the receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "When a package is produced, implementation requires subagent-driven-development or an equivalent real delegation workflow with independent review.",
+        "Existing user approvals and model preferences are preserved; the response does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "$handoff 先完整审查规范和 Demo，再修确认的问题。当前分支有两个已提交功能提交，另有 staged 修改、unstaged 修改和未跟踪日期控件。最近测试是昨天跑的。",
+      "expected_output": "A review-and-fix package preserving all requested change layers and findings-before-fixes ordering.",
+      "files": [],
+      "expectations": [
+        "The requested full branch diff base/range is identified or explicitly left for receiver verification.",
+        "Staged, unstaged, and relevant untracked work are included separately; unstaged diff alone is not treated as the full branch change.",
+        "Receiver subagents remain read-only until initial findings have been reported; subsequent fixes stay scoped and receive independent review.",
+        "Yesterday's tests are identified as historical evidence, not reported as rerun; equivalent evidence may be reused after verification.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "$handoff 接力。任务 1 实现和独立审查已完成；任务 2 代码写完但没复核，任务 3 没开始。已有本计划的进度记录 .superpowers/sdd/activity/progress.md。",
+      "expected_output": "A continuation package that resumes incomplete review and development without repeating completed work.",
+      "files": [],
+      "expectations": [
+        "The relevant existing progress ledger is included, without unrelated runner or evaluation metadata.",
+        "Completed implementation and review are distinguished from implementation awaiting review.",
+        "The package includes the receiving subagent protocol and a concrete return format, including unfinished validation.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "$handoff 执行已过审的独立 plan：目标、约束、验收都在里面，没有独立 spec。接收环境没有 Superpowers，但有真实子代理工具。",
+      "expected_output": "A non-blocked implementation package using the approved standalone plan and equivalent real subagent delegation.",
+      "files": [],
+      "expectations": [
+        "No new spec is invented or required just to form a pair; the standalone approved plan remains sufficient.",
+        "The receiver uses real subagent tools for implementation and independent review; missing the named skill does not cause a single-agent fallback.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "$handoff 执行已过审 plan。接收环境既没有 subagent-driven-development 技能，也没有任何子代理或独立任务能力。",
+      "expected_output": "A package that honestly records the receiver capability gap without claiming independent work can be simulated.",
+      "files": [],
+      "expectations": [
+        "The receiver can still perform read-only grounding and identify the missing capability.",
+        "Only work dependent on actual subagents pauses pending a user-selected alternative; self-review is not called independent review.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "Because real subagent capability is unavailable, the receiver reports the capability gap and pauses dependent implementation and independent review; no simulated delegation or single-agent substitute is claimed.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "$handoff review spec + plan，核心关注长期规范怎么处理才正确，只返回审阅意见，别动文件。",
+      "expected_output": "A review-spec-plan package with the user's stated review focus and bounded read-only subagents.",
+      "files": [],
+      "expectations": [
+        "The receiver uses review subagents, not the implementation workflow, and consolidates findings with evidence.",
+        "All receiver agents stay read-only; finding a problem does not grant document or code editing authority.",
+        "The user's focus on long-term specification ownership remains explicit without pre-judging the review verdict.",
+        "The sender only grounds the handoff and produces the package; no delegated review, implementation, subagent dispatch, task creation, or cross-session send occurs.",
+        "All receiver instructions are contained in one fenced Markdown package, with at most one short introduction outside.",
+        "The receiver is explicitly told to carry out the task after checking the live state, rather than generate another handoff.",
+        "The receiver uses real subagents within the route boundary; implementation requires subagent-driven-development or an equivalent real delegation workflow, while review remains read-only.",
+        "Existing user approvals and model preferences are preserved; the package does not invent additional execution or release authority."
       ]
     }
   ]

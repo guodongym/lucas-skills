@@ -1,17 +1,25 @@
 ---
 name: handoff
 description: >
-  Use when the user explicitly invokes $handoff, or asks for agent handoff, 交接, 接力,
-  another agent/thread/session to review or continue work, review prompt, execution prompt,
-  context summary for another agent, spec/plan review delegation, implementation review,
-  review+fix delegation, or transferring current repo/thread state for continued progress.
+  Use when the user invokes $handoff (including $hanoff), or asks for a copyable
+  交接包、交接提示词、接力上下文 for another agent/thread/session to review, implement,
+  fix, or continue work. Do not select this skill for direct review/implementation,
+  requests to edit the handoff skill itself, or a receiving agent executing a pasted package.
 ---
 
 # Handoff
 
 Generate a concise, repo-grounded prompt that another agent or thread can use to review, execute, fix, or continue the current work.
 
-This skill is for delegation. Do not perform the delegated review or implementation unless the user separately asks for that. Produce a copy-ready handoff package that is short enough to preserve the receiving agent's focus while still giving the repo location, worktree, goal, constraints, and verification expectations.
+The deliverable is one copy-ready handoff package. The current assistant is the **sender**; the agent receiving the pasted package is the **receiver**. Review, implementation, fixes, and subagent execution described in the request belong to the receiver.
+
+## Sender Boundary
+
+- `$handoff 开始开发代码，以 subagent 模式` means **write a package telling the receiver to develop with subagents**. It does not tell the sender to start development or dispatch subagents.
+- While preparing a handoff, gather the necessary read-only evidence, output the package, then stop. Do not execute its plan, perform its review, create a task, send a message to another session, or claim that work has been dispatched.
+- A prior approval to implement is context to carry into the package. A current handoff request changes this turn's deliverable to the package; words such as “执行”, “开始开发”, and “review+fix” within that request describe the receiver's task.
+- If the user also explicitly asks the sender to do preparation, such as “先补文档，再给交接包；实现不用你做”, finish only that authorized preparation and verification, refresh the snapshot, then hand off. Likewise, an explicit request to send the package or create a task is a separate action handled under the host's tool rules; this skill itself never initiates dispatch.
+- If the user explicitly changes the request to “不要交接，你现在直接做”, leave this skill and use the workflow for that task. Editing this skill is also maintenance work, not a request to generate a package.
 
 ## Core Principle
 
@@ -38,19 +46,17 @@ Use these short prompts when you want to trigger this skill directly:
 
 ## Route the Request
 
-Prefer the user's explicit short intent when present:
+First establish that this is a handoff request. The following verbs select the **receiver's** task; they are not standalone triggers for this skill:
 
 | User intent | Route |
 | --- | --- |
 | `$handoff review`, `审一下`, `review 这个 spec/plan/方案` | `review-spec-plan` |
-| `$handoff 执行`, `按 plan 做`, `交给另一个 agent 实现` | `execute-from-plan` |
+| `$handoff 执行`, `$handoff 开始开发`, `按 plan 做`, `交给另一个 agent 实现` | `execute-from-plan` |
 | `$handoff code review`, `review 这个实现/分支/diff` | `review-implementation` |
 | `$handoff review+fix`, `审核并修`, `先 review 再修复` | `review-and-fix` |
 | `$handoff continue`, `接力`, `总结上下文`, `让另一个会话继续` | `continue-from-context` |
 
-If the request is ambiguous, ask one short question:
-
-> 你是要 `review-spec-plan`、`execute-from-plan`、`review-implementation`、`review-and-fix`，还是 `continue-from-context`？
+Infer the route from the current request and conversation. For mixed requests such as “先审查规范和 Demo，再继续优化”, preserve that sequence with `review-and-fix`. Ask one plain-language question only when the missing answer changes the target or whether edits are authorized; do not ask the user to choose internal route names.
 
 Include cleanup or branch deletion only when they belong to the delegated scope and have explicit authorization in the conversation; preserve the authorized objects and conditions.
 
@@ -59,12 +65,13 @@ Include cleanup or branch deletion only when they belong to the delegated scope 
 Before writing the handoff package, gather only the evidence needed for the route. Do not do a deep investigation unless the user asks for one; deep investigation belongs to the receiving agent.
 
 1. Check the current repo, cwd, worktree path, branch, HEAD short SHA, and `git status --short` output when available.
-2. If uncommitted changes are part of the handoff target, capture their `git diff --stat` summary as the content anchor — HEAD alone cannot pin a dirty tree.
+2. If uncommitted changes are part of the target, record staged and unstaged summaries (`git diff --cached --stat`, `git diff --stat`) and relevant untracked paths separately. Neither HEAD nor a diff stat proves exact content identity; use a focused diff or file hash only when exact identity matters. Do not stage, stash, discard, or clean files to make a handoff easier.
 3. For plan-execution handoffs, capture the last change of the plan and spec/design files with `git log -1 --oneline -- <path>`.
 4. Identify referenced files, docs, specs, plans, commits, diffs, commands, and validation results.
 5. Distinguish confirmed facts from memory-derived or user-stated claims.
 6. If a file/path is referenced but missing or not readable, say that in the package.
 7. If the user wants a package for another thread, include exact paths and checkout locations.
+8. For implementation review, identify the intended base/ref or commit range, plus relevant local changes. “完整 diff” means all requested branch changes, not just the last commit or unstaged changes. If the base cannot be established, mark it for receiver verification rather than inventing it.
 
 Never tell the receiving agent to trust this handoff blindly. The package should instruct them to re-check the live repo state. Avoid exhaustive search logs; write "not verified" or "path not found in current checkout" when that is enough.
 
@@ -76,22 +83,31 @@ Include this section in every handoff package, adapted to the task:
 ## 接手工作协议
 
 1. 先读取并遵循目标仓库的本地指令，例如 AGENTS.md / CLAUDE.md / GEMINI.md。
-2. 如果当前环境有 Superpowers 或同类 workflow skill，先调用匹配流程；否则按同等工程流程手动执行。
+2. 你是接收方：核对现场后执行本包任务，不要再次生成交接包。采用子代理驱动方式，主代理负责拆分任务、协调、集成与验收；执行方式见第 6 条。
 3. 先核对 repo/cwd/worktree/branch 是否匹配交接目标或已有明确迁移授权。不一致时定位正确工作区，不得改写交接目标以匹配当前环境；仍无法确认时暂停该目标的执行并向发起方询问。
 4. 目标身份一致后，对照包内 HEAD、工作区快照与未提交 diff 锚点（如有）。可解释且不改变目标、授权和验收的正常进展，更新快照后继续；无法查明或存在实质冲突时，只暂停受影响部分并确认。
 5. 按本包声明的任务边界执行：review 保持只读；review+fix 在编辑任何文件前先报 findings，再做最小修复，再验证。
+6. 执行方式：<按下面的任务类型填入具体要求，不得只写“使用匹配流程”>
 ```
 
-Use "must" style only for safety and scope boundaries. Avoid over-constraining the receiving agent's implementation choices. Do not add generic process advice that the target repository's AGENTS.md already covers.
+Fill item 6 for every route:
+
+- **Implementation / fixes / implementation continuation:** require `superpowers:subagent-driven-development`. Use a fresh implementation subagent per bounded task, a different reviewer for spec compliance and code quality, and a final review of the complete change. Preserve dependency order; subagent-driven does not mean parallel writes to shared files. A plan's generic `executing-plans` boilerplate does not override this receiving workflow.
+- **Read-only review / review continuation:** require subagents for bounded review questions and the matching review skill. The main agent verifies evidence and consolidates findings; all agents stay read-only. Do not invoke an implementation workflow or authorize fixes for a review-only task.
+- **Capability boundary:** if the named skill is unavailable but real subagent tools exist, preserve the same task delegation and independent review using those tools. If real subagent capability is unavailable, complete read-only grounding and report the missing capability; pause only dependent work until the user chooses an alternative. Do not silently replace subagents with single-agent execution or claim self-review is independent review.
+- Preserve the user's model choice; inherit the current model unless the user explicitly selects another model or authorizes cost optimization. Preserve task-specific approval and stop conditions across all subagents.
+
+These are instructions to put **inside the package**, not actions for the sender. Compress them to the requirements relevant to the route. If the user explicitly requests a different receiving workflow, follow that request and state it in the package.
 
 ## Output Shape
 
-Output one copy-ready Markdown package. Start with the route name and target. Use this compact default shape:
+Output one complete Markdown package inside a single fenced code block so the user can copy it in one action. Use four backticks for the outer fence if the package contains triple-backtick command blocks. At most one short introductory sentence goes outside; every instruction the receiver needs stays inside. Start with the route name and target. Use this compact default shape:
 
 ```markdown
 # Handoff: <route>
 
 ## 交接目标
+- 角色: 你是接收方；核对现场后执行以下任务，不要再次生成交接包。
 - 做什么: <一句话任务陈述>
 - 为什么: <一两句 — 这项工作存在的动机或触发，不是复述上面的任务；不要另立"背景/触发"字段。plan/spec 已有背景章节时，只写一句本质并指向该文档>
 
@@ -108,6 +124,7 @@ Output one copy-ready Markdown package. Start with the route name and target. Us
 ## 当前状态
 - 已确认:
 - 未确认:
+- 授权边界: <接收方已获准做什么；哪些动作未获准；不因本包重新审批已有批准或扩大授权>
 
 ## 接手工作协议
 
@@ -166,6 +183,7 @@ Use when the receiving agent should implement from an accepted spec or plan.
 Emphasize:
 
 - read the plan, then verify it still matches current repo state
+- require the receiving subagent workflow above, including when the user only says “执行 plan” without repeating “subagent”
 - include the accepted plan path and any corresponding spec/design document that actually exists
 - to locate a referenced spec/design, check the plan header, its directory, then a focused docs/ search. If an independent plan already states the goal, constraints and acceptance, mark "spec/design: 无独立文档，按已批准 plan 执行"; missing a separate file is not a blocker. If a required decision is only in an unavailable reference, identify that gap and pause the dependent work
 - implement only the requested scope
@@ -254,7 +272,7 @@ Emphasize:
 - summarize the real current state, not a polished success narrative
 - separate completed, in-progress, not-started, and blockers; use the label "已知问题 / blockers" so the receiving agent sees blockers as a distinct status bucket
 - include only command outcomes that affect the next step
-- do not include eval harness paths, output directories, or task-runner bookkeeping unless that is the actual work being handed off
+- include an existing task progress ledger or unfinished subagent result only when needed to resume at the first incomplete task; record which implementation/review/validation remains. Do not include unrelated eval harness paths, output directories, or task-runner bookkeeping
 - include important decisions, assumptions, and uncertainty
 - recommend the next concrete step, but tell the receiving agent to verify before acting
 - include repo, cwd, worktree, and branch even when other context is sparse
@@ -264,6 +282,7 @@ Add this route-specific structure:
 
 ```markdown
 ## 当前目标
+- 角色: 你是接收方；核对现场后继续以下任务，不要再次生成交接包。
 - 为什么: <一两句 — 动机或触发，不是复述上面的目标>
 
 ## 定位
@@ -291,6 +310,10 @@ Add this route-specific structure:
 
 ## 继续推进建议
 
+## 接手工作协议
+
+## 验收 / 返回
+
 ## 停止条件
 ```
 
@@ -298,10 +321,14 @@ Only add an "已执行操作" or "Commands run" section if the user asks for an 
 
 ## Common Mistakes
 
+- Treating `$handoff 开始开发` or an earlier implementation approval as sender execution authority.
+- Creating or messaging a task when the user only asked for a copyable package.
+- Leaving the receiving workflow optional, substituting `executing-plans`, or omitting the protocol from a continuation package.
+- Producing unfenced prose or putting essential instructions outside the copyable block.
 - Writing a vague summary without exact files, cwd, branch, or verification commands.
 - Telling the receiving agent to trust prior conclusions instead of re-checking the repo.
 - Mixing read-only review with implementation work.
 - Sending a spec/plan review package that quietly asks the reviewer to implement.
 - Letting a handoff become a long transcript. Compress to decisions, evidence, and next actions.
-- Forgetting to include local workflow instructions such as AGENTS.md and optional Superpowers usage.
+- Forgetting local instructions, the required receiving subagent workflow, or the user's existing authorization.
 - Omitting the worktree path. Branch names alone are not enough when multiple checkouts exist.
