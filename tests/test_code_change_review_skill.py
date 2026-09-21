@@ -25,6 +25,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
             "agents/openai.yaml",
             "references/review-rubric.md",
             "references/output-template.md",
+            "references/pr-comments.md",
         }
         for relative in required:
             self.assertTrue((SKILL_ROOT / relative).is_file(), relative)
@@ -103,8 +104,8 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         )
         self.assertEqual(manifest["skill_name"], "code-change-review")
         evals = manifest["evals"]
-        self.assertEqual(len(evals), 36)
-        self.assertEqual(len({case["id"] for case in evals}), 36)
+        self.assertEqual(len(evals), 45)
+        self.assertEqual(len({case["id"] for case in evals}), 45)
 
         required = {
             "id",
@@ -127,14 +128,14 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
 
         triggers = [case for case in evals if case["kind"] == "trigger"]
         behavior = [case for case in evals if case["kind"] == "behavior"]
-        self.assertEqual(len(triggers), 12)
-        self.assertEqual(len(behavior), 24)
+        self.assertEqual(len(triggers), 13)
+        self.assertEqual(len(behavior), 32)
         self.assertEqual(
             {case["route"] for case in triggers},
             {"code-change-review", "other-skill", "mixed"},
         )
         self.assertEqual(
-            [case["route"] for case in triggers].count("code-change-review"), 5
+            [case["route"] for case in triggers].count("code-change-review"), 6
         )
         self.assertEqual(
             [case["route"] for case in triggers].count("other-skill"), 5
@@ -144,7 +145,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         categories = [case["category"] for case in behavior]
         self.assertEqual(categories.count("bug"), 4)
         self.assertEqual(categories.count("safe"), 8)
-        self.assertEqual(categories.count("control"), 8)
+        self.assertEqual(categories.count("control"), 16)
         self.assertEqual(categories.count("constraint"), 4)
         bug_ids = {
             case["id"] for case in behavior

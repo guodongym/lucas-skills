@@ -50,6 +50,15 @@ For material changes, use compact rows:
 
 Cover the rubric's eight screening surfaces. Group checked-unchanged surfaces in one sentence; identify unverified ones separately. Empty ranges need no table. Counts may summarize objects but cannot replace their names, impact or evidence.
 
+## Requirement, approach and correctness
+
+For each material change, give three explicit judgments with evidence, either as a compact table or short prose:
+
+| Change | Requirement necessity: problem and outcome | Approach suitability: boundaries and alternatives | Implementation correctness: behavior and defects |
+| --- | --- | --- | --- |
+
+Use supported, unsupported or unresolved conclusions in plain language; these are explanations, not a second severity system. Link to the existing C/P/Q entries rather than duplicating findings. Routine changes can use one sentence covering the three judgments. When only preliminary review was requested or completed, mark unassessed judgments explicitly.
+
 ## Constraint issues
 
 Use `C-01`, `C-02` for proven scope or architecture violations, separate from defect severity and Questions. Each contains:
