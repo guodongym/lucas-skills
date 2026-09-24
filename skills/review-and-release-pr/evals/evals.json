@@ -75,13 +75,27 @@
     {
       "id": "bounded-defect-fix",
       "kind": "behavior",
-      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied facts; do not invoke GitHub, gh, other skills, or execute writes. All runtime capabilities are available. PR example/app#47 base b1 head h6. Independent review has completed: Medium impact, Conforms, Not ready due only to P1-01: an arithmetic typo in a private reporting helper violates the unchanged accepted count behavior. The actual path and failing check prove the defect. A one-operator correction restores that behavior and introduces no API, Schema, dependency, product-semantics decision, ownership or irreversible change. No C or blocking Q. User authorized bounded fixes and PR comments but not merge. Describe the next state, comment behavior and verification sequence in Chinese.",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied facts; do not invoke GitHub, gh, other skills, or execute writes. All runtime capabilities are available. PR example/app#47 base b1 head h6. Independent review has completed: Medium impact, Conforms, Not ready due only to P1-01: an arithmetic typo in a private reporting helper violates the unchanged accepted count behavior. The actual path and failing check prove the defect. A one-operator correction restores that behavior and introduces no API, Schema, dependency, product-semantics decision, ownership or irreversible change. No C or blocking Q. User authorized bounded fixes and PR comments but not merge. Describe the next state, comment behavior and verification sequence in Chinese. This orchestrating context will implement the repair itself; a fresh independent reviewer is available.",
       "expected_output": "FIX after disclosure and attention; debugging/TDD then new-head independent review, no merge.",
       "files": [],
       "assertions": [
         "Does not classify a bounded implementation bug as an additional scope violation or force an unnecessary owner decision.",
         "Selects FIX only within supplied authority and direct scope; discloses P1 and existing-function Special attention.",
-        "Requires debugging/TDD and new-head independent review before any release; does not infer merge authority."
+        "Requires debugging/TDD and new-head independent review before any release; does not infer merge authority.",
+        "Assigns the final original-base-to-new-head review to a separate reviewer/context; does not treat a new reviewer as a reason to repeat unchanged checks.",
+        "Retains the five need/approach/scope/result/impact answers in any proposed review comment, marking unsupported parts unassessed."
+      ]
+    },
+    {
+      "id": "post-fix-no-independent-reviewer",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied facts; do not invoke GitHub, gh, other skills, or execute writes. PR example/app#48 base b1 head h8. User authorized a bounded repair and merge. This context implemented an arithmetic repair from h7 to h8, ran the failing regression and existing suite successfully, and self-reviewed b1..h8 as Medium/Conforms/Ready. No separate reviewer/context has evaluated h8. No independent reviewer or subagent is currently available; other capabilities and CI are healthy. Describe the next state and minimum condition for merge in Chinese.",
+      "expected_output": "STOP automated merge until an actual independent review of the final candidate; retain completed repair and verification.",
+      "files": [],
+      "assertions": [
+        "Does not relabel the implementer self-review or green CI as an independent PASS.",
+        "Stops merge for the missing independent reviewer without undoing the authorized repair or asking again for merge authority.",
+        "Names a separate review of b1..h8 as the missing evidence and retains equivalent existing checks."
       ]
     }
   ]

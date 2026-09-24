@@ -81,15 +81,15 @@ Map the result:
 - FIX: Scope/architecture is Conforms, no constraint issue or blocking Q, the defect is confirmed, direct repair is inside the approved requirement and PR, repair authority exists, and it changes no API, Schema, dependency, product semantics, cross-module ownership, or irreversible behavior.
 - STOP: any P0, Violates, Needs decision, blocking Q, missing necessary evidence, decision-bearing repair, multiple long-term behaviors, or scope expansion. Do not auto-repair a constraint issue under bounded bug-fix authority or edit requirements to obtain PASS.
 
-Consume impact level, change inventory, constraint issues, questions and readiness from the independent review; do not maintain a second scoring rubric. A newly exposed requirement conflict returns to Gate 1. A no-defect verdict cannot erase impact or a constraint issue. Deliver Special attention using the protocol below on PASS, FIX or STOP; it is not reserved for failed reviews.
+Consume the five review answers (need, approach, scope, result, impact), impact level, constraint issues, questions and readiness from the independent review; do not maintain a second scoring rubric. A newly exposed requirement conflict returns to Gate 1. A no-defect verdict cannot erase impact or a constraint issue. Deliver Special attention using the protocol below on PASS, FIX or STOP; it is not reserved for failed reviews.
 
-Before FIX, disclose finding ID, impact, root cause, repair scope, and verification. Use `superpowers:systematic-debugging` and `superpowers:test-driven-development`. Re-anchor the new head and rerun code-change-review; never jump from a repair directly to release.
+Before FIX, disclose finding ID, impact, root cause, repair scope, and verification. Use `superpowers:systematic-debugging` and `superpowers:test-driven-development`. Re-anchor the new head and rerun code-change-review over the original base to the final candidate. If this context implemented the candidate or FIX, obtain a separate reviewer/context (use a fresh subagent when available); its own rerun is self-review, not the independent PASS required for release. Reuse equivalent prior checks, but independently review the repair and affected paths. Without an available independent reviewer, STOP release and report that gap; continue unaffected authorized work.
 
 ## Special attention and PR comments
 
 Use `code-change-review`'s `references/pr-comments.md` for the shared comment format, authority, fresh-state checks, deduplication, publication and readback. Apply it on PASS, FIX and STOP; do not infer comment authority from merge or repair authority.
 
-At Gate 1 STOP, retain preliminary Special attention and requirement findings, mark approach/correctness judgments unassessed where appropriate, and label full independent review incomplete. At Phase 3, deliver the independent review's impact, constraint, defect and question conclusions. Required but unconfirmed comment delivery blocks automated merge/release even if code readiness passed.
+At Gate 1 STOP, retain preliminary Special attention and requirement findings, mark approach/correctness judgments unassessed where appropriate, and label full independent review incomplete. At Phase 3, preserve the independent review's five answers and constraint/defect/question conclusions in the shared comment format. Required but unconfirmed comment delivery blocks automated merge/release even if code readiness passed.
 
 ## Final verification and release handoff
 

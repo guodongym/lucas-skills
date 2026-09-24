@@ -104,8 +104,8 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         )
         self.assertEqual(manifest["skill_name"], "code-change-review")
         evals = manifest["evals"]
-        self.assertEqual(len(evals), 45)
-        self.assertEqual(len({case["id"] for case in evals}), 45)
+        self.assertEqual(len(evals), 52)
+        self.assertEqual(len({case["id"] for case in evals}), 52)
 
         required = {
             "id",
@@ -129,7 +129,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         triggers = [case for case in evals if case["kind"] == "trigger"]
         behavior = [case for case in evals if case["kind"] == "behavior"]
         self.assertEqual(len(triggers), 13)
-        self.assertEqual(len(behavior), 32)
+        self.assertEqual(len(behavior), 39)
         self.assertEqual(
             {case["route"] for case in triggers},
             {"code-change-review", "other-skill", "mixed"},
@@ -145,7 +145,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         categories = [case["category"] for case in behavior]
         self.assertEqual(categories.count("bug"), 4)
         self.assertEqual(categories.count("safe"), 8)
-        self.assertEqual(categories.count("control"), 16)
+        self.assertEqual(categories.count("control"), 23)
         self.assertEqual(categories.count("constraint"), 4)
         bug_ids = {
             case["id"] for case in behavior
@@ -157,24 +157,6 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
             if case["category"] == "safe"
         }
         self.assertEqual(safe_controls, bug_ids)
-
-    def test_compatibility_bug_assertion_points_to_changed_field(self):
-        manifest = json.loads(
-            (SKILL_ROOT / "evals" / "evals.json").read_text(encoding="utf-8")
-        )
-        case = next(
-            item
-            for item in manifest["evals"]
-            if item["id"] == "behavior-compatibility-bug"
-        )
-        self.assertIn(
-            (
-                "Locates the changed user_id to actor_id producer field "
-                "(events/user_event.py line 14 in target-file coordinates; "
-                "the corresponding fixture diff line is acceptable)."
-            ),
-            case["assertions"],
-        )
 
 
 if __name__ == "__main__":

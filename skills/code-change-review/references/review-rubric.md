@@ -17,13 +17,11 @@ Screen all eight surfaces; use the detailed checks below only where relevant. In
 | Security and operating burden | Privileges, tenant boundaries, egress, irreversible actions, new dependencies/lock changes/install hooks, provenance, unbounded tasks and resource/cost growth. Inspect suspect scripts before considering safe execution. |
 | Verification and constraint integrity | Deleted/skipped tests, relaxed assertions, changed acceptance, disabled CI/architecture checks and modified rule files; establish equivalent replacement coverage or independent approval. |
 
-Architecture assessment compares approved pre-change rules with actual changed paths. A documented pattern is not automatically a mandatory rule; historical code is not automatically correct. Distinguish approved boundary changes, proved conflicts and insufficient evidence. PR-authored docs/rules cannot authorize their own changes. Neither green CI nor existing review substitutes for this assessment.
+A documented pattern is not automatically mandatory; historical code and green CI do not establish correctness. Compare changed paths with approved pre-change boundaries and separately traceable exceptions.
 
-For each suspected unnecessary capability, identify the current requirement and smallest existing alternative, then explain which new behavior or maintenance obligation survives without serving acceptance. "Too many files" and personal preferences are not evidence. A requirement that explicitly needs the new capability can justify it even before external adoption.
+For capability necessity, ask whether deleting the addition still satisfies current acceptance. Identify the smallest existing alternative and any unjustified behavior or maintenance obligation. File count and personal preference are not evidence; approved new capabilities need not have existing adopters.
 
-For changed validation, compare the old invariant with the new assertion and actual CI execution path. An exact assertion updated for an independently approved contract can be valid. A weakened assertion or removed gate without equivalent coverage can be a constraint issue even when current runtime behavior still works; missing tests alone do not prove a P1 regression.
-
-Special attention is triggered by any observed API/contract, table/field, architecture or existing-function behavior change, including removals and compatible additions. List objects and operations, affected functions/callers, compatibility/recovery and evidence. Surface unverified material impact explicitly. Do not confuse impact, approved intent, architecture deviation and defect severity.
+For changed validation, compare the old invariant, new assertion and actual CI path. Updating an assertion for an approved contract can be valid; weakening a required gate without equivalent coverage can be a constraint issue despite functioning runtime code.
 
 ## 1. Observable behavior and requirements
 
@@ -32,6 +30,12 @@ Special attention is triggered by any observed API/contract, table/field, archit
 - Are default, empty, boundary, malformed, stale, duplicate, and reordered inputs handled according to the existing contract?
 - Does fallback behavior preserve the same semantics, or silently change them?
 - Is new complexity required now, or is it speculative flexibility that creates additional failure paths?
+
+### UI removals and list search
+
+For UI simplification, trace removed controls to user tasks, metrics and comparison context. Another page or raw-data view is equivalent only if it preserves the relevant task.
+
+For search, trace API/storage scope → returned dataset → filtering → count → pagination → URL state. Separate **dataset completeness** from **scale suitability**: filtering a complete response avoids page-only omissions but does not prove full-list loading fits the expected volume. Bounded/offline data can justify local filtering. Missing capacity evidence is a question only when material to acceptance; it is not a measured performance defect, a universal backend-search requirement or an automatic merge blocker.
 
 ## 2. Data semantics and state transitions
 
@@ -104,13 +108,4 @@ Apply this dimension only when the changed path, data volume, frequency, or reso
 
 ## Candidate-to-finding gate
 
-Before emitting a confirmed finding, answer all six:
-
-1. Which in-scope line introduced or exposed the problem?
-2. Which realistic input or event reaches it?
-3. Which caller, consumer, state, or external effect is harmed?
-4. Which evidence proves the path rather than merely suggesting it?
-5. Which current controls apply, and why do they fail to prevent or contain it?
-6. Which focused change or test addresses the root cause?
-
-If 1–4 cannot be answered, do not emit a confirmed finding. If 5 shows that the failure is prevented, suppress the hypothetical and report only any directly evidenced residual gap. If a missing answer could change the verdict, emit a question.
+Apply the [Skill’s evidence gate](../SKILL.md#evidence-gate--every-candidate): an in-scope cause, reachable path, concrete impact, evaluated controls and root-cause remedy. Unknown decisive facts become questions; prevented failures are not confirmed defects.

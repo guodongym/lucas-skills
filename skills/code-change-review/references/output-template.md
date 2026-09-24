@@ -12,7 +12,7 @@ Merge readiness: Ready | Ready with non-blocking follow-ups | Unable to determin
 Reason: <one or two evidence-based sentences>
 ```
 
-Special attention comes first whenever a trigger is present, even when compatible, approved, Medium/Low or Ready with zero defects. Name the actual interface, table/field and before/after behavior; give evidence locations. This block is reusable as a PR comment draft, not a claim of publication. If screening found no trigger, say so briefly; if incomplete, name the unchecked surfaces instead of claiming none.
+Special attention names concrete before/after behavior and evidence, even for approved, compatible or defect-free changes. With no trigger, say so briefly; with incomplete screening, name unchecked surfaces. This block can serve as a comment draft, never proof of publication.
 
 ### Impact level
 
@@ -23,9 +23,9 @@ Special attention comes first whenever a trigger is present, even when compatibl
 | `High` | Breaking compatibility, core data semantics or architecture ownership changes, broad shared/security paths, coordinated deployment, or hard-to-reverse effects. |
 | `Undetermined` | Missing material evidence could change the level. State the known impact/floor and the missing consumer, scope or recovery facts. |
 
-Choose the highest supported level, not an average, file count or numeric score. If High is already proved, retain High and list remaining gaps; a gap must never lower known impact. High is an attention/depth signal, not an automatic blocker. Necessary verification and unresolved decisions determine readiness separately.
+Choose the highest supported level, not an average, file count or score. Proven High remains High despite gaps or an approved breaking cutover; approval and recovery affect readiness separately. High calls for deeper attention, not automatic rejection.
 
-A newly observed write path alone does not prove ownership transfer, core data semantics or broad impact. Establish its before/after responsibility and actual consumers; if those facts decide the level but are unavailable, use Undetermined with the known write exposure.
+A new write path alone does not prove ownership transfer or broad impact. If missing before/after responsibility or consumer facts decide the level, use Undetermined with known exposure.
 
 ### Scope and architecture
 
@@ -41,29 +41,27 @@ When there are no confirmed findings, include this exact sentence:
 
 Do not add low-value suggestions merely because `Confirmed findings` is empty.
 
-## Change inventory
+## Review answers
 
-For material changes, use compact rows:
+After the verdict, answer these five questions once for each material change group, in a compact table or short prose. Use the user's language and explicitly retain any extra priorities they requested.
 
-| Object / add-modify-remove | Approved need | Affected callers/functions/architecture | Compatibility / recovery | Evidence / gap |
-| --- | --- | --- | --- | --- |
+| Question | Required answer |
+| --- | --- |
+| Need | Approved goal and its value, separately from observed prior failure; mark prior failure unverified when baseline evidence is absent. |
+| Approach | Responsibility/data boundary, existing alternatives and why the chosen approach fits. |
+| Scope | Concrete objects added/modified/removed; justified scope and any bundled or premature work. |
+| Result | Original scenario → expected outcome → implementation evidence; what is resolved and what remains unverified. |
+| Impact | Affected consumers/functions, contracts/state, compatibility, deployment and recovery. |
 
-Cover the rubric's eight screening surfaces. Group checked-unchanged surfaces in one sentence; identify unverified ones separately. Empty ranges need no table. Counts may summarize objects but cannot replace their names, impact or evidence.
+Keep requirement necessity, approach suitability and implementation correctness independent within these answers. Reuse evidence links and C/P/Q IDs; do not add a second change inventory repeating the same facts. Group checked-unchanged screening surfaces in one sentence and name unverified ones separately. Routine changes can use one short paragraph; empty ranges need no table. Preliminary reviews mark unassessed answers explicitly.
 
-## Requirement, approach and correctness
-
-For each material change, give three explicit judgments with evidence, either as a compact table or short prose:
-
-| Change | Requirement necessity: problem and outcome | Approach suitability: boundaries and alternatives | Implementation correctness: behavior and defects |
-| --- | --- | --- | --- |
-
-Use supported, unsupported or unresolved conclusions in plain language; these are explanations, not a second severity system. Link to the existing C/P/Q entries rather than duplicating findings. Routine changes can use one sentence covering the three judgments. When only preliminary review was requested or completed, mark unassessed judgments explicitly.
+For rereviews, add a compact disposition of prior findings (resolved, retained, revised) and say whether coverage is the full final candidate or a delta. Identify self-review versus an actually separate independent review.
 
 ## Constraint issues
 
 Use `C-01`, `C-02` for proven scope or architecture violations, separate from defect severity and Questions. Each contains:
 
-- Baseline: exact approved requirement, exclusion or boundary and its source/version.
+- Baseline: exact approved requirement, exclusion or boundary and its source/version, including owner adoption if it began as a reviewer suggestion.
 - Location and conflict: in-scope changed file/line and how its behavior conflicts.
 - Impact: affected ownership, functionality or concrete new maintenance responsibility.
 - Resolution: smallest removal/alignment or the specific owner decision needed; existing approval is evaluated, not requested again.
@@ -97,6 +95,8 @@ List `P0`, then `P1`, then `P2`. Omit this section's entries when there are none
 - Verification: Verified | Unverified | Not applicable — <evidence or limitation>
 ```
 
+Locations identify the smallest causal changed lines in target-file coordinates. Verify the cited line text with a numbered target-file readback. For diff-only evidence, reconstruct numbered new-side lines: start at the `+` hunk number, assign the current number to each context/added line, then increment; deleted lines and hunk headers neither receive nor advance that number. Cite the causal line from that reconstruction, not the hunk start or fixture-document line.
+
 Stable IDs use `P0-01`, `P1-01`, or `P2-01`. Merge findings with one root cause. A confirmed finding cannot use `Q-01`.
 
 ### Severity
@@ -115,13 +115,13 @@ Questions are not confirmed findings.
 ### Q-01 — <question>
 
 - Missing evidence: <requirement, range, environment, runtime, or consumer fact>
-- Decision affected: <scope, reachability, severity, or merge readiness>
-- Resolution: <specific readback, test, owner answer, or artifact>
+- Decision affected: <specific conclusion and merge/deployment/business acceptance gate>
+- Resolution: <smallest decisive readback, test, owner answer, or artifact>
 - Blocking: blocking | non-blocking
 ```
 
-- `blocking`: the answer could change scope, establish a `P0/P1`, or determine a necessary verification; merge readiness cannot be decided yet.
-- `non-blocking`: the answer affects only a `P2`, future work, or an explicitly out-of-gate boundary.
+- `blocking`: identify the approved merge requirement or concrete reachable risk that depends on the answer; explain how the answer changes scope, a `P0/P1`, or necessary merge verification. Unknown environments alone do not qualify.
+- `non-blocking`: the answer affects only a `P2`, future work, or an explicitly later/out-of-gate boundary. Retain later acceptance as a follow-up without claiming it passed.
 
 ## Merge readiness
 
@@ -147,4 +147,4 @@ Never describe an unrun test as passing. Keep environment failure separate from 
 
 ## Coverage boundaries
 
-List code, callers, consumers, environments, CI, external services, or runtime behavior that were excluded or could not be verified. State whether each boundary can affect the current verdict.
+List excluded or unverified code, consumers, environments and runtime behavior. For each material gap, identify the affected conclusion, its acceptance gate and the smallest missing evidence. Separate original-task/business acceptance from code-path proof and merge readiness.
