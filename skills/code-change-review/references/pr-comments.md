@@ -17,11 +17,15 @@ The comment must be understandable without the chat:
 ```text
 特别提醒：<concrete behavior/API/schema/architecture changes, when present>
 PR / base / head: <verified URL and immutable SHAs>
-Requirement / approach / correctness: <separate evidence-backed judgments; unassessed parts explicit>
+Need: <approved goal/value and observed problem; unverified baseline explicit>
+Approach: <suitability of the chosen responsibility/data boundary>
+Scope: <concrete additions/removals and whether justified>
+Result: <original scenario, expected outcome and actual evidence/gaps>
+Impact: <affected consumers/functions and compatibility/recovery>
 Impact / scope-architecture / readiness: <existing review conclusions and reasons>
 Evidence and verification: <locations, affected users/callers, actual checks and gaps>
 Required action: <C/P/Q entries and specific fix or decision, or none>
-Coverage: <preliminary requirement review | independent review complete; exclusions>
+Coverage: <preliminary requirement review | self-review | independent review complete; full or delta range and exclusions>
 ```
 
 Prefer immutable remote code links in a published comment; local file links are not usable by PR readers. Supplied author checks remain distinct from checks performed in this review. A preliminary stop must retain already observed changes and explicitly mark implementation review incomplete.
