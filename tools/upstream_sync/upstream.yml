@@ -41,3 +41,13 @@ upstreams:
   #   mappings:
   #     - src: path/in/upstream
   #       dst: skills/local-name
+
+  # 官方 Skill 只通过发布 ZIP 提供，不在 Git 仓库中。
+  - name: wps365
+    type: release-zip
+    version_url: https://open-docs.wpscdn.cn/cli/latest.txt
+    archive_url: https://open-docs.wpscdn.cn/cli/releases/download/v{version}/wps365-skills-{version}.zip
+    archive_root: wps365-skills
+    dst: skills/wps365/.official
+    manifest: skills/wps365/upstream.json
+    guide: https://365.kdocs.cn/wiki/l/0lcqi8RexYzQKD

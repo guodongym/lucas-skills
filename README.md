@@ -1,6 +1,6 @@
 # lucas-skills
 
-私有 skill 仓库，部分内容来源于公开仓库。通过 `upstream-sync` 追踪上游变更并按需同步，通过 GitHub Actions 实现每周自动检测。
+私有 skill 仓库，部分内容来源于公开仓库。通过 `upstream-sync` 追踪上游 Git 仓库或官方发布 ZIP 的变更并按需同步，通过 GitHub Actions 实现每周自动检测。
 
 ## 目录结构
 
@@ -258,3 +258,9 @@ upstreams:
 | `pyproject.toml` | Python 项目配置与 CLI 入口 |
 | `uv.lock` | 锁定 Python 依赖版本 |
 | `~/.cache/upstream-sync/` | clone 缓存目录，可安全删除，下次 sync 自动重建 |
+
+## WPS 365 官方套件
+
+[WPS 365](skills/wps365/README.md) 将官方 CLI 安装包和 15 个 Skill 集中存放在 `skills/wps365/`，通过单一入口激活到 Codex。来源和逐文件校验值见该目录的 `upstream.json`。
+
+WPS 使用 `type: release-zip` 来源，按官方版本索引定位发布包；配置、版本锁和校验记录与 Git 来源一同进入现有自动检查。详见 [发布 ZIP 来源](docs/upstream-sync.md#发布-zip-来源)。

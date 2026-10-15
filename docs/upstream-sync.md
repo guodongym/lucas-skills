@@ -134,3 +134,25 @@ for 每个 upstream:
 也支持在 Actions 页面手动触发（`workflow_dispatch`）。
 
 > **权限要求**：Settings → Actions → General → Workflow permissions → 选 "Read and write permissions"。
+
+
+## 发布 ZIP 来源
+
+WPS 官方 Skill 不在公开 Git 仓库中，使用发布包来源配置：
+
+```yaml
+- name: wps365
+  type: release-zip
+  version_url: https://open-docs.wpscdn.cn/cli/latest.txt
+  archive_url: https://open-docs.wpscdn.cn/cli/releases/download/v{version}/wps365-skills-{version}.zip
+  archive_root: wps365-skills
+  dst: skills/wps365/.official
+  manifest: skills/wps365/upstream.json
+  guide: https://365.kdocs.cn/wiki/l/0lcqi8RexYzQKD
+```
+
+`check` 只读取版本索引；`diff` 下载并校验 ZIP，在内存中比较文件，不写仓库；`sync --upstream wps365` 写入指定目录和来源记录，随后更新锁文件的 `version`、`archive_sha256`、`synced_at`。默认 Git 来源和原有命令保持兼容，现有每周 Actions 无需新增任务。
+
+ZIP 下载与解压内容分别限制为 128 MiB；导入前拒绝绝对路径、父目录越界、反斜杠、符号链接、重复路径、文件与目录冲突和错误的顶层目录。目标必须在仓库内，且不能经过符号链接。上游删除文件时沿用 Git 来源的保留加警告策略。本地入口不在同步目标内。
+
+官方最新版 CLI 的版本索引与 Skill 包可能不同步；对应 ZIP 不存在时同步失败并保留旧锁，不把 CLI 版本更新当作 Skill 已更新。同一版本不会重复下载；此机制检测版本变更，不检测同版本发布包被重新上传。来源校验记录用于复现与完整性核对，并非独立的官方签名。
