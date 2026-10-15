@@ -1,0 +1,31 @@
+{
+  "version": "0.3.6",
+  "source": "https://open-docs.wpscdn.cn/cli/releases/download/v0.3.6/wps365-skills-0.3.6.zip",
+  "guide": "https://365.kdocs.cn/wiki/l/0lcqi8RexYzQKD",
+  "archive_sha256": "81927e39d2de98b647670f1c58f26f50ea07b6832fd3b526e7618db140671510",
+  "files": {
+    "wps365-dbsheet-records/SKILL.md": "27dafd0a78abfd3a9ad09504ce87a63f65c7f95e7e6b0d8272055624452002e6",
+    "bin/wps365-cli-aarch64-unknown-linux-gnu.tar.gz": "f9de5dc0a0e5a682bd53c9df8e21196a6090b308db2c339b516f6389ecea0ab3",
+    "bin/wps365-cli-aarch64-apple-darwin.tar.gz": "2605dab1a208327e3fc3b739d589c878ad17c7a22a133dd26171e76c6f81c08f",
+    "bin/wps365-cli-x86_64-unknown-linux-gnu.tar.gz": "68b955a8488edcb82ed5373752a937d9ec3588abfb550223dda3d6f0c1a27588",
+    "bin/wps365-cli-x86_64-pc-windows-gnu.zip": "a7837beef2a8cfc237861f553958d4f38cf61784aa675dd524b9cdbc6020e11d",
+    "bin/wps365-cli-x86_64-apple-darwin.tar.gz": "d7c63d3e59446bf0a27361282a7751a818791752bcb8c9b478cb937ff8216f33",
+    "bin/wps365-cli-aarch64-pc-windows-gnu.zip": "b56da4954b60c2b66c649e3a8b206b59d05acadd6437bb04e31ad44b4a329431",
+    "wps365-drive/SKILL.md": "9f427caaab1b3e75bd7bae3d3d1f6689a197f8f96ab399e9db9ddb74b5e896fe",
+    "wps365-mail-core/SKILL.md": "2da77b54925369cac5baaf49e377aca6f921e9c046ee30b6554992113854facf",
+    "wps365-contacts/SKILL.md": "7608a47db8ed1e3ec52c32997e239b21fc4e729beb8f39c60892104b06cf94de",
+    "wps365-getting-started/SKILL.md": "a8b62dbf2c04845054d33a3a56f1969828c01c7063d813867d19b09190cbf82b",
+    "wps365-getting-started/SKILL.en.md": "f70cf3aaac277a0965706d53bd82cac51505f770015d3f6e8fe826ad16a38316",
+    "wps365-calendar-insert/SKILL.md": "99683f909423a84cf952907217308685688f71ffe0595da30c6a49b6345c01be",
+    "wps365-dbsheet-schema/SKILL.md": "91393045cf0f0f51040dfadc74af62e7189bd7d0b887f6d0f680d016a473630a",
+    "wps365-airpage/SKILL.md": "ff9e8688cee13988acf4d79240abfe84f1bc1615b7aea8622a5ecc0a09de7a5a",
+    "wps365-airsheet/SKILL.md": "becc35a92d1159d3b935995dda8fc35728dbd733fb721774af8ded386cc8e505",
+    "wps365-shared/SKILL.md": "2b82bafd8ef4baccab074e5f7a506d87a2367156c55cdd976c3e54c3eeec15a8",
+    "wps365-mcp/mcp.json": "e788ab42a1a892a9c1ea77368e282084180dcbf6035ea1059b297fc3e1e12463",
+    "wps365-mcp/SKILL.md": "7fcba00536a034254c9e730d40351edf1473b281f6800aa2cc7e61da7d77feab",
+    "wps365-user/SKILL.md": "1300ad85e8b8008d5b07712f8faa662977bb0fb54a8ac4c8c41379318f0c856b",
+    "wps365-calendar/SKILL.md": "597d3989907df4aa3f0a34cbfcd2d992311aa3247bb98d9e2856c53402adcdbf",
+    "wps365-im/SKILL.md": "f33128bbf17193f05417a21494980b83cc7d0dce8c03928075a7804d04c78d57",
+    "wps365-meeting/SKILL.md": "eb63b56179aa53335b7f58f1c219288d3c8eeba25724d67c3e106897f8cffd00"
+  }
+}

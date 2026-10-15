@@ -108,6 +108,15 @@ def collect_files(directory):
     }
 
 
+def process_release_zip(upstream, lock, mode):
+    from tools.upstream_sync import release_zip
+
+    changed = release_zip.process(upstream, lock, REPO_ROOT, mode)
+    if mode == "sync" and changed:
+        save_lock(lock)
+    return changed
+
+
 # ---------------------------------------------------------------------------
 # 命令实现
 # ---------------------------------------------------------------------------
@@ -140,6 +149,9 @@ def cmd_check():
     has_updates = False
 
     for upstream in config["upstreams"]:
+        if upstream.get("type") == "release-zip":
+            has_updates = process_release_zip(upstream, lock, "check") or has_updates
+            continue
         name = upstream["name"]
         repo = upstream["repo"]
         branch = upstream.get("branch", "main")
@@ -168,6 +180,9 @@ def cmd_diff():
     lock = load_lock()
 
     for upstream in config["upstreams"]:
+        if upstream.get("type") == "release-zip":
+            process_release_zip(upstream, lock, "diff")
+            continue
         name = upstream["name"]
         repo = upstream["repo"]
         branch = upstream.get("branch", "main")
@@ -226,6 +241,9 @@ def cmd_sync(upstream_filter=None):
             sys.exit(1)
 
     for upstream in upstreams:
+        if upstream.get("type") == "release-zip":
+            process_release_zip(upstream, lock, "sync")
+            continue
         name = upstream["name"]
         repo = upstream["repo"]
         branch = upstream.get("branch", "main")

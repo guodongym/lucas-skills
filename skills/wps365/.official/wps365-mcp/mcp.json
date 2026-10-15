@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "wps365": {
+      "timeout": 600,
+      "command": "wps365-cli",
+      "args": ["mcp", "serve"],
+      "env": {}
+    }
+  }
+}
