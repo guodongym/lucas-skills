@@ -1,11 +1,19 @@
 ---
 name: wps365
-description: 用于通过 wps365-cli 接入企业 WPS 365，安装或初始化 CLI、查询和管理云文档、读写智能文档和表格，以及操作日历、会议、邮件、消息和通讯录。用户提到企业 WPS 365、wps365-cli 或要求通过该 CLI 操作办公数据时使用；个人金山文档连接器和本地 Office 文件不属于此入口。
+description: 当用户提到企业 WPS 365、WPS365、wps365-cli、WPS 协作、金山协作、协作云文档、企业金山文档、WOA，或提供 365.kdocs.cn 链接并要求查看或操作内容时使用。用户以“协作里、协作上、协作群、协作邮箱、协作文档”指代这款产品时也触发；已有 WPS 上下文的“我的文档、最近文件、刚才那个表、查日程、给同事发消息”等后续请求继续使用。覆盖企业云文档、智能文档与表格、多维表、日历、会议、邮件、消息、通讯录及 CLI 接入排错。普通团队协作讨论、协作算法、本地 Office 文件、WPS 桌面故障和明确指定的个人金山文档连接器不触发；单说“云文档、金山文档”且无平台或企业上下文时先辨明平台与账号类型。
 ---
 
 # WPS 365 官方套件入口
 
 本目录把官方 15 个 Skill 和各平台 CLI 安装包集中保存。Codex 通过一个入口按需读取官方说明，不需要分别激活子目录。
+
+## 叫法与上下文
+
+- “协作、金山协作、WPS 协作、WOA”指代企业 WPS 产品；“帮我看看协作上的文档”“给协作群发通知”都属于本入口。这里的“协作”是产品简称，不包括“提高团队协作效率”“实现协作过滤算法”等普通用词。
+- 企业云文档、企业云盘、协作云文档、智能文档、智能表格、多维表，以及协作中的消息、邮箱、日程、会议、同事信息，都按下表选择官方说明，不要求用户说出 CLI 或 API 名称。
+- `365.kdocs.cn` 的知识库、文档和分享链接属于候选入口；`www.kdocs.cn` 分享链接也可能指向企业文档，结合已绑定的企业账号和对话判断，不仅凭域名认定为个人文档。
+- 已确认 WPS 上下文后，“这个链接”“刚才那个文档”“我的表格”等继续沿用当前对象和账号；新请求明确改用飞书、腾讯文档、Google Docs/Sheets 或个人金山文档连接器时，按其指定平台处理。
+- 单说“云文档、金山文档、帮我整理文档”且没有平台与账号线索时，先辨明归属，不自动绑定企业应用或切换账号。选择本 Skill 不等于已获准修改、发送或删除数据，仍按当前请求核对操作范围。
 
 ## 读取顺序
 
@@ -15,17 +23,17 @@ description: 用于通过 wps365-cli 接入企业 WPS 365，安装或初始化 C
 
 | 任务 | 官方说明 |
 | --- | --- |
-| 云盘、搜索、文件上传下载 | [云文档](.official/wps365-drive/SKILL.md) |
-| 智能文档正文、块、图片 | [智能文档](.official/wps365-airpage/SKILL.md) |
-| 智能表格、工作表和选区 | [智能表格](.official/wps365-airsheet/SKILL.md) |
-| 多维表记录 | [记录操作](.official/wps365-dbsheet-records/SKILL.md) |
+| 列我的文档、最近文件、搜周报、云盘与团队文档、上传下载 | [云文档](.official/wps365-drive/SKILL.md) |
+| 看文档正文、写总结、改标题、插图片、处理智能文档 | [智能文档](.official/wps365-airpage/SKILL.md) |
+| 协作表格加行、改单元格、工作表和选区 | [智能表格](.official/wps365-airsheet/SKILL.md) |
+| 多维表查询、筛选、新增或修改记录 | [记录操作](.official/wps365-dbsheet-records/SKILL.md) |
 | 多维表结构、字段 | [结构操作](.official/wps365-dbsheet-schema/SKILL.md) |
-| 日历查询与管理 | [日历](.official/wps365-calendar/SKILL.md) |
+| 查今天日程、忙闲、日历查询与管理 | [日历](.official/wps365-calendar/SKILL.md) |
 | 新建日程 | [新建日程](.official/wps365-calendar-insert/SKILL.md) |
-| 会议 | [会议](.official/wps365-meeting/SKILL.md) |
-| 邮件 | [邮箱](.official/wps365-mail-core/SKILL.md) |
-| 即时消息 | [消息](.official/wps365-im/SKILL.md) |
-| 通讯录搜索 | [通讯录](.official/wps365-contacts/SKILL.md) |
+| 查会议列表、参会人、纪要和录制 | [会议](.official/wps365-meeting/SKILL.md) |
+| 协作邮箱、新邮件、邮件搜索与发送 | [邮箱](.official/wps365-mail-core/SKILL.md) |
+| 协作群、通知、消息与会话 | [消息](.official/wps365-im/SKILL.md) |
+| 搜同事、查人员和部门信息 | [通讯录](.official/wps365-contacts/SKILL.md) |
 | 当前用户、用户信息 | [用户](.official/wps365-user/SKILL.md) |
 | 用户明确要求 MCP 接入 | [MCP 接入](.official/wps365-mcp/SKILL.md) |
 
@@ -35,3 +43,10 @@ description: 用于通过 wps365-cli 接入企业 WPS 365，安装或初始化 C
 - 本包没有 `spec/`，按官方说明使用 `wps365-cli spec update -y` 获取命令定义。
 - 官方 Skill 与当前 CLI 帮助有差异时，先核对 `--help`、版本和实际错误，不直接覆盖已有绑定或清理凭证。
 - 只读验证仅执行身份查询和用户指定的数据查询；安装不代表获得发送消息、改文档、删除文件或扩大应用权限的授权。
+
+## 常见请求的处理要点
+
+- “列我的文档、看看最近文件”：可先用 `wps365-cli drive recent-file list --page-size 10 --token-type delegated` 做有界只读查询；说明这是最近访问列表，可能包含收到的共享文件，还有分页时不要称为全部自有文档。
+- 只有用户需要按盘或文件夹浏览时，再走云文档说明中的盘与文件列表流程；最近列表与按盘列表的权限不同，按实际错误补本次所需权限。若接口要求 `readwrite`，先说明它包含写能力，不能把一次只读请求视为用户已批准扩大写权限。
+- 知识库页面链接与底层文档链接可能不同。CLI 不能直接解析某个链接时，可使用已授权的只读浏览工具查看或解析；不要把链接格式不支持直接说成账号无权限。
+- 触发场景与不触发场景保存在 `evals/trigger-evals.json`，用于后续检查别名覆盖、上下文承接和个人/企业边界。

@@ -1,0 +1,205 @@
+{
+  "skill_name": "wps365",
+  "evals": [
+    {
+      "id": "p01",
+      "query": "帮我列出金山协作里的最近文档。",
+      "context": "",
+      "should_trigger": true,
+      "route": "drive"
+    },
+    {
+      "id": "p02",
+      "query": "把这段总结写到协作云文档里。",
+      "context": "",
+      "should_trigger": true,
+      "route": "airpage"
+    },
+    {
+      "id": "p03",
+      "query": "在 WPS 协作里搜索项目周报。",
+      "context": "",
+      "should_trigger": true,
+      "route": "drive"
+    },
+    {
+      "id": "p04",
+      "query": "协作上最近打开的文件有哪些？",
+      "context": "",
+      "should_trigger": true,
+      "route": "drive"
+    },
+    {
+      "id": "p05",
+      "query": "我说的协作就是 WPS 那个，帮我查今天的日程。",
+      "context": "",
+      "should_trigger": true,
+      "route": "calendar"
+    },
+    {
+      "id": "p06",
+      "query": "看下这个 https://365.kdocs.cn/wiki/l/example 的内容。",
+      "context": "",
+      "should_trigger": true,
+      "route": "document-link"
+    },
+    {
+      "id": "p07",
+      "query": "把协作里的智能表格加一行。",
+      "context": "",
+      "should_trigger": true,
+      "route": "airsheet"
+    },
+    {
+      "id": "p08",
+      "query": "查金山协作多维表里的本周记录。",
+      "context": "",
+      "should_trigger": true,
+      "route": "dbsheet-records"
+    },
+    {
+      "id": "p09",
+      "query": "帮我登录一下 WOA，再通过 CLI 看会议列表。",
+      "context": "",
+      "should_trigger": true,
+      "route": "getting-started"
+    },
+    {
+      "id": "p10",
+      "query": "企业金山文档里的文件帮我找一下。",
+      "context": "",
+      "should_trigger": true,
+      "route": "drive"
+    },
+    {
+      "id": "p11",
+      "query": "帮我查一下协作邮箱里的新邮件。",
+      "context": "",
+      "should_trigger": true,
+      "route": "mail"
+    },
+    {
+      "id": "p12",
+      "query": "在金山协作里搜一下张三，别遍历全公司。",
+      "context": "",
+      "should_trigger": true,
+      "route": "contacts"
+    },
+    {
+      "id": "p13",
+      "query": "给协作群发一条会议通知。",
+      "context": "",
+      "should_trigger": true,
+      "route": "im"
+    },
+    {
+      "id": "p14",
+      "query": "wps365-cli 提示 token missing required scopes，看看。",
+      "context": "",
+      "should_trigger": true,
+      "route": "getting-started"
+    },
+    {
+      "id": "p15",
+      "query": "刚才那个文档，帮我继续看。",
+      "context": "此前正在通过 WPS365 CLI 读取企业协作云文档。",
+      "should_trigger": true,
+      "route": "document-link"
+    },
+    {
+      "id": "p16",
+      "query": "我贴的是 www.kdocs.cn 分享链接，用刚才绑定的企业账号看看。",
+      "context": "此前已绑定 WPS365 企业应用。",
+      "should_trigger": true,
+      "route": "document-link"
+    },
+    {
+      "id": "n01",
+      "query": "怎么提高团队协作效率？",
+      "context": "",
+      "should_trigger": false,
+      "route": "general"
+    },
+    {
+      "id": "n02",
+      "query": "帮我设计多人协作编辑功能。",
+      "context": "",
+      "should_trigger": false,
+      "route": "development"
+    },
+    {
+      "id": "n03",
+      "query": "用飞书把会议纪要发给同事。",
+      "context": "",
+      "should_trigger": false,
+      "route": "feishu"
+    },
+    {
+      "id": "n04",
+      "query": "帮我把本地 /tmp/周报.docx 排好版。",
+      "context": "",
+      "should_trigger": false,
+      "route": "local-office"
+    },
+    {
+      "id": "n05",
+      "query": "我用的是个人金山文档连接器，别用企业应用。",
+      "context": "",
+      "should_trigger": false,
+      "route": "personal-kdocs"
+    },
+    {
+      "id": "n06",
+      "query": "WPS 桌面版启动崩溃，怎么排查？",
+      "context": "",
+      "should_trigger": false,
+      "route": "desktop-support"
+    },
+    {
+      "id": "n07",
+      "query": "说明一下协作过滤算法。",
+      "context": "",
+      "should_trigger": false,
+      "route": "general"
+    },
+    {
+      "id": "n08",
+      "query": "创建一个 Google Sheets 表格。",
+      "context": "",
+      "should_trigger": false,
+      "route": "google-sheets"
+    },
+    {
+      "id": "a01",
+      "query": "帮我整理云文档。",
+      "context": "",
+      "should_trigger": null,
+      "route": "clarify-product"
+    },
+    {
+      "id": "a02",
+      "query": "帮我看看金山文档里的报告。",
+      "context": "没有上下文，也不知道是个人连接器还是企业 WPS。",
+      "should_trigger": null,
+      "route": "clarify-account"
+    }
+  ],
+  "last_evaluation": {
+    "method": "独立子代理只依据入口 name/description 选择 Skill，正反例与歧义场景各自独立；未执行外部操作",
+    "passes_per_variant": 1,
+    "baseline_commit": "01c42da1c1a4ee90fc2cec6445b8f095159deaca",
+    "before": {
+      "positive_hits": 4,
+      "positive_total": 16,
+      "negative_skips": 8,
+      "ambiguous_clarifications": 2
+    },
+    "after": {
+      "positive_hits": 16,
+      "positive_total": 16,
+      "negative_skips": 8,
+      "ambiguous_clarifications": 2
+    },
+    "limitation": "离线路由样例评估，不保证真实会话中的所有表达或所有模型均会自动触发。"
+  }
+}
