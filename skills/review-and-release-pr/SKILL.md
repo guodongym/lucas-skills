@@ -97,7 +97,7 @@ At Gate 1 STOP, retain preliminary Special attention and requirement findings, m
 
 Refresh PR body, base SHA, head SHA, requirement and approval sources, main, review state, and checks. Prove the tested tree is the merge tree or has verifiable tree identity. Any material base SHA, head SHA, requirement, approval, main, or checks change invalidates affected evidence, including impact and constraint conclusions. Refresh the attention summary/comment when its content or anchored version changes.
 
-Only the latest independent review PASS may enter `finishing-a-development-release`, and only for already authorized push, merge, and release actions. Cleanup needs authority for the concrete cleanup objects; an earlier explicit request covering them is sufficient while scope and risk remain unchanged.
+Only the latest independent review PASS may enter `finishing-a-development-release`, and only for already authorized push, merge, and release actions. Pass the concrete task worktree/local and remote branch identities, PR head, existing cleanup authority and exclusions, anchored tree/local-state evidence and any completed merge/release readbacks to that Skill; it performs pending integration and release verification. Its Local State Gate and Cleanup Gate exclusively govern cleanup and recovery-package retention; do not maintain a second policy here. An earlier explicit request covering the cleanup objects remains sufficient while scope and risk are unchanged. Report its cleanup and recovery results or blockers without treating review PASS as cleanup evidence.
 
 ## State summary
 
