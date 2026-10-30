@@ -97,6 +97,33 @@
         "Stops merge for the missing independent reviewer without undoing the authorized repair or asking again for merge authority.",
         "Names a separate review of b1..h8 as the missing evidence and retains equivalent existing checks."
       ]
+    },
+    {
+      "id": "required-result-is-not-later-acceptance",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills or execute writes. Describe the next state and minimum remaining work in Chinese. PR example/market#49 base b1 head h9. Gate 1 has passed the approved current-stage goal: actual collected records must produce trade candidates and alerts; a later stage only displays them. Independent review: High/Conforms/Not ready, P1-01: production adapter always maps category/unit to unknown and can_infer_trade=False, so all actual records bypass core analysis. Synthetic calculator tests pass. Deployment and real-account long runs are approved later acceptance, but no approval exists to deliver only a framework. Field semantics needed for the mapping still require a business decision. User authorized bounded fixes, PR comments and merge; no independent approval of new field meaning. All other capabilities are available.",
+      "expected_output": "STOP for the missing current-stage result and decision-bearing repair; preserve later deployment acceptance without using it to waive the implementation gap.",
+      "files": [],
+      "assertions": [
+        "Retains the independent P1 and Not ready conclusion despite synthetic test success and deferred production acceptance.",
+        "Does not auto-invent source semantics, weaken the approved stage or treat it as an unrelated environment gap.",
+        "Selects STOP because the repair needs a material business decision, while preserving completed read-only investigation and existing authority.",
+        "Names the smallest missing mapping decision and actual-record-to-result check; does not demand live production access or unrelated full regression.",
+        "Any proposed PR-comment body retains all five need/approach/scope/result/impact answers and the anchored candidate, marking unsupported parts unassessed; a compact chat summary is not the complete comment."
+      ]
+    },
+    {
+      "id": "equivalent-evidence-completes-handoff",
+      "kind": "behavior",
+      "prompt": "This is an offline state-transition evaluation, not a live PR operation. Use only supplied anchored facts; do not invoke GitHub, gh, other skills or execute writes. Describe the next state and minimum remaining work in Chinese. PR example/app#50 base b2 head h10. Phase 3 independent review has passed: Medium/Conforms/Ready, no findings or questions. Five review answers and full final-candidate coverage are recorded. The linked spec is unchanged and independently approved. Final metadata refresh confirms the same base/head/requirements/approvals/main/checks, and merge tree identity equals the tested tree. Relevant tests, inputs, dependency/configuration and environment remain equivalent; no material risk or coverage gap emerged. A prior workflow comment exactly matches base/head, current conclusions and verification and was verified at https://github.com/example/app/pull/50#issuecomment-123. User authorized merge and comments, but not tag/Release, deployment or cleanup. Runtime and independent-review capabilities remain available.",
+      "expected_output": "PASS, reuse the verified comment and hand off the authorized merge; no redundant full review, tests or authority expansion.",
+      "files": [],
+      "assertions": [
+        "Preserves the independent PASS and equivalent prior verification without ordering another full proposal review or full regression merely for the handoff.",
+        "Reuses the identical verified comment and its URL rather than proposing a duplicate write.",
+        "Hands off only the authorized merge, preserving tree-identity and readback requirements; does not add release, deployment or cleanup.",
+        "Treats all described actions as proposed simulation, not a claim that a real merge or external write occurred."
+      ]
     }
   ]
 }

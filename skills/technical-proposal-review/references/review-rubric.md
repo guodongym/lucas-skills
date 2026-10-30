@@ -1,14 +1,28 @@
 # Review Rubric
 
-Use every section for every proposal. Domain tags can add checks but cannot remove any global dimension.
+Screen all dimensions for applicability; deepen only paths relevant to the proposal, its stage and real consumers. Domain tags add checks without excluding other dimensions. Do not turn the question set into a quota of findings, documents or infrastructure.
 
 ## Cross-Cutting Reasoning Rules
 
-Apply these rules before historical risk patterns:
+### First principles — start from the task
 
-- **First principles:** for each material decision, identify its goal or invariant, separate proposal facts from assumptions, check existing capabilities and meaningful alternatives, and state what evidence or acceptance condition would change the decision. Require a metric, comparison baseline, and numeric threshold only for quantitative decisions such as capacity, performance, cost, SLOs, and rollout gates.
-- **Adversarial review:** for each material path, test at least one concrete reachable failure or counterexample. If reachable, check impact, detection, containment, and recovery. Reachability decides whether to analyze the failure, not its severity; assign severity only from evidenced impact and review readiness.
-- **Evidence control:** create a finding only when an evidence-backed gap affects the selection or implementation boundary. Use `Q` when evidence is insufficient, do not invent missing risks, and merge findings with the same root cause. Grade severity from evidenced impact, blast radius, reversibility, and existing controls—not checklist absence; use `Q` or `P2` when only detail is missing.
+Reconstruct latest confirmed goal → current-stage usable outcome → user/caller path → necessary invariants → existing capability → proposed difference. Separate source facts, assumptions, owner decisions and the reviewer's suggestions. An approved plan is evidence of scope, not proof that its design remains suitable; a scope-changing alternative stays a proposal until authorized.
+
+For each material addition, ask what current acceptance would fail without it and whether an existing mechanism suffices. For each removal or simplification, trace the user task it supported, the replacement and any semantic or operational loss. Consider keeping the existing behavior as an alternative. Table, menu, file and switch counts are clues, not evidence of necessity. Do not add background orchestration just to hide controls or remove useful history just to reduce objects.
+
+Explain the smallest sufficient approach and its tradeoffs. Require metrics, comparison baselines and numeric thresholds for actual quantitative promises, not qualitative choices. Do not manufacture alternative designs or future phases when one approach already satisfies the approved goal.
+
+### Adversarial review — try to falsify the conclusion
+
+Check ordinary use first: can the approved user task complete with the proposed inputs, outputs and access path? Then choose realistic counterexamples from the changed assumptions and failure boundaries, including partial success, concurrency, retries, stale state or denied access where relevant. Challenge the preferred design, a simplification and inherited findings equally; adversarial review is not a search for reasons to add machinery.
+
+Trace precondition → trigger → proposed/actual path → bad state → user impact → detection/containment/recovery. Follow shared services, wrappers and transaction boundaries before claiming a missing control. State what evidence would refute the candidate; close it when a shown control prevents the failure. Use a minimal sample, code readback or safe reproduction when decisive. Label a proposal-level counterexample as reasoning, not an executed test. No counterexample quota applies to low-risk paths.
+
+### Evidence and stage control
+
+Create a finding only for an evidenced gap affecting the outcome or a material decision. Use Q for unresolved facts, assess impact against existing controls and reversibility, and merge shared root causes. Security labels, checklist omissions and general best practices do not establish priority or override an accepted tradeoff. When a failure depends on an unverified external capability or behavior, keep that premise as Q and name the decisive evidence; a hypothetical serious consequence does not establish P0/P1. An optional behavior absent from the goal is a simplification candidate, not automatically a violation of an approved exclusion.
+
+Preflight resolves uncertainties that can change the design, such as permissions, external data semantics or representative model feasibility. Implementation tests check built behavior; deployment and business acceptance check their declared later gates. Do not require a completed product to prove it can enter development, and do not defer an absent required adapter, entry point or usable result as merely an untested production environment. Keep an approved foundational stage distinct from delivery of the whole roadmap.
 
 ## 1. Background And Goals
 
@@ -48,7 +62,7 @@ Check:
 
 Risk signals:
 
-- Only one option is presented.
+- A materially simpler viable option is omitted without explanation.
 - The proposal says "lowest risk" without evidence.
 - Cost, migration, maintenance, or operational complexity are absent from comparison.
 
@@ -69,14 +83,14 @@ Risk signals:
 
 Check:
 
-- Does the proposal explain compatibility with current systems and known future migration paths?
+- Does the proposal account for actual consumers, deployed versions, preserved data and approved cutover boundaries?
 - Does it define migration scope, data transformation, write freeze or dual-write period, and validation?
 - Does it describe rollback steps and triggers?
 
 Risk signals:
 
 - Migration is described as a phase but lacks commands, sequence, data checks, or rollback.
-- Future gateway or platform migration is mentioned but not reconciled with the proposal.
+- A known consumer or required recovery path is broken; speculative future consumers alone do not require a compatibility layer.
 
 ## 6. Consistency And Failure Handling
 
@@ -148,7 +162,7 @@ Risk signals:
 
 Check:
 
-- Can future teams extend the solution without rewriting core pieces?
+- Can the approved extension be maintained without speculative framework or configuration work?
 - Are custom patches, custom protocols, and special cases minimized?
 - Is the design compatible with expected future architecture direction?
 
@@ -161,7 +175,7 @@ Risk signals:
 
 Check:
 
-- Is there an MVP path before broad rollout?
+- Is the current-stage user path usable, with later work separated from its acceptance?
 - Are representative end-to-end cases identified?
 - Are tests, validation queries, migration checks, and acceptance criteria explicit?
 - For platform standards, are representative stacks, services, languages, or domains selected before full rollout?

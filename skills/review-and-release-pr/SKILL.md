@@ -21,7 +21,7 @@ Use available `github:github` or local `gh` for PR evidence, `code-change-review
 
 Use these specialized Skills when available and relevant:
 
-- `technical-proposal-review` when the PR cites a formal PRD, RFC, spec, or technical proposal.
+- `technical-proposal-review` when the user requests design review, the PR materially changes the design, or an unresolved design decision needs review. Read an unchanged approved PRD/RFC/spec as requirement evidence; its citation alone does not restart a full proposal review.
 - `github:gh-address-comments` and `superpowers:receiving-code-review` when existing review comments, threads, or requested changes exist.
 - `superpowers:systematic-debugging` and `superpowers:test-driven-development` before `FIX`.
 
@@ -57,7 +57,7 @@ Answer whether the problem exists, the goal fits project contracts, acceptance i
 
 Apply `code-change-review`'s impact/constraint rules to the approved pre-change baseline: scope, capability necessity and architecture boundaries. PR edits to rules, tests or architecture docs cannot approve themselves. Accept independently traceable prior approval without asking again. A known scope conflict is a constraint issue; missing material approval/consumer evidence is a blocking Q. Do not manufacture a runtime defect to reject an unjustified capability.
 
-PASS only when goal, evidence, constraints, and acceptance are executable. Missing evidence that could change scope is a blocking Q and STOP. An unreasonable, contradictory, already-satisfied, unverifiable, mis-scoped, or unjustifiably risky requirement is STOP. Do not inspect repair details to rationalize a failed requirement.
+PASS only when goal, evidence, constraints, and acceptance are executable. Missing evidence that could change scope is a blocking Q and STOP. An unreasonable, contradictory, already-satisfied, unverifiable, mis-scoped, or unjustifiably risky requirement is STOP. Do not inspect repair details to rationalize a failed requirement. Use code-change-review’s first-principles and adversarial rules to test the current-stage user path and inherited claims, including capability losses from proposed simplification. An absent required production adapter, entry point or usable result is not merely post-deployment acceptance; an approved foundational stage also need not deliver later roadmap features.
 
 On STOP, deliver the gate result and preliminary Special attention through the comment protocol below. Do not continue until an updated requirement passes a fresh Phase 0 and Gate 1.
 
@@ -87,7 +87,7 @@ Before FIX, disclose finding ID, impact, root cause, repair scope, and verificat
 
 ## Special attention and PR comments
 
-Use `code-change-review`'s `references/pr-comments.md` for the shared comment format, authority, fresh-state checks, deduplication, publication and readback. Apply it on PASS, FIX and STOP; do not infer comment authority from merge or repair authority.
+Use `code-change-review`'s `references/pr-comments.md` for the shared comment format, authority, fresh-state checks, deduplication, publication and readback. Apply it on PASS, FIX and STOP; do not infer comment authority from merge or repair authority. Produce the protocol’s complete standalone comment, including its five review answers; mark unsupported answers unassessed. Compact chat summaries do not replace or shorten the required publication fields.
 
 At Gate 1 STOP, retain preliminary Special attention and requirement findings, mark approach/correctness judgments unassessed where appropriate, and label full independent review incomplete. At Phase 3, preserve the independent review's five answers and constraint/defect/question conclusions in the shared comment format. Required but unconfirmed comment delivery blocks automated merge/release even if code readiness passed.
 
@@ -95,13 +95,13 @@ At Gate 1 STOP, retain preliminary Special attention and requirement findings, m
 
 **REQUIRED SUB-SKILL:** Use `superpowers:verification-before-completion` before any completion, merge, or release claim.
 
-Refresh PR body, base SHA, head SHA, requirement and approval sources, main, review state, and checks. Prove the tested tree is the merge tree or has verifiable tree identity. Any material base SHA, head SHA, requirement, approval, main, or checks change invalidates affected evidence, including impact and constraint conclusions. Refresh the attention summary/comment when its content or anchored version changes.
+Refresh PR body, base SHA, head SHA, requirement and approval sources, main, review state, and checks. Prove the tested tree is the merge tree or has verifiable tree identity. Any material base SHA, head SHA, requirement, approval, main, or checks change invalidates affected evidence, including impact and constraint conclusions. Refreshing facts does not itself require rerunning equivalent tests or a full proposal review. Choose new checks from the actual change in behavior, inputs, configuration or environment; when necessary evidence remains sufficient, finish the authorized handoff without another clean-review round. Refresh the attention summary/comment when its content or anchored version changes.
 
 Only the latest independent review PASS may enter `finishing-a-development-release`, and only for already authorized push, merge, and release actions. Pass the concrete task worktree/local and remote branch identities, PR head, existing cleanup authority and exclusions, anchored tree/local-state evidence and any completed merge/release readbacks to that Skill; it performs pending integration and release verification. Its Local State Gate and Cleanup Gate exclusively govern cleanup and recovery-package retention; do not maintain a second policy here. An earlier explicit request covering the cleanup objects remains sufficient while scope and risk are unchanged. Report its cleanup and recovery results or blockers without treating review PASS as cleanup evidence.
 
 ## State summary
 
-Lead with Special attention, impact level, Scope/architecture and readiness. Report PR/base/head, backend and capabilities, phase, state, requirement/approval sources, inherited review result, independent constraint issues/findings/questions, verification tree, comment delivery (posted/reused URL, draft, failed or unverified), granted actions, stop reason, and next action. A resumed task must read live state again; the summary is navigation, not current truth.
+Lead with Special attention, impact level, Scope/architecture and readiness. Keep PR/base/head, backend/capabilities, requirement/approval sources, review origin, tested tree, granted actions and phase evidence in the task record. In the user report, give the current candidate, material findings/decisions, actual verification boundaries, comment delivery (posted/reused URL, draft, failed or unverified) and next authorized action; link a complete report instead of repeating its inventories. Explain the origin of new findings using code-change-review’s rereview rules. A resumed task must read live state again; the summary is navigation, not current truth.
 
 ## Common failures
 

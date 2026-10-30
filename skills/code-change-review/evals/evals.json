@@ -726,6 +726,55 @@
         "Explains the startup clear/seed side effects and chooses direct code evidence or a standalone synthetic copy with no unsafe imports.",
         "Continues independent review and does not claim real shared-service validation or modify the reviewed source."
       ]
+    },
+    {
+      "id": "behavior-required-production-adapter",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to complete the user request in the supplied full offline artifacts. Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Not ready: a confirmed missing production mapping defeats the approved current-stage outcome; later deployment acceptance does not contain it.",
+      "files": [
+        "evals/fixtures/code-adapter.md"
+      ],
+      "assertions": [
+        "Traces real entry -> adapt -> constant unknown/False -> skipped candidate, baseline and alert branches; cites the causal added lines in server/market/adapter.py.",
+        "Identifies the materially incomplete approved stage as a confirmed functional issue rather than merely untested production or absent real credentials.",
+        "Separates valid synthetic calculator tests from absent production mapping and requests the smallest representative real-response-to-result verification.",
+        "Keeps deployment and real-account long-run acceptance at their approved later gate; does not require unrelated full regression or live production access."
+      ]
+    },
+    {
+      "id": "behavior-existing-inner-control",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to complete the user request in the supplied full offline artifacts. Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Withdraw the alleged creator-overwrite race because the shared inner lock and update policy prevent it; do not add a duplicate lock.",
+      "files": [
+        "evals/fixtures/code-guard.md"
+      ],
+      "assertions": [
+        "Follows the X/Reddit branch into upsert_social and recognizes the same transactional platform/key lock.",
+        "Explains that the second request reads after the first under the same lock and cannot update creator; rejects the inherited finding with evidence.",
+        "Does not manufacture a P/Q merely because an outer lock is absent or the supplied author concurrency test was not rerun.",
+        "Labels static proof and author-reported execution separately and does not claim to have run the two-connection test.",
+        "Uses a compact claim-disposition report without reciting all unchanged screening dimensions or repeating the same locking proof across separate inventories."
+      ]
+    },
+    {
+      "id": "behavior-approved-transport-scope",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to complete the user request in the supplied full offline artifacts. Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Not ready due to a proved constraint conflict with the accepted HTTP/current-origin behavior; security benefits alone do not approve a reversal.",
+      "files": [
+        "evals/fixtures/code-approved-policy.md"
+      ],
+      "assertions": [
+        "Uses the independently supplied owner decision and pre-change behavior as baseline rather than the PR-modified plan or author approval claim.",
+        "Prominently describes the non-loopback HTTP capability removal and fixed production-domain prompt, including its effect on other deployments.",
+        "Separates the implemented restriction working as designed from its unauthorized scope reversal; reports a C constraint issue without inventing an authentication bypass.",
+        "Recommends preserving approved current-origin/HTTP behavior or obtaining a genuine revised decision, while retaining existing permission, ticket and same-origin controls."
+      ]
     }
   ]
 }

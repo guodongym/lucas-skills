@@ -324,7 +324,7 @@ Trigger:
 
 Expected review:
 
-- Require a clear this-phase scope, future-phase scope, trigger metrics, and decision gates.
+- Separate the approved current phase from optional future work. Omit an unneeded future phase; require metrics only when an actual quantitative promise or scaling decision depends on them.
 - Ask whether the MVP reuses existing mechanisms first, and defer optimization until representative rollout exposes measured pressure or failure modes.
 - Treat as high priority when mixed scope could expand implementation or confuse acceptance criteria.
 

@@ -19,7 +19,7 @@ The comment must be understandable without the chat:
 PR / base / head: <verified URL and immutable SHAs>
 Need: <approved goal/value and observed problem; unverified baseline explicit>
 Approach: <suitability of the chosen responsibility/data boundary>
-Scope: <concrete additions/removals and whether justified>
+Scope: <concrete additions/removals, capability losses and whether justified>
 Result: <original scenario, expected outcome and actual evidence/gaps>
 Impact: <affected consumers/functions and compatibility/recovery>
 Impact / scope-architecture / readiness: <existing review conclusions and reasons>

@@ -19,7 +19,7 @@ Screen all eight surfaces; use the detailed checks below only where relevant. In
 
 A documented pattern is not automatically mandatory; historical code and green CI do not establish correctness. Compare changed paths with approved pre-change boundaries and separately traceable exceptions.
 
-For capability necessity, ask whether deleting the addition still satisfies current acceptance. Identify the smallest existing alternative and any unjustified behavior or maintenance obligation. File count and personal preference are not evidence; approved new capabilities need not have existing adopters.
+For capability necessity, ask whether deleting the addition still satisfies current acceptance. Apply the reverse test to removals: whether a real user task still has an equivalent path, history and evidence. Fewer controls with more background orchestration can increase complexity; preserving an internal mechanism is justified by its invariant, not its familiarity. Identify the smallest existing alternative and any unjustified behavior or maintenance obligation. File count and personal preference are not evidence; approved new capabilities need not have existing adopters.
 
 For changed validation, compare the old invariant, new assertion and actual CI path. Updating an assertion for an approved contract can be valid; weakening a required gate without equivalent coverage can be a constraint issue despite functioning runtime code.
 

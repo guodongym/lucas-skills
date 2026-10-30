@@ -10,7 +10,7 @@ Use these preferences when wording review findings.
 - Keep findings concise but complete.
 - Use severity only when evidence supports it.
 - Use historical cases when they sharpen judgment.
-- Preserve human final authority by listing review focus instead of pretending to approve final design.
+- Preserve human final authority by naming unresolved material decisions; carry forward decisions already approved.
 - For platform audit or cross-service capability proposals, prioritize SDK/API contract gaps, architecture/text boundary mismatches, and this-phase vs future-optimization scope confusion before broader generic reliability comments when evidence supports them.
 - For external capacity promises, prefer a matrix: `spec item -> control point -> metric source -> over-limit behavior -> capacity prerequisite -> alert`.
 - For platform capability coverage, ask for a concrete coverage matrix with owner, current status, priority, and acceptance case.
@@ -22,7 +22,7 @@ Use these preferences when wording review findings.
 ## Avoid
 
 - Generic comments such as "consider security", "consider reliability", or "add monitoring" without specific missing evidence.
-- Long generic architecture lectures.
+- Long generic architecture lectures, empty sections and mandatory calibration footers.
 - Repeating the same issue across multiple sections.
 - Treating domain tags as exclusive categories.
 - Over-weighting a low-impact wording issue.
@@ -31,7 +31,7 @@ Use these preferences when wording review findings.
 - Flagging "content is in an external link" as a P1 finding. When an evidence gap is an external link, offer to read the link or ask the author to share the content instead.
 - Flagging missing HTTP auth as P1 without first asking whether the endpoint is intra-cluster or public-facing. Intra-cluster calls with network isolation are acceptable without explicit auth.
 - Flagging DDL migration plan absence as P1 by default. Raise as P2 or Q unless there is specific evidence of risk such as unknown table size, no DBA support, or no online DDL tooling. Trust team operational expertise.
-- Firing a finding when the proposal has already provided a reasonable contextual explanation for the trigger condition. Before outputting a finding, check whether the proposal has already addressed the concern — if addressed, downgrade to Q or close. Common examples: soft-limit precision (proposal states metering accuracy is not required for the use case); rollback path (proposal has already established that the upstream version is insufficient, making rollback framing inapplicable); parameter dimension asymmetry (proposal states a field is technically unavailable in that traffic type).
+- Firing a finding when the proposal has already provided a reasonable contextual explanation for the trigger condition. Close an addressed concern; use Q only when a specific unresolved fact still changes the decision. Common examples: soft-limit precision (proposal states metering accuracy is not required for the use case); rollback path (proposal has already established that the upstream version is insufficient, making rollback framing inapplicable); parameter dimension asymmetry (proposal states a field is technically unavailable in that traffic type).
 
 ## Feedback Signals
 

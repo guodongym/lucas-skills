@@ -1,67 +1,34 @@
 # Output Template
 
-Use this structure for every first-pass review.
+Use the user's language. Lead with the decision and concrete reasons. A small review can be short prose; a larger one can use the structure below. Include each conclusion once and omit empty sections.
 
-## 初审结论
+## 结论与范围
 
-结论：`通过` / `需补充后再审` / `阻塞` / `建议转人工重点审`
+结论：`通过` / `需补充后再审` / `阻塞` / `建议转人工重点审`。
 
-理由：用 1-3 句话说明最核心判断。不要写泛泛总结。
+Explain the reason in 1–3 sentences, then identify the proposal/version, full or delta scope and relevant evidence boundary. A pass is review readiness, not final approval or completed implementation.
 
-## 输入范围
+## 目标与方案判断
 
-- 评审对象：
-- 方案正文来源：
-- 已有评审意见：无 / 已作为参考 / 已在盲测中排除。
-- 本次输出边界：区分“已有意见复核”和“本次新增发现”。
+State the approved current-stage outcome, how a user/caller reaches it, what existing capability is reused and whether the additional behavior is necessary. Give a simpler alternative only when it has a concrete benefit; state any lost capability or changed business meaning. Use short prose or a compact table rather than repeating the proposal inventory.
 
-## 阻塞问题
+## 发现与建议
 
-| ID | 问题 | 证据 | 为什么重要 | 建议补充 |
-|---|---|---|---|---|
+List only supported P0/P1/P2/Q entries, most consequential first. Each contains:
 
-Use this section only for `P0 阻塞` issues.
+- ID and priority.
+- Proposal location or missing fact, separated from inherited reviewer claims.
+- Reachable scenario and concrete effect; for P0/P1, why the existing controls do not contain it.
+- Smallest correction or decision. For a question, name the affected conclusion/gate and the smallest evidence needed.
 
-## 重要问题
+A table is useful for short entries; use paragraphs when a scenario needs explanation. Do not fragment one root cause across sections or inflate an uncertainty into a confirmed defect.
 
-| ID | 问题 | 证据 | 影响 | 建议补充 |
-|---|---|---|---|---|
+## 复审变化（有前轮时）
 
-Use this section for `P1 重要` issues.
+Close, retain or revise prior finding IDs. Explain whether a new issue was missed before, introduced by a revision, exposed by the baseline or caused by changed requirements. Describe actual independent review separately from self-review.
 
-## 建议优化
+## 验证与待决定事项
 
-| ID | 建议 | 证据 | 价值 | 建议调整 |
-|---|---|---|---|---|
+Report only sources inspected or checks actually run; distinguish author claims, static reasoning, synthetic reproduction and real-system evidence. Name material coverage gaps and their stage: preflight, implementation, deployment or business acceptance. State which conclusion each gap affects.
 
-Use this section for `P2 建议` items. Omit when there are no useful `P2` items.
-
-## 追问清单
-
-| ID | 问题 | 为什么需要回答 |
-|---|---|---|
-
-Use this section for `Q 追问`.
-
-## 通用架构检查
-
-Summarize global rubric coverage. Prefer concise status lines:
-
-- 已覆盖：
-- 仍缺口：
-
-## 历史相似案例
-
-List matched cases only when the analogy helps explain the issue:
-
-- `CASE-xxx`: 相似点；可借鉴的评审规则。
-
-## 人工复审重点
-
-List 2-5 items that require human judgment.
-
-## 校准
-
-在报告最末固定输出这一行（不输出 YAML 反馈块）：
-
-> 校准：对以上 findings 有误报/漏判/措辞不满，直接回一句（如 "P1-02 误报"、"漏了迁移回滚"）即可；经你确认后，我可以将脱敏反馈记录到 feedback/pending/。
+Ask only decisions that cannot be resolved from available evidence and would change scope, acceptance or material consequences. Historical analogies appear only when useful. A clean review needs no empty P/Q tables, mandatory human-review list or calibration footer. End when the requested review is complete.

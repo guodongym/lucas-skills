@@ -2,6 +2,14 @@
 
 Use the user's language. Keep the verdict and actionable evidence ahead of process narration.
 
+Choose the report shape to fit the request:
+
+- For a bounded change or one disputed finding, use three compact parts: attention and verdict with impact/scope judgment; the finding or claim disposition with its causal path and action; verification and coverage limits. Integrate the five review answers and version scope into these parts once.
+- For multiple interacting change groups or a requested formal report, use the expanded sections below.
+
+Keep the eight-surface screening as review working notes; surface material changes and unverified paths in the report. An unchanged-surface checklist, duplicate scope inventory or repeated causal explanation adds no evidence.
+
+
 ## Attention and verdict
 
 ```text
@@ -48,14 +56,14 @@ After the verdict, answer these five questions once for each material change gro
 | Question | Required answer |
 | --- | --- |
 | Need | Approved goal and its value, separately from observed prior failure; mark prior failure unverified when baseline evidence is absent. |
-| Approach | Responsibility/data boundary, existing alternatives and why the chosen approach fits. |
-| Scope | Concrete objects added/modified/removed; justified scope and any bundled or premature work. |
+| Approach | Responsibility/data boundary, smallest sufficient existing alternative and why the chosen approach fits; recommend retain/simplify/remove or a material decision when supported. |
+| Scope | Concrete objects added/modified/removed; justified scope, capability losses and any bundled or premature work. |
 | Result | Original scenario → expected outcome → implementation evidence; what is resolved and what remains unverified. |
 | Impact | Affected consumers/functions, contracts/state, compatibility, deployment and recovery. |
 
 Keep requirement necessity, approach suitability and implementation correctness independent within these answers. Reuse evidence links and C/P/Q IDs; do not add a second change inventory repeating the same facts. Group checked-unchanged screening surfaces in one sentence and name unverified ones separately. Routine changes can use one short paragraph; empty ranges need no table. Preliminary reviews mark unassessed answers explicitly.
 
-For rereviews, add a compact disposition of prior findings (resolved, retained, revised) and say whether coverage is the full final candidate or a delta. Identify self-review versus an actually separate independent review.
+For rereviews, add a compact disposition of prior findings (resolved, retained, revised) and say whether coverage is the full final candidate or a delta. Identify self-review versus an actually separate independent review. Explain the origin of new issues or state that the available history cannot decide it.
 
 ## Constraint issues
 
