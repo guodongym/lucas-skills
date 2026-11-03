@@ -95,8 +95,18 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
             "Unable to determine",
             "Ready with non-blocking follow-ups",
             "未发现有代码证据支持的缺陷",
+            "UI coverage",
         ):
             self.assertIn(phrase, template)
+
+    def test_rubric_screens_user_visible_ui_as_its_own_surface(self):
+        rubric = (SKILL_ROOT / "references" / "review-rubric.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Screen all nine surfaces", rubric)
+        self.assertIn("| User-visible UI |", rubric)
+        self.assertIn("### User-visible UI", rubric)
+        self.assertIn("Runtime walkthrough", rubric)
 
     def test_eval_manifest_has_fixed_case_matrix_and_valid_fixtures(self):
         manifest = json.loads(
@@ -104,8 +114,8 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         )
         self.assertEqual(manifest["skill_name"], "code-change-review")
         evals = manifest["evals"]
-        self.assertEqual(len(evals), 55)
-        self.assertEqual(len({case["id"] for case in evals}), 55)
+        self.assertEqual(len(evals), 58)
+        self.assertEqual(len({case["id"] for case in evals}), 58)
 
         required = {
             "id",
@@ -129,7 +139,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         triggers = [case for case in evals if case["kind"] == "trigger"]
         behavior = [case for case in evals if case["kind"] == "behavior"]
         self.assertEqual(len(triggers), 13)
-        self.assertEqual(len(behavior), 42)
+        self.assertEqual(len(behavior), 45)
         self.assertEqual(
             {case["route"] for case in triggers},
             {"code-change-review", "other-skill", "mixed"},
@@ -144,9 +154,9 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
 
         categories = [case["category"] for case in behavior]
         self.assertEqual(categories.count("bug"), 4)
-        self.assertEqual(categories.count("safe"), 8)
-        self.assertEqual(categories.count("control"), 26)
-        self.assertEqual(categories.count("constraint"), 4)
+        self.assertEqual(categories.count("safe"), 9)
+        self.assertEqual(categories.count("control"), 27)
+        self.assertEqual(categories.count("constraint"), 5)
         bug_ids = {
             case["id"] for case in behavior
             if case["category"] in {"bug", "constraint"}

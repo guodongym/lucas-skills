@@ -4,7 +4,7 @@ Use every dimension as a question set, not as a quota. Follow only the paths mad
 
 ## Change-impact screening
 
-Screen all eight surfaces; use the detailed checks below only where relevant. Include behavior and runtime configuration, not just declarations or filenames. Follow indirect callers, generated contracts and externally deployed consumers when necessary to establish impact. A rename, empty migration directory or unchanged signature does not prove unchanged semantics.
+Screen all nine surfaces; use the detailed checks below only where relevant. Include behavior and runtime configuration, not just declarations or filenames. Follow indirect callers, generated contracts and externally deployed consumers when necessary to establish impact. A rename, empty migration directory or unchanged signature does not prove unchanged semantics.
 
 | Surface | Establish from the baseline and change |
 | --- | --- |
@@ -16,8 +16,9 @@ Screen all eight surfaces; use the detailed checks below only where relevant. In
 | Existing functions and failure propagation | User flows, shared callers, defaults, side effects, retries and partial failure; scope of outage or degradation. Intended changes still have impact. |
 | Security and operating burden | Privileges, tenant boundaries, egress, irreversible actions, new dependencies/lock changes/install hooks, provenance, unbounded tasks and resource/cost growth. Inspect suspect scripts before considering safe execution. |
 | Verification and constraint integrity | Deleted/skipped tests, relaxed assertions, changed acceptance, disabled CI/architecture checks and modified rule files; establish equivalent replacement coverage or independent approval. |
+| User-visible UI | Added/changed pages, flows, forms, dialogs, action groups and states; the repository's UI rules and shared components compared with the closest existing feature; formats feeding reused renderers; runtime walkthrough evidence. Use [User-visible UI](#user-visible-ui). |
 
-A documented pattern is not automatically mandatory; historical code and green CI do not establish correctness. Compare changed paths with approved pre-change boundaries and separately traceable exceptions.
+A documented pattern is not automatically mandatory; a repository rule stated as mandatory (for example "must reuse" or "must provide a walkthrough before merge") is an approved constraint, not a style preference. Historical code and green CI do not establish correctness. Compare changed paths with approved pre-change boundaries and separately traceable exceptions.
 
 For capability necessity, ask whether deleting the addition still satisfies current acceptance. Apply the reverse test to removals: whether a real user task still has an equivalent path, history and evidence. Fewer controls with more background orchestration can increase complexity; preserving an internal mechanism is justified by its invariant, not its familiarity. Identify the smallest existing alternative and any unjustified behavior or maintenance obligation. File count and personal preference are not evidence; approved new capabilities need not have existing adopters.
 
@@ -36,6 +37,21 @@ For changed validation, compare the old invariant, new assertion and actual CI p
 For UI simplification, trace removed controls to user tasks, metrics and comparison context. Another page or raw-data view is equivalent only if it preserves the relevant task.
 
 For search, trace API/storage scope → returned dataset → filtering → count → pagination → URL state. Separate **dataset completeness** from **scale suitability**: filtering a complete response avoids page-only omissions but does not prove full-list loading fits the expected volume. Bounded/offline data can justify local filtering. Missing capacity evidence is a question only when material to acceptance; it is not a measured performance defect, a universal backend-search requirement or an automatic merge blocker.
+
+### User-visible UI
+
+Apply when the change adds or restructures a page, flow, form, dialog, action group, layout or interaction state. A copy-only or style-token change on an existing page needs only the changed text/style checked; it does not require a walkthrough unless a repository rule says so.
+
+First read the repository's UI rules, shared-component guide and the closest existing feature that does the same job. Then check each changed page along its main task path (enter → judge → act → result → back):
+
+- **States**: loading keeps the page structure and never shows empty-state copy; empty, error (with recovery), success, disabled and permission-denied states are distinct.
+- **Raw values**: no enums, ISO/UTC timestamps, internal error objects, IDs instead of names, or markup from a renderer that expects another format reach the user. Trace the producer's output format into any reused renderer.
+- **Actions**: primary, secondary and destructive actions are distinguishable, grouped and aligned as the rules require; destructive actions confirm; no control looks actionable but does nothing.
+- **Forms and dialogs**: label position, width, control type (date/time/select versus free text), field count, and cancel/submit placement follow the rules.
+- **Layout**: no overlap, overflow or unintended stretching at the repository's target viewports.
+- **Reuse**: list the shared components the closest feature uses; a new page that hand-builds an equivalent instead of using a mandated component, or adds a parallel layout class, violates the rule unless the PR records an approved reason.
+
+Runtime walkthrough: when a safe isolated preview exists (documented mock or synthetic-data mode, a static server over an extracted copy, or isolated temporary storage), render the changed pages, walk the main path and its states at the target viewports, and record screenshots or measured boxes. Static reading cannot establish overlap, alignment, width or state timing. When no safe preview exists, record the walkthrough as unverified and name the gate it affects; a repository rule requiring author walkthrough evidence before merge makes missing evidence a constraint or blocking question.
 
 ## 2. Data semantics and state transitions
 
@@ -92,7 +108,7 @@ Apply this dimension only when the changed path, data volume, frequency, or reso
 - Can a future maintainer understand the state machine, trust boundary, ownership, and failure behavior from the code and its tests?
 - Does an abstraction remove current duplication or merely predict future variation?
 - Are new dependencies, configuration, background work, or public interfaces required by the current change?
-- Report maintainability as a defect only when it creates a concrete defect, hides a required invariant, or materially prevents safe verification. Proven scope/architecture violations go in constraint issues even without a defect; unclear necessity goes in Questions. Pure style preference is neither.
+- Report maintainability as a defect only when it creates a concrete defect, hides a required invariant, or materially prevents safe verification. Proven scope/architecture violations, including breaches of mandatory repository UI or component rules, go in constraint issues even without a defect; unclear necessity goes in Questions. Pure style preference is neither.
 
 ## Risk-trigger matrix
 
@@ -104,7 +120,8 @@ Apply this dimension only when the changed path, data volume, frequency, or reso
 | External irreversible effect | request identity, receipt, uncertainty, compensation, rate or account boundary |
 | Public API, event, schema, storage | actual consumers, rolling deploy, mixed version, rollback compatibility |
 | Shared high-call-volume code | blast radius, default behavior, hot-path cost, containment |
-| Local refactor, test, docs, low-risk UI | only the changed invariant and direct tests; do not manufacture adversarial scenarios |
+| New or restructured user-visible page, flow, form, dialog or shared UI component | states, raw values, action hierarchy, layout at target viewports, reuse against the closest feature and repository UI rules, runtime walkthrough |
+| Local refactor, test, docs, copy-only or style-token UI change | only the changed invariant and direct tests; do not manufacture adversarial scenarios |
 
 ## Candidate-to-finding gate
 

@@ -775,6 +775,55 @@
         "Separates the implemented restriction working as designed from its unauthorized scope reversal; reports a C constraint issue without inventing an authentication bypass.",
         "Recommends preserving approved current-origin/HTTP behavior or obtaining a genuine revised decision, while retaining existing permission, ticket and same-origin controls."
       ]
+    },
+    {
+      "id": "behavior-ui-feature-gaps",
+      "kind": "behavior",
+      "category": "constraint",
+      "prompt": "Use $code-change-review to deeply review this PR in the supplied full offline artifacts: does the implementation deviate from the approved plan, and does it have bugs? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Not ready: mandated UI component rule violated, user-visible state and renderer defects, missing required walkthrough evidence, and the pause-resume backend deviation.",
+      "files": [
+        "evals/fixtures/ui-feature-gaps.md"
+      ],
+      "assertions": [
+        "Fills UI coverage for the four new pages, naming the repository UI rules and the chat-group feature used for the reuse comparison.",
+        "Reports a C constraint issue for the hand-built run detail and action group instead of the mandated Descriptions/StatusTag/ListToolbar/RowActions; does not dismiss it as style preference.",
+        "Identifies the Markdown versus 【】 renderer mismatch, the truthy empty error object, raw enum/ISO values and the loading-state empty copy as user-visible defects with locations.",
+        "Treats the missing walkthrough required by docs/development-workflow.md:60 as a constraint or blocking question and does not claim the pages were visually verified.",
+        "Still reports the pause-resume failure against F-8 §6.2 and returns Not ready."
+      ]
+    },
+    {
+      "id": "behavior-ui-feature-reused",
+      "kind": "behavior",
+      "category": "safe",
+      "prompt": "Use $code-change-review to deeply review this PR in the supplied full offline artifacts: does the implementation deviate from the approved plan, and does it have bugs? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Conforms; Ready or Ready with non-blocking follow-ups.",
+      "files": [
+        "evals/fixtures/ui-feature-reused.md"
+      ],
+      "assertions": [
+        "Fills UI coverage from the reuse comparison and the author's walkthrough record, labelled as author evidence.",
+        "Does not invent component-reuse, state, raw-value or layout findings.",
+        "Keeps owner visual confirmation and real forum/model access as later acceptance boundaries, not merge blockers.",
+        "No P0/P1, constraint issue or blocking question."
+      ],
+      "control_for": "behavior-ui-feature-gaps"
+    },
+    {
+      "id": "behavior-ui-copy-tweak",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Low; Conforms; Ready.",
+      "files": [
+        "evals/fixtures/ui-copy-tweak.md"
+      ],
+      "assertions": [
+        "Records a copy-only UI coverage line without requiring a walkthrough, screenshots or multi-viewport checks.",
+        "Confirms the shared Button/HelpTip remain in use without inventing reuse findings.",
+        "Includes the exact no-defect sentence and returns Ready."
+      ]
     }
   ]
 }

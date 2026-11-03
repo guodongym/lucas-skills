@@ -7,7 +7,7 @@ Choose the report shape to fit the request:
 - For a bounded change or one disputed finding, use three compact parts: attention and verdict with impact/scope judgment; the finding or claim disposition with its causal path and action; verification and coverage limits. Integrate the five review answers and version scope into these parts once.
 - For multiple interacting change groups or a requested formal report, use the expanded sections below.
 
-Keep the eight-surface screening as review working notes; surface material changes and unverified paths in the report. An unchanged-surface checklist, duplicate scope inventory or repeated causal explanation adds no evidence.
+Keep the nine-surface screening as review working notes; surface material changes and unverified paths in the report. An unchanged-surface checklist, duplicate scope inventory or repeated causal explanation adds no evidence.
 
 
 ## Attention and verdict
@@ -16,11 +16,14 @@ Keep the eight-surface screening as review working notes; surface material chang
 Special attention: <concrete API/contract, table/field, architecture and existing-function changes; separate unverified impact>
 Impact level: Low | Medium | High | Undetermined — <evidence-based reason; known floor if undetermined>
 Scope/architecture: Conforms | Violates | Needs decision — <approved baseline and reason>
+UI coverage: Not applicable — <no user-visible change> | <changed pages/flows> — rules and reuse: <checked against which rules and closest feature | not checked>; runtime walkthrough: <viewports and states walked, by reviewer or author evidence | not run — reason>
 Merge readiness: Ready | Ready with non-blocking follow-ups | Unable to determine | Not ready
 Reason: <one or two evidence-based sentences>
 ```
 
 Special attention names concrete before/after behavior and evidence, even for approved, compatible or defect-free changes. With no trigger, say so briefly; with incomplete screening, name unchecked surfaces. This block can serve as a comment draft, never proof of publication.
+
+`UI coverage` is required in every review. Copy-only changes on an existing page record the text/style check without a walkthrough. For new or restructured pages, flows, forms or dialogs, a walkthrough that was not run is stated with its reason. If the repository requires walkthrough evidence before merge and neither the reviewer nor the author supplies it, readiness cannot be `Ready` or `Ready with non-blocking follow-ups`.
 
 ### Impact level
 

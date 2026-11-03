@@ -23,6 +23,7 @@ Scope: <concrete additions/removals, capability losses and whether justified>
 Result: <original scenario, expected outcome and actual evidence/gaps>
 Impact: <affected consumers/functions and compatibility/recovery>
 Impact / scope-architecture / readiness: <existing review conclusions and reasons>
+UI coverage: <not applicable, or changed pages with rules/reuse check and walkthrough status>
 Evidence and verification: <locations, affected users/callers, actual checks and gaps>
 Required action: <C/P/Q entries and specific fix or decision, or none>
 Coverage: <preliminary requirement review | self-review | independent review complete; full or delta range and exclusions>

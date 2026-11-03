@@ -74,13 +74,15 @@ Read the complete diff and change statistics before following the necessary call
 
 ### Separate need, approach and correctness
 
-Give five explicit answers—need, approach, scope, result and impact—using the output template. These are answers, not issue categories: keep requirement necessity, approach suitability and implementation correctness independent. For each main requirement trace original scenario → expected outcome → candidate evidence → remaining gap. Separate code-path proof, original-task validation and business acceptance. Use the rubric’s focused checks for UI removals and search.
+Give five explicit answers—need, approach, scope, result and impact—using the output template. These are answers, not issue categories: keep requirement necessity, approach suitability and implementation correctness independent. For each main requirement trace original scenario → expected outcome → candidate evidence → remaining gap. Separate code-path proof, original-task validation and business acceptance. Use the rubric’s focused checks for UI removals, search and user-visible UI.
 
 For compatibility, establish actual consumers, independent deployment/version windows, migration and rollback before prescribing a bridge. A breaking response change requires prominent disclosure; it does not by itself require permanent support for the old shape. Approved joint cutover can suffice when all affected consumers are accounted for. Known old consumers still require a working migration path; materially incomplete inventory is a question, not proof that a consumer exists or is absent.
 
 ### Impact and constraint assessment — every review
 
-Screen the rubric’s eight surfaces before defect analysis; deepen relevant paths only. Classify each as changed, checked-unchanged, or unverified. Record material objects/operations, approved need, consumers, compatibility/recovery and evidence in the five review answers.
+Screen the rubric’s nine surfaces before defect analysis; deepen relevant paths only. Classify each as changed, checked-unchanged, or unverified. Record material objects/operations, approved need, consumers, compatibility/recovery and evidence in the five review answers.
+
+Track each surface as its own coverage item through the whole review. In large changes, or when the user's priorities or earlier comments concentrate on one layer, findings in that layer do not cover the others: a changed surface that was not reviewed is reported as unverified, never omitted. When user-visible UI changed, fill the template's `UI coverage` line.
 
 For new capabilities, apply the rubric’s deletion test against current acceptance and existing alternatives. Approved acceptance and an expected use path can justify a new feature before external adoption; future usefulness and green tests alone cannot.
 
@@ -112,7 +114,7 @@ precondition
 → containment and recovery
 ```
 
-Try duplicate, reordered, stale, malicious, and boundary inputs where relevant. Also test partial success, dependency timeout, process crash, missing data, mixed versions, and rollback state. Low-risk UI, test, documentation, and local refactors receive only the checks relevant to their invariants. Follow wrappers and shared services to the actual lock, transaction or validation before claiming a control is absent. State the refuting evidence and withdraw a prevented failure; review depth follows risk, not a quota of adversarial cases.
+Try duplicate, reordered, stale, malicious, and boundary inputs where relevant. Also test partial success, dependency timeout, process crash, missing data, mixed versions, and rollback state. Copy-only UI, test, documentation, and local refactors receive only the checks relevant to their invariants. Follow wrappers and shared services to the actual lock, transaction or validation before claiming a control is absent. State the refuting evidence and withdraw a prevented failure; review depth follows risk, not a quota of adversarial cases.
 
 ### Evidence gate — every candidate
 
@@ -130,18 +132,19 @@ Merge findings with one root cause. If a missing fact decides reachability or se
 
 Use read-only Git inspection such as `status`, `diff`, `log`, `show`, and `merge-base`. Before validation, record HEAD, refs, staged/unstaged state and non-ignored untracked state. Inspect command, imports, initialization and configuration for side effects.
 
-Permitted validation has two forms:
+Permitted validation has three forms:
 
 - Existing repository checks known not to format source, install/upgrade dependencies, migrate real data, publish, send messages or write shared services. Expected writes stay in ignored tool caches/build outputs or OS temporary paths.
 - Minimal standalone counterexamples in memory or a fresh OS temporary directory, using installed tools/stdlib, synthetic data or authorized sanitized fixtures, and isolated temporary storage. A copied expression or isolated code snapshot must retain the relevant behavior; inspect imports and initialization before executing it. Report synthetic evidence separately from real-service evidence.
+- A UI preview for the walkthrough: the repository's documented mock/synthetic-data mode or a static server, run from an extracted copy of the reviewed snapshot or its existing build output, bound to localhost, using already installed dependencies and isolated temporary storage. Stop the processes afterwards.
 
-Neither form authorizes edits to reviewed source/tests, index or refs, access to private configuration, dependency installation, or production/shared-service writes. A temporary cwd does not isolate imported side effects. Honor explicit no-write/no-execution restrictions. Skip unsafe or unisolatable execution, explain the affected evidence gap, and continue independent static review.
+None of these forms authorizes edits to reviewed source/tests, index or refs, access to private configuration, dependency installation, or production/shared-service writes. A temporary cwd does not isolate imported side effects. Honor explicit no-write/no-execution restrictions. Skip unsafe or unisolatable execution, explain the affected evidence gap, and continue independent static review.
 
 After validation, re-read source, index, refs and non-ignored untracked state; they must match the baseline. Preserve pre-existing ignored/untracked content. Temporary evidence retrieval does not relax these boundaries.
 
 ## 5. Verify the smallest decisive surface
 
-Identify repository-standard checks and run the smallest safe check that can confirm or refute a candidate; expand when risk or repository rules require it. For a missing original-scenario result, identify the minimum discriminating reproduction or readback rather than demanding unrelated replay or production access.
+Identify repository-standard checks and run the smallest safe check that can confirm or refute a candidate; expand when risk or repository rules require it. For a missing original-scenario result, identify the minimum discriminating reproduction or readback rather than demanding unrelated replay or production access. For a new or restructured user-visible page, the decisive surface is the rendered page: run the rubric's runtime walkthrough when a safe preview exists.
 
 Classify evidence as `Verified` (run now or directly proved by code), `Unverified` (necessary evidence unavailable), or `Not applicable`. Label author-supplied results separately from checks performed here. Passing tests do not prove business correctness; environment failure does not prove a product defect.
 
@@ -179,3 +182,4 @@ For PR comment drafts or publication, read [references/pr-comments.md](reference
 | Ignoring a shown control | Trace whether it actually prevents the failure. |
 | Letting a PR approve its own scope/rule changes | Compare against the pre-change baseline and separate approval. |
 | Hiding contract/schema changes behind a clean verdict | Special attention is required regardless of severity/readiness. |
+| Letting backend findings, earlier comments or a large diff crowd out changed pages | Review UI as its own surface: rules, reuse, states and a runtime walkthrough, or report `UI coverage` as unverified. |
