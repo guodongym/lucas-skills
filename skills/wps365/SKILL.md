@@ -17,7 +17,7 @@ description: 当用户提到企业 WPS 365、WPS365、wps365-cli、WPS 协作、
 
 ## 读取顺序
 
-- 云文档操作先按下方「CLI 优先与浏览器回退」执行；授权、凭证保存或读取异常时，再读 [授权与凭证排错](references/cli-auth-and-credentials.md)。
+- 每轮首次执行 WPS 联网业务命令前，先读 [自动续期与执行权限](references/cli-auth-and-credentials.md#自动续期与执行权限)，核对本机凭据保存权限；云文档操作再按下方「CLI 优先与浏览器回退」执行。授权、凭证保存或读取异常时，继续阅读该排错文档。
 - 首次接入、登录或命令不可用时，读取 [快速接入](.official/wps365-getting-started/SKILL.md)。
 - 执行业务命令前，读取 [公共规则](.official/wps365-shared/SKILL.md) 和下表中对应业务说明。只加载当前任务所需材料。
 - 官方说明中的相对路径以该说明所在目录为基准。`<SKILLS_PKG>` 对应本目录的 `.official/`。
