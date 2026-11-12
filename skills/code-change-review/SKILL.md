@@ -21,7 +21,7 @@ Before reviewing, read:
 Judge implemented changes. A proposal or plan can support requirement evidence but is not mandatory. Route other objects as follows:
 
 - Proposal completeness, feasibility, or implementation readiness: use `technical-proposal-review`.
-- Existing GitHub reviewer comments or threads that the user wants addressed: use the comment-addressing workflow. Publishing this review as a PR summary comment stays here; it does not authorize fixes or merge.
+- Existing PR reviewer comments or threads that the user wants addressed: use the comment-addressing workflow. Publishing this review as a PR summary comment stays here; it does not authorize fixes or merge.
 - Production symptoms without a defined change range: use systematic debugging.
 - Whole-repository debt or over-engineering: use an audit workflow.
 - Requested implementation or fixes: use an implementation workflow.
@@ -55,7 +55,7 @@ An explicit file range intersects the selected version snapshot. Read outside th
 
 For untracked files, obey ignore, secret, and local-configuration rules. Do not inspect ignored credentials or private configuration. If a non-ignored file cannot be classified safely, exclude it and state the coverage gap.
 
-For PRs, prefer live API or `gh pr diff` evidence. When necessary objects are unavailable, an isolated temporary clone/fetch of the authorized repository may retrieve them without another approval, provided the reviewed checkout, its index/refs and unrelated WIP remain unchanged. Honor an explicit no-write/no-network restriction. If no permitted retrieval path works, mark affected conclusions unverified and continue independent review; ask only for access or mutations outside existing authority.
+For PRs, choose the platform backend before retrieving facts: GitHub uses its live API or `gh pr diff`; Ezone uses the available `ezone` Skill and its bundled CLI for PR metadata, immutable endpoints, complete diff, comments and gates. Use the same verified host/company/repository/PR and identity for reads and authorized writes; re-anchor after switching backends. Ezone CLI startup does not require another Skill; unavailable independent-review capability affects only phases requiring it. Do not transplant GitHub thread-side or outdated-state semantics onto unknown Ezone fields. When necessary objects are unavailable, an isolated temporary clone/fetch of the authorized repository may retrieve them without another approval, provided the reviewed checkout, its index/refs and unrelated WIP remain unchanged. Honor an explicit no-write/no-network restriction. If no permitted retrieval path works, mark affected conclusions unverified and continue independent review; ask only for access or mutations outside existing authority.
 
 ## 2. Establish the baseline
 

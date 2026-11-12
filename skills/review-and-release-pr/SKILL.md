@@ -17,7 +17,7 @@ Orchestrate an end-to-end PR decision without replacing specialized Skills. Requ
 
 ## Runtime capability gate
 
-Use available `github:github` or local `gh` for PR evidence, `code-change-review` for independent review, and `superpowers:verification-before-completion` for completion evidence. Load `finishing-a-development-release` when authorized work reaches release; a later phase's missing tool does not block earlier independent work.
+Choose the repository platform: use available `github:github` or local `gh` for GitHub PR evidence; for Ezone, use the available `ezone` Skill and its bundled CLI for canonical facts, comments and native notifications. Use `code-change-review` for independent review, and `superpowers:verification-before-completion` for completion evidence. Load `finishing-a-development-release` when authorized work reaches release; a later phase's missing tool does not block earlier independent work.
 
 Use these specialized Skills when available and relevant:
 
@@ -25,7 +25,7 @@ Use these specialized Skills when available and relevant:
 - `github:gh-address-comments` and `superpowers:receiving-code-review` when existing review comments, threads, or requested changes exist.
 - `superpowers:systematic-debugging` and `superpowers:test-driven-development` before `FIX`.
 
-A missing Skill name is not a missing capability. Use existing equivalent tools or manual review when they preserve the same authority, review independence and evidence requirements; disclose the substitute. In particular, thread-aware `gh`/API data can replace a missing comment Skill only when identity, current head and resolved/outdated thread state can be verified. If no permitted equivalent exists, pause the affected phase and finish independent work. Do not install, authenticate, broaden access or claim an unavailable check passed. Capability presence never grants authority.
+A missing Skill name is not a missing capability. Use existing equivalent tools or manual review when they preserve the same authority, review independence and evidence requirements; disclose the substitute. In particular, platform-native CLI/API data can replace a missing comment Skill only when identity, current head and platform-native thread state can be verified. Do not infer Ezone outdated or side semantics when those fields are unavailable. If no permitted equivalent exists, pause the affected phase and finish independent work. Do not install, authenticate, broaden access or claim an unavailable check passed. Capability presence never grants authority.
 
 ## States
 
@@ -39,13 +39,15 @@ P0/P1 always block merge. Proven constraint issues (`Violates`) and blocking Q (
 
 ## Phase 0: Anchor facts, capabilities, and authority
 
-Record repository, PR number, PR URL, base branch, base SHA, head SHA, main, Draft/mergeable/check/review state, requirement sources, local worktree/branch/HEAD/WIP exclusions, selected GitHub backend, and runtime capabilities.
+Record repository, PR number, PR URL, base branch, base SHA, head SHA, main, Draft/mergeable/check/review state, requirement sources, local worktree/branch/HEAD/WIP exclusions, selected platform and backend, and runtime capabilities.
 
 Record authority independently for repair, PR comment, push, merge, tag/Release, production, and cleanup. One explicit request may cover several actions; carry it across phases without asking again. Authority for one action alone does not authorize another.
 
-Probe the connector first. A private-repository 404 or NOT_FOUND with working identity is a connector_scope_gap, not proof of logout. Probe `gh auth status` and the target repository read-only. Lock one main GitHub backend for canonical PR facts and writes. Another backend may supply thread-aware read-only data only after repository, PR number, and head SHA match.
+For GitHub, probe the connector first. A private-repository 404 or NOT_FOUND with working identity is a connector_scope_gap, not proof of logout. Probe `gh auth status` and the target repository read-only. Lock one main GitHub backend for canonical PR facts and writes. Another backend may supply thread-aware read-only data only after repository, PR number, and head SHA match.
 
-Both GitHub backends unavailable -> pause remote-dependent work. Continue any useful local review, label stale or missing remote evidence, and do not merge/release without the required fresh facts. Preserve original errors; do not log in, refresh credentials, or change GitHub App installation scope.
+For Ezone, anchor HTTPS host/company/repoKey and current identity explicitly using `ezone`; use its PR metadata, commits, full diff, comments/reviews, rules, checks and pipelines. Lock this verified platform identity for reads and authorized writes; do not fall back to GitHub for Ezone facts. A missing or unknown native field is a coverage gap, not a passed gate.
+
+No permitted backend for the selected platform -> pause remote-dependent work. Continue any useful local review, label stale or missing remote evidence, and do not merge/release without the required fresh facts. Preserve original errors; do not log in, refresh credentials, or change GitHub App installation scope.
 
 Screen the anchored diff for the `code-change-review` rubric's Special attention triggers before Gate 1. This preliminary change inventory is not an independent correctness review; mark unchecked architecture, consumers and functions explicitly. Preserve observed changes in the attention report even if Gate 1 stops.
 
@@ -63,9 +65,9 @@ On STOP, deliver the gate result and preliminary Special attention through the c
 
 ## Phase 2: Verify existing review independently
 
-When existing review comments, threads, or requested changes exist, use `github:gh-address-comments` for thread-aware state and `superpowers:receiving-code-review` to verify each actionable claim, or the equivalent path established by the runtime capability gate.
+When existing review comments, threads, or requested changes exist, use `github:gh-address-comments` for GitHub thread-aware state, or the `ezone` Skill/CLI for Ezone comments, votes and parent-anchored replies, and `superpowers:receiving-code-review` to verify each actionable claim, or the equivalent path established by the runtime capability gate.
 
-Classify unresolved, resolved, outdated, informational, and duplicate threads. For each claim, verify evidence, reachability, impact, controls, root cause, and whether the proposed repair actually closes it. Keep these results separate from independent findings.
+Classify unresolved, resolved, outdated, informational, and duplicate threads where the platform supplies verifiable state; label unsupported Ezone state as unverified. For each claim, verify evidence, reachability, impact, controls, root cause, and whether the proposed repair actually closes it. Keep these results separate from independent findings.
 
 When no existing review comments, threads, or requested changes exist, record `no existing review` and the coverage boundary, then proceed directly to Phase 3.
 
@@ -97,7 +99,7 @@ At Gate 1 STOP, retain preliminary Special attention and requirement findings, m
 
 Refresh PR body, base SHA, head SHA, requirement and approval sources, main, review state, and checks. Prove the tested tree is the merge tree or has verifiable tree identity. Any material base SHA, head SHA, requirement, approval, main, or checks change invalidates affected evidence, including impact and constraint conclusions. Refreshing facts does not itself require rerunning equivalent tests or a full proposal review. Choose new checks from the actual change in behavior, inputs, configuration or environment; when necessary evidence remains sufficient, finish the authorized handoff without another clean-review round. Refresh the attention summary/comment when its content or anchored version changes.
 
-Only the latest independent review PASS may enter `finishing-a-development-release`, and only for already authorized push, merge, and release actions. Pass the concrete task worktree/local and remote branch identities, PR head, existing cleanup authority and exclusions, anchored tree/local-state evidence and any completed merge/release readbacks to that Skill; it performs pending integration and release verification. Its Local State Gate and Cleanup Gate exclusively govern cleanup and recovery-package retention; do not maintain a second policy here. An earlier explicit request covering the cleanup objects remains sufficient while scope and risk are unchanged. Report its cleanup and recovery results or blockers without treating review PASS as cleanup evidence.
+Only the latest independent review PASS may enter the authorized release handoff (`finishing-a-development-release` when available; Ezone uses `ezone` for platform execution), and only for already authorized push, merge, and release actions. Pass the concrete task worktree/local and remote branch identities, PR head, existing cleanup authority and exclusions, anchored tree/local-state evidence and any completed merge/release readbacks to that Skill; the selected release workflow performs pending integration and release verification. When that release Skill is used, its Local State Gate and Cleanup Gate exclusively govern cleanup and recovery-package retention; do not maintain a second policy here. An earlier explicit request covering the cleanup objects remains sufficient while scope and risk are unchanged. Report its cleanup and recovery results or blockers without treating review PASS as cleanup evidence.
 
 ## State summary
 
@@ -109,7 +111,7 @@ Lead with Special attention, impact level, Scope/architecture and readiness. Kee
 - Treating inherited review as independent review.
 - Repairing P0 or decision-bearing changes silently.
 - Reusing stale SHA, review, check, or test evidence.
-- Switching GitHub backends without re-anchoring repository, PR, and head.
+- Switching platform backends without re-anchoring repository, PR, identity, and head.
 - Inferring PR comment, merge, release, production, or cleanup authority from repair authority.
 - Hiding a new interface/table/field or architecture/function change behind green tests or a no-defect verdict.
 - Treating High impact as a defect, or allowing a PR to approve its own scope/architecture exceptions.

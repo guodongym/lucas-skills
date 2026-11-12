@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ezone"
+  short_description: "使用随包命令行处理 Ezone PR、独立评审、原生通知与版本交付"
+  default_prompt: "使用 $ezone 核对当前 Ezone PR 的提交、评审与门禁，并完成已授权的交付。"

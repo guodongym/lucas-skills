@@ -264,3 +264,36 @@ upstreams:
 [WPS 365](skills/wps365/README.md) 将官方 CLI 安装包和 15 个 Skill 集中存放在 `skills/wps365/`，通过单一入口激活到 Codex。来源和逐文件校验值见该目录的 `upstream.json`。
 
 WPS 使用 `type: release-zip` 来源，按官方版本索引定位发布包；配置、版本锁和校验记录与 Git 来源一同进入现有自动检查。详见 [发布 ZIP 来源](docs/upstream-sync.md#发布-zip-来源)。
+
+## Ezone 随包 CLI
+
+[Ezone Skill](skills/ezone/SKILL.md) 提供仓库、PR、意见与原生通知、CI／门禁、合并、代码标签说明和 raw 制品资源命令。复制整个 `skills/ezone/`（含 `scripts/`、`references/`、`agents/`），无需安装 lucas-skills 包或全局 CLI；Python 3.11+ 标准库即可启动，本地开发及推送另需 Git。
+
+项目根目录 `.ezone.json` 保存实例地址、显式 repoKey 和企业；每个人通过 `auth login` 隐藏输入自己的令牌，保存到项目外 `~/.config/ezone/credentials.json`，按 HTTPS 平台地址隔离。CI 可用机密变量 `EZONE_TOKEN` 覆盖，并须同时设置可信 `EZONE_HOST` 或显式 `--host` 绑定发送目标；上下文也保留 `EZONE_HOST`、`EZONE_REPO`、`EZONE_COMPANY` 和全局参数。需可信 HTTPS 网络及相应业务权限；不自动获取令牌、改保护规则或调整权限。参数、退出码及网络边界见 [命令与环境](skills/ezone/references/commands.md)，真实写入和回读步骤见 [PR 与发布](skills/ezone/references/pr-release.md)。GitHub 评审路径继续使用原有 connector／gh，Ezone 后端由此 Skill 提供。
+
+```sh
+python3 /absolute/path/to/ezone/scripts/ezone.py --version
+python3 /absolute/path/to/ezone/scripts/ezone.py --help
+python3 /absolute/path/to/ezone/scripts/ezone.py --json doctor
+python3 /absolute/path/to/ezone/scripts/ezone.py --json pr view 2
+```
+
+源码来源是本仓库 `skills/ezone/scripts/`，随包版本为 `0.2.0`，复制后仍可用 `--version` 回读，不依赖 `.git`。Agent Manager 沿用现有扫描能力，先在包含新 Skill 的任务工作区预览：
+
+```sh
+uv run agent-manager skills set ezone --tool codex --on --json
+```
+
+核对 source 是否指向当前任务 worktree；canonical checkout 尚无该 Skill 时不能宣称已安装。以上只做 preview，不用 `--apply`，不修改真实 HOME。正式消费宜在集成后的固定主工作区按已有授权核对具体计划，再新建会话确认发现来源。
+
+项目内消费可将完整 Skill 安装到 `<project>/.agents/skills/ezone/` 并随项目代码提交，已有同名目录先核对来源。[Codex 官方说明](https://learn.chatgpt.com/docs/build-skills)将此列为仓库级技能路径。项目自行维护多个 Skill 的选择、来源版本清单与同步规则；本公开仓库不管理消费项目的安装与升级。首次配置、登录退出和 CI 接入见[命令与环境](skills/ezone/references/commands.md#首次使用)，验收范围见[验收记录](docs/ezone-validation.md)。
+
+| 边界 | 内容 |
+| --- | --- |
+| 本期实现 | repo／branch／commit 读取与显式分支创建、PR 到代码标签／raw 制品命令；独立审查与发布工作流的平台适配 |
+| 后续 | 文件树／内容／搜索／blame／归档、项目／卡片与卡片关联、产品版本、更多包协议、交付关联及部署恢复 |
+| 不纳入 | 仓库删除及管理侧修改、成员／权限／保护规则管理、镜像／GC、外部消息渠道、全局短命令安装 |
+
+普通合并评审（MR）用 `pr create`；直接提交评审（DCR）沿用向保护分支 Git push 的原生路径，不假设有普通源分支。读取／意见／合并只有在评审对象和明确提交可核实时复用，本期未真实验收 DCR。
+
+实现、离线检查和真实验收分开报告，详见 [验收记录](docs/ezone-validation.md)。完整历史能力调查见 [能力盘点](docs/ezone-capability-inventory.md)，其中拟议接口不替代当前 CLI 帮助。
