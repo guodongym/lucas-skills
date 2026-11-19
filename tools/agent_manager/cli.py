@@ -33,7 +33,7 @@ from .skills import (
     RepositoryScan,
     ScanIssue,
     SurfaceStatus,
-    _enabled_codex_plugin_sources,
+    _enabled_plugin_sources,
     apply_adoption,
     apply_plan,
     build_adapters,
@@ -47,9 +47,9 @@ from .skills import (
 from .server import _serve
 
 
-TOOLS = ("claude", "codex", "copilot")
+TOOLS = ("claude", "codex", "copilot", "antigravity")
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
-INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot")
+INSTRUCTION_TARGETS = ("shared", "claude", "codex", "copilot", "antigravity")
 FINGERPRINT_PATTERN = r"[0-9a-f]{64}"
 
 
@@ -557,7 +557,7 @@ def _set_plan_status(
 
 
 def _doctor_issues(state: ManagedState, home: Path) -> tuple[ScanIssue, ...]:
-    _sources, plugin_issues = _enabled_codex_plugin_sources(home)
+    _sources, plugin_issues = _enabled_plugin_sources(home)
     return (*state.repository.issues, *plugin_issues)
 
 
@@ -701,7 +701,7 @@ def main(
         if args.resource == "doctor":
             inventory = scan_inventory(state.skills, home)
             payload["inventory"] = inventory
-            _sources, plugin_issues = _enabled_codex_plugin_sources(home)
+            _sources, plugin_issues = _enabled_plugin_sources(home)
             broken_inventory = any(
                 record.source_type == "broken" or record.flags
                 for record in inventory

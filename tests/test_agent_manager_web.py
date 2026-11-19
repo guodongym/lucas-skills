@@ -1161,7 +1161,7 @@ class WebPageTests(unittest.TestCase):
             self.javascript.index("textarea.select();"),
         )
 
-    def test_build_topology_returns_three_tool_routes_with_text_status_and_line_semantics(self) -> None:
+    def test_build_topology_returns_four_tool_routes_with_text_status_and_line_semantics(self) -> None:
         state = {
             "repo_root": "/Users/test/Codes/lucas-skills",
             "skills": {
@@ -1169,11 +1169,13 @@ class WebPageTests(unittest.TestCase):
                     {"key": "claude-shared", "tool": "claude", "home": "/Users/test", "root": "/Users/test/.claude/skills"},
                     {"key": "codex-shared", "tool": "codex", "home": "/Users/test", "root": "/Users/test/.codex/skills"},
                     {"key": "copilot-shared", "tool": "copilot", "home": "/Users/test", "root": "/Users/test/.copilot/skills"},
+                    {"key": "antigravity-shared", "tool": "antigravity", "home": "/Users/test", "root": "/Users/test/.gemini/config/skills"},
                 ],
                 "targets": [
                     {"tool": "claude", "state": "enabled"},
                     {"tool": "codex", "state": "enabled"},
                     {"tool": "copilot", "state": "conflict"},
+                    {"tool": "antigravity", "state": "enabled"},
                 ],
             },
             "instructions": {
@@ -1181,6 +1183,7 @@ class WebPageTests(unittest.TestCase):
                     {"key": "claude", "state": "enabled", "path": "/Users/test/.claude/CLAUDE.md"},
                     {"key": "codex", "state": "enabled", "path": "/Users/test/.codex/AGENTS.md"},
                     {"key": "copilot", "state": "manual", "path": "/Users/test/.copilot/copilot-instructions.md"},
+                    {"key": "antigravity", "state": "enabled", "path": "/Users/test/.gemini/GEMINI.md"},
                 ],
             },
         }
@@ -1189,12 +1192,13 @@ class WebPageTests(unittest.TestCase):
         )
         self.assertEqual(
             [route["tool"] for route in topology],
-            ["claude", "codex", "copilot"],
+            ["claude", "codex", "copilot", "antigravity"],
         )
         self.assertTrue(all(route["skills"]["lineStyle"] == "solid" for route in topology))
         self.assertTrue(all(route["instructions"]["lineStyle"] == "dashed" for route in topology))
         self.assertEqual(topology[0]["skills"]["statusLabel"], "正常")
         self.assertEqual(topology[2]["skills"]["statusLabel"], "需要处理")
+        self.assertEqual(topology[3]["skills"]["statusLabel"], "正常")
         self.assertTrue(all(route["skills"]["countLabel"] is None for route in topology))
 
     def test_topology_skills_badge_counts_enabled_slugs_against_repository(self) -> None:
@@ -1501,15 +1505,72 @@ class WebPageTests(unittest.TestCase):
 
 
 
-    def test_skills_table_has_three_tool_headers_and_four_column_empty_states(self) -> None:
-        self.assertIn('id="skills-body"><tr><td colspan="4"', self.page)
+    def test_skills_table_has_four_tool_headers_and_five_column_empty_states(self) -> None:
+        self.assertIn('id="skills-body"><tr><td colspan="5"', self.page)
+        self.assertIn('<th scope="col">Antigravity</th>', self.page)
+        self.assertEqual(
+            self.page.count('<option value="antigravity">Antigravity</option>'),
+            2,
+        )
         render_skills_start = self.javascript.index("  function renderSkills(payload) {")
         render_skills_end = self.javascript.index(
             "\n  function renderInstructions(payload) {",
             render_skills_start,
         )
         render_skills = self.javascript[render_skills_start:render_skills_end]
-        self.assertIn('cell.setAttribute("colspan", "4")', render_skills)
+        self.assertIn('cell.setAttribute("colspan", "5")', render_skills)
+
+    def test_antigravity_instruction_topology_is_independent_of_shared_route(self) -> None:
+        payload = {
+            "repo_root": "/Users/test/Codes/lucas-skills",
+            "surfaces": [
+                {"key": "antigravity-desktop", "installed": True},
+                {"key": "antigravity-cli", "installed": True},
+            ],
+            "skills": {
+                "adapters": [
+                    {
+                        "key": "antigravity-shared",
+                        "tool": "antigravity",
+                        "home": "/Users/test",
+                        "root": "/Users/test/.gemini/config/skills",
+                        "surfaces": ["antigravity-desktop", "antigravity-cli"],
+                    }
+                ],
+                "targets": [{"tool": "antigravity", "state": "enabled"}],
+            },
+            "instructions": {
+                "targets": [
+                    {
+                        "key": "shared",
+                        "state": "broken",
+                        "path": "/Users/test/.agents/AGENTS.md",
+                        "surfaces": [
+                            "claude-desktop",
+                            "claude-cli",
+                            "codex-desktop",
+                            "codex-cli",
+                            "copilot-cli",
+                        ],
+                    },
+                    {
+                        "key": "antigravity",
+                        "state": "enabled",
+                        "path": "/Users/test/.gemini/GEMINI.md",
+                        "surfaces": ["antigravity-desktop", "antigravity-cli"],
+                    },
+                ],
+            },
+        }
+        topology = self._run_exports(
+            f"AgentManagerTest.buildTopology({json.dumps(payload)})"
+        )
+        antigravity = next(route for route in topology if route["tool"] == "antigravity")
+        self.assertEqual(antigravity["instructions"]["status"], "healthy")
+        self.assertEqual(
+            [root["key"] for root in antigravity["instructions"]["roots"]],
+            ["antigravity"],
+        )
 
     def test_inventory_refresh_preserves_filters_and_clear_restores_defaults(self) -> None:
         for contract in (

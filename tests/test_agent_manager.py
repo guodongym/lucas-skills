@@ -15,6 +15,7 @@ from tools.agent_manager import cli as agent_manager_cli
 from tools.agent_manager.cli import main
 from tools.agent_manager.instructions import InstructionPlanError
 from tools.agent_manager.skills import (
+    _enabled_antigravity_plugin_sources,
     _fixed_inventory_sources,
     _enabled_codex_plugin_sources,
     apply_adoption,
@@ -114,10 +115,12 @@ class ReadmeTests(unittest.TestCase):
             "~/.claude/skills/<skill>",
             "~/.codex/skills/<skill>",
             "~/.copilot/skills/<skill>",
+            "~/.gemini/config/skills/<skill>",
             "~/.agents/AGENTS.md",
             "~/.claude/CLAUDE.md",
             "~/.codex/AGENTS.md",
             "~/.copilot/copilot-instructions.md",
+            "~/.gemini/GEMINI.md",
         ):
             self.assertIn(path, readme)
         for obsolete in ("pip install pyyaml", "python " "vendor.py"):
@@ -137,9 +140,9 @@ class ReadmeTests(unittest.TestCase):
             "单独取得明确授权",
             "旧状态归档",
             "独立授权",
-            "三个工具族、六个检测表面",
-            "三个 Skill 根目录",
-            "四个 Instructions 文件入口",
+            "四个工具族、八个检测表面",
+            "四个 Skill 根目录",
+            "五个 Instructions 文件入口",
             "Cursor/Grok 兼容消费",
             "~/.cursor/skills",
             "~/.grok/skills",
@@ -152,10 +155,10 @@ class ReadmeTests(unittest.TestCase):
             for line in readme[instructions_start:instructions_end].splitlines()
             if line.startswith("| `")
         ]
-        self.assertEqual(len(instructions_rows), 4)
+        self.assertEqual(len(instructions_rows), 5)
         self.assertEqual(
             [row.split("|")[1].strip() for row in instructions_rows],
-            ["`shared`", "`claude`", "`codex`", "`copilot`"],
+            ["`shared`", "`claude`", "`codex`", "`copilot`", "`antigravity`"],
         )
         self.assertLess(
             readme.index(
@@ -229,19 +232,30 @@ class ManagedStateTests(unittest.TestCase):
                     "claude-shared",
                     "codex-shared",
                     "copilot-shared",
+                    "antigravity-shared",
                 },
             )
             self.assertEqual(adapters["claude-shared"].root, home / ".claude/skills")
             self.assertEqual(adapters["codex-shared"].root, home / ".codex/skills")
             self.assertEqual(adapters["copilot-shared"].root, home / ".copilot/skills")
+            self.assertEqual(
+                adapters["antigravity-shared"].root, home / ".gemini/config/skills"
+            )
+            self.assertEqual(
+                adapters["antigravity-shared"].surfaces,
+                ("antigravity-desktop", "antigravity-cli"),
+            )
 
-    def test_cli_and_server_allow_lists_match_the_three_tool_contract(self) -> None:
+    def test_cli_and_server_allow_lists_match_the_four_tool_contract(self) -> None:
         from tools.agent_manager import server as agent_manager_server
 
-        self.assertEqual(agent_manager_cli.TOOLS, ("claude", "codex", "copilot"))
+        self.assertEqual(
+            agent_manager_cli.TOOLS,
+            ("claude", "codex", "copilot", "antigravity"),
+        )
         self.assertEqual(
             agent_manager_cli.INSTRUCTION_TARGETS,
-            ("shared", "claude", "codex", "copilot"),
+            ("shared", "claude", "codex", "copilot", "antigravity"),
         )
         self.assertEqual(agent_manager_server.TOOLS, agent_manager_cli.TOOLS)
         self.assertEqual(
@@ -253,6 +267,7 @@ class ManagedStateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             applications = Path(tmp) / "Applications"
             (applications / "Codex.app").mkdir(parents=True)
+            (applications / "Antigravity.app").mkdir(parents=True)
             commands: list[str] = []
 
             surfaces = detect_surfaces(
@@ -266,13 +281,17 @@ class ManagedStateTests(unittest.TestCase):
                     "claude-desktop",
                     "codex-desktop",
                     "copilot-desktop",
+                    "antigravity-desktop",
                     "claude-cli",
                     "codex-cli",
                     "copilot-cli",
+                    "antigravity-cli",
                 },
             )
             self.assertTrue(surfaces["codex-desktop"].installed)
-            self.assertEqual(commands, ["claude", "codex", "copilot"])
+            self.assertTrue(surfaces["antigravity-desktop"].installed)
+            self.assertFalse(surfaces["antigravity-cli"].installed)
+            self.assertEqual(commands, ["claude", "codex", "copilot", "agy"])
 
     def test_prefers_chatgpt_app_over_codex_app(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -458,11 +477,12 @@ class InventoryTests(unittest.TestCase):
             )
             self.assertTrue((claude_root / "review").is_symlink())
 
-    def test_fixed_inventory_sources_are_the_six_supported_paths(self) -> None:
+    def test_fixed_inventory_sources_are_the_nine_supported_paths(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "home"
+            sources = _fixed_inventory_sources(home)
             self.assertEqual(
-                [source.path for source in _fixed_inventory_sources(home)],
+                [source.path for source in sources],
                 [
                     home / ".claude/skills",
                     home / ".codex/skills",
@@ -470,8 +490,365 @@ class InventoryTests(unittest.TestCase):
                     home / ".copilot/skills",
                     home / ".agents/skills",
                     home / "Library/Application Support/com.github.githubapp/app-skills",
+                    home / ".gemini/config/skills",
+                    home / ".gemini/antigravity/builtin/skills",
+                    home / ".gemini/antigravity-cli/builtin/skills",
                 ],
             )
+            by_path = {source.path: source for source in sources}
+            self.assertEqual(
+                by_path[home / ".gemini/config/skills"].surfaces,
+                ("antigravity-desktop", "antigravity-cli"),
+            )
+            self.assertEqual(
+                by_path[home / ".gemini/antigravity/builtin/skills"].surfaces,
+                ("antigravity-desktop",),
+            )
+            self.assertEqual(
+                by_path[home / ".gemini/antigravity-cli/builtin/skills"].surfaces,
+                ("antigravity-cli",),
+            )
+
+    def test_antigravity_plugin_sources_respect_config_override_manifest_disabled_and_jsonc(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp).resolve() / "home"
+            config = home / ".gemini/config/config.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(
+                json.dumps(
+                    {
+                        "plugins": {
+                            "default-enabled": {"installedFrom": {"id": "partner/default"}},
+                            "config-disabled": {"enabled": False},
+                            "config-reenabled": {"enabled": True},
+                            "no-skills-plugin": {"enabled": True},
+                        }
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            plugins = home / ".gemini/config/plugins"
+
+            # 1. Default-enabled plugin (no explicit enabled key in config.json) with JSONC + URL
+            default_enabled = plugins / "default-enabled"
+            write_skill(default_enabled, "alpha", "alpha")
+            (default_enabled / "plugin.json").write_text(
+                "{\n"
+                "  // line comment\n"
+                '  "name": "default-enabled",\n'
+                '  "homepage": "https://antigravity.google/docs/plugins",\n'
+                "  /* block comment */\n"
+                "}\n",
+                encoding="utf-8",
+            )
+
+            # 2. Explicitly disabled in config.json (skipped even if manifest is broken)
+            config_disabled = plugins / "config-disabled"
+            write_skill(config_disabled, "beta", "beta")
+            (config_disabled / "plugin.json").write_text("{broken json\n", encoding="utf-8")
+
+            # 3. Ships disabled in manifest, re-enabled in config.json via .antigravity-plugin/plugin.json
+            reenabled = plugins / "config-reenabled"
+            write_skill(reenabled, "gamma", "gamma")
+            (reenabled / ".antigravity-plugin").mkdir(parents=True)
+            (reenabled / ".antigravity-plugin/plugin.json").write_text(
+                '{"name": "reenabled", "disabled": true}\n',
+                encoding="utf-8",
+            )
+
+            # 4. Ships disabled in manifest without config override -> skipped
+            manifest_disabled = plugins / "manifest-disabled"
+            write_skill(manifest_disabled, "delta", "delta")
+            (manifest_disabled / "plugin.json").write_text(
+                '{"name": "manifest-disabled", "disabled": true}\n',
+                encoding="utf-8",
+            )
+
+            # 5. Enabled plugin without skills directory -> skipped cleanly without issues
+            no_skills = plugins / "no-skills-plugin"
+            no_skills.mkdir(parents=True)
+            (no_skills / "plugin.json").write_text('{"name": "no-skills"}\n', encoding="utf-8")
+
+            # 6. Directory without any plugin manifest -> ignored
+            unmanaged = plugins / "not-a-plugin"
+            write_skill(unmanaged, "ignored", "ignored")
+
+            # 7. Enabled plugin using .gemini-plugin/plugin.json
+            gemini_manifest = plugins / "gemini-format"
+            write_skill(gemini_manifest, "epsilon", "epsilon")
+            (gemini_manifest / ".gemini-plugin").mkdir(parents=True)
+            (gemini_manifest / ".gemini-plugin/plugin.json").write_text(
+                '{"name": "gemini-format"}\n',
+                encoding="utf-8",
+            )
+
+            sources, issues = _enabled_antigravity_plugin_sources(home)
+
+            self.assertEqual(issues, [])
+            self.assertEqual(
+                [source.path for source in sources],
+                [
+                    reenabled / "skills",
+                    default_enabled / "skills",
+                    gemini_manifest / "skills",
+                ],
+            )
+            self.assertTrue(
+                all(
+                    source.tools == ("antigravity",)
+                    and source.surfaces == ("antigravity-desktop", "antigravity-cli")
+                    and source.source_type == "plugin"
+                    for source in sources
+                )
+            )
+
+    def test_antigravity_plugin_failures_become_issues_and_do_not_stop_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp).resolve() / "home"
+            plugins = home / ".gemini/config/plugins"
+
+            bad_json = plugins / "bad-json"
+            write_skill(bad_json, "s1", "s1")
+            (bad_json / "plugin.json").write_text('{"name": "bad", /* unterminated\n', encoding="utf-8")
+
+            bad_disabled = plugins / "bad-disabled"
+            write_skill(bad_disabled, "s2", "s2")
+            (bad_disabled / "plugin.json").write_text(
+                '{"name": "bad-disabled", "disabled": "yes"}\n',
+                encoding="utf-8",
+            )
+
+            token_splice = plugins / "token-splice"
+            write_skill(token_splice, "s3", "s3")
+            (token_splice / "plugin.json").write_text(
+                '{"disabled": tru/*comment*/e}\n',
+                encoding="utf-8",
+            )
+
+            orphan_comma = plugins / "orphan-comma"
+            write_skill(orphan_comma, "s4", "s4")
+            (orphan_comma / "plugin.json").write_text(
+                "{,}\n",
+                encoding="utf-8",
+            )
+
+            broken_manifest = plugins / "broken-manifest"
+            write_skill(broken_manifest, "s5", "s5")
+            (broken_manifest / "plugin.json").symlink_to(home / "missing-manifest.json")
+            # Ensure broken top-level plugin.json does NOT silently fall through to fallback manifest
+            (broken_manifest / ".antigravity-plugin").mkdir(parents=True)
+            (broken_manifest / ".antigravity-plugin/plugin.json").write_text(
+                '{"name": "fallback"}\n',
+                encoding="utf-8",
+            )
+
+            outside_manifest = home / "outside-manifest.json"
+            outside_manifest.write_text('{"name": "escaped"}\n', encoding="utf-8")
+            escaped_manifest = plugins / "escaped-manifest"
+            write_skill(escaped_manifest, "s6", "s6")
+            (escaped_manifest / "plugin.json").symlink_to(outside_manifest)
+
+            outside_meta_dir = home / "outside-meta"
+            outside_meta_dir.mkdir(parents=True)
+            (outside_meta_dir / "plugin.json").write_text('{"name": "outside"}\n', encoding="utf-8")
+            escaped_meta_plugin = plugins / "escaped-meta-dir"
+            write_skill(escaped_meta_plugin, "s7", "s7")
+            (escaped_meta_plugin / ".antigravity-plugin").symlink_to(outside_meta_dir)
+
+            escaped_target = write_skill(home / "external", "escaped", "escaped").parent
+            escaped_plugin = plugins / "escaped-skills"
+            escaped_plugin.mkdir(parents=True)
+            (escaped_plugin / "plugin.json").write_text('{"name": "escaped"}\n', encoding="utf-8")
+            (escaped_plugin / "skills").symlink_to(escaped_target)
+
+            file_skills_plugin = plugins / "file-skills"
+            file_skills_plugin.mkdir(parents=True)
+            (file_skills_plugin / "plugin.json").write_text('{"name": "file-skills"}\n', encoding="utf-8")
+            (file_skills_plugin / "skills").write_text("not a dir\n", encoding="utf-8")
+
+            broken_skills_plugin = plugins / "broken-skills"
+            broken_skills_plugin.mkdir(parents=True)
+            (broken_skills_plugin / "plugin.json").write_text('{"name": "broken-skills"}\n', encoding="utf-8")
+            (broken_skills_plugin / "skills").symlink_to(broken_skills_plugin / "missing-dir")
+
+            locked_plugin = plugins / "locked-plugin"
+            locked_plugin.mkdir(parents=True)
+
+            valid = plugins / "valid-plugin"
+            write_skill(valid, "valid-skill", "valid-skill")
+            (valid / "plugin.json").write_text(
+                '{"name": "valid", "note": "escaped \\"// not comment\\" /* also string */",}\n',
+                encoding="utf-8",
+            )
+
+            real_lstat = os.lstat
+
+            def controlled_lstat(path, *args, **kwargs):
+                if Path(path) == locked_plugin / "plugin.json":
+                    raise PermissionError("permission denied")
+                return real_lstat(path, *args, **kwargs)
+
+            with patch("tools.agent_manager.skills.os.lstat", side_effect=controlled_lstat):
+                sources, issues = _enabled_antigravity_plugin_sources(home)
+
+            self.assertEqual([source.path for source in sources], [valid / "skills"])
+            self.assertEqual(
+                {(issue.code, issue.path) for issue in issues},
+                {
+                    ("plugin-manifest-invalid", bad_json / "plugin.json"),
+                    ("plugin-manifest-invalid", bad_disabled / "plugin.json"),
+                    ("plugin-manifest-invalid", token_splice / "plugin.json"),
+                    ("plugin-manifest-invalid", orphan_comma / "plugin.json"),
+                    ("plugin-manifest-invalid", broken_manifest / "plugin.json"),
+                    ("plugin-manifest-invalid", escaped_manifest / "plugin.json"),
+                    (
+                        "plugin-manifest-invalid",
+                        escaped_meta_plugin / ".antigravity-plugin/plugin.json",
+                    ),
+                    ("plugin-manifest-invalid", locked_plugin / "plugin.json"),
+                    ("plugin-skills-path-invalid", escaped_plugin / "plugin.json"),
+                    ("plugin-skills-path-invalid", file_skills_plugin / "plugin.json"),
+                    ("plugin-skills-path-invalid", broken_skills_plugin / "plugin.json"),
+                },
+            )
+
+    def test_antigravity_invalid_config_json_reports_issue(self) -> None:
+        cases = (
+            ("malformed-json", "{not valid json\n"),
+            ("top-level-list", "[]\n"),
+            ("plugins-not-object", '{"plugins": []}\n'),
+            ("broken-symlink", None),
+            ("directory", "DIR"),
+        )
+        for label, content in cases:
+            with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
+                home = Path(tmp).resolve() / "home"
+                config = home / ".gemini/config/config.json"
+                config.parent.mkdir(parents=True)
+                if content is None:
+                    config.symlink_to(home / "missing-config.json")
+                elif content == "DIR":
+                    config.mkdir()
+                else:
+                    config.write_text(content, encoding="utf-8")
+                plugin = home / ".gemini/config/plugins/demo"
+                write_skill(plugin, "demo-skill", "demo-skill")
+                (plugin / "plugin.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+
+                sources, issues = _enabled_antigravity_plugin_sources(home)
+
+                self.assertEqual(sources, [])
+                self.assertEqual(len(issues), 1)
+                self.assertEqual(issues[0].code, "antigravity-config-invalid")
+                self.assertEqual(issues[0].path, config)
+
+    def test_antigravity_config_plugins_null_and_per_plugin_entry_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp).resolve() / "home"
+            config = home / ".gemini/config/config.json"
+            config.parent.mkdir(parents=True)
+            config.write_text('{"plugins": null}\n', encoding="utf-8")
+            demo = home / ".gemini/config/plugins/demo"
+            write_skill(demo, "demo-skill", "demo-skill")
+            (demo / "plugin.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+
+            sources, issues = _enabled_antigravity_plugin_sources(home)
+            self.assertEqual(issues, [])
+            self.assertEqual([source.path for source in sources], [demo / "skills"])
+
+            # Per-plugin invalid entries report issue without stopping valid plugins
+            bad_obj = home / ".gemini/config/plugins/bad-obj"
+            write_skill(bad_obj, "s1", "s1")
+            (bad_obj / "plugin.json").write_text('{"name": "bad-obj"}\n', encoding="utf-8")
+            bad_flag = home / ".gemini/config/plugins/bad-flag"
+            write_skill(bad_flag, "s2", "s2")
+            (bad_flag / "plugin.json").write_text('{"name": "bad-flag"}\n', encoding="utf-8")
+            config.write_text(
+                json.dumps(
+                    {
+                        "plugins": {
+                            "bad-obj": "invalid",
+                            "bad-flag": {"enabled": "yes"},
+                            "demo": {"enabled": True},
+                        }
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            sources2, issues2 = _enabled_antigravity_plugin_sources(home)
+            self.assertEqual([source.path for source in sources2], [demo / "skills"])
+            self.assertEqual(len(issues2), 2)
+            self.assertEqual(
+                {issue.code for issue in issues2},
+                {"antigravity-config-invalid"},
+            )
+
+    def test_antigravity_shared_adapter_is_available_from_cli_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            state = build_test_state(
+                repo,
+                home,
+                installed_commands={"agy": "/Users/test/.local/bin/agy"},
+            )
+            statuses = {(item.adapter_key, item.slug): item for item in state.targets}
+            self.assertEqual(
+                statuses[("antigravity-shared", "docx")].state,
+                LinkState.DISABLED,
+            )
+            plan = plan_set(state, ["docx"], ["antigravity"], True)
+            self.assertEqual(
+                [(item.adapter_key, item.action) for item in plan.changes],
+                [("antigravity-shared", "create")],
+            )
+
+    def test_scan_inventory_distinguishes_antigravity_desktop_and_cli_builtins_and_detects_collision(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            repo_skill = write_skill(repo, "automation", "automation")
+            # Same builtin skill exists in both desktop and cli builtin folders
+            desktop_builtin = home / ".gemini/antigravity/builtin/skills/automation"
+            desktop_builtin.mkdir(parents=True)
+            (desktop_builtin / "SKILL.md").write_text(
+                "---\nname: automation\ndescription: desktop builtin\n---\n",
+                encoding="utf-8",
+            )
+            cli_builtin = home / ".gemini/antigravity-cli/builtin/skills/automation"
+            cli_builtin.mkdir(parents=True)
+            (cli_builtin / "SKILL.md").write_text(
+                "---\nname: automation\ndescription: cli builtin\n---\n",
+                encoding="utf-8",
+            )
+            state = build_test_state(
+                repo,
+                home,
+                installed_apps={"Antigravity.app"},
+                installed_commands={"agy": "/usr/local/bin/agy"},
+            )
+
+            # Without user symlink: desktop builtin and cli builtin do NOT collide with each other
+            records_before = scan_inventory(state, home)
+            self.assertEqual(len(records_before), 2)
+            self.assertTrue(all(record.source_type == "built-in" for record in records_before))
+            self.assertTrue(all("duplicate-name" not in record.flags for record in records_before))
+
+            # With user symlink in ~/.gemini/config/skills: collides with both builtins
+            user_link = home / ".gemini/config/skills/automation"
+            user_link.parent.mkdir(parents=True)
+            user_link.symlink_to(repo_skill)
+            records_after = scan_inventory(state, home)
+            self.assertEqual(len(records_after), 3)
+            self.assertTrue(all("duplicate-name" in record.flags for record in records_after))
 
     def test_codex_plugin_sources_prefer_remote_and_newest_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1869,7 +2246,7 @@ class AggregateCliContractTests(unittest.TestCase):
                 {"source", "source_sha256", "source_text", "targets", "manual_surfaces", "issues"},
             )
             self.assertEqual(payload["summary"]["skills_total"], 1)
-            self.assertEqual(payload["summary"]["instructions_total"], 4)
+            self.assertEqual(payload["summary"]["instructions_total"], 5)
             self.assertRegex(payload["scanned_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$")
 
     def test_domain_statuses_keep_the_common_envelope_and_one_container(self) -> None:
@@ -2016,8 +2393,8 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["surfaces"]), 6)
-            self.assertEqual(len(payload["skills"]["targets"]), 3)
+            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["skills"]["targets"]), 4)
             self.assertEqual(payload["inventory"], [])
             self.assertEqual(payload["skills"]["issues"], [])
 
@@ -2221,9 +2598,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 3)
-            self.assertEqual(len(payload["surfaces"]), 6)
-            self.assertEqual(len(payload["skills"]["targets"]), 3)
+            self.assertEqual(len(payload["skills"]["adapters"]), 4)
+            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["skills"]["targets"]), 4)
             self.assertEqual(
                 [issue["code"] for issue in payload["skills"]["issues"]],
                 ["invalid-frontmatter"],
@@ -2258,8 +2635,8 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["surfaces"]), 6)
-            self.assertEqual(len(payload["skills"]["targets"]), 3)
+            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["skills"]["targets"]), 4)
             self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"]["link_changes"], [])
             self.assertEqual(payload["changes"]["container_changes"], [])
@@ -2366,7 +2743,7 @@ class CliTests(unittest.TestCase):
             text = output.getvalue()
             self.assertEqual(code, 0)
             self.assertIn("Skills: 1/1", text)
-            self.assertIn("Instructions: 0/4", text)
+            self.assertIn("Instructions: 0/5", text)
             self.assertIn("Conflicts: 0", text)
             self.assertIn("Next:", text)
             self.assertNotIn("do not print this", text)
@@ -2398,9 +2775,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 3)
-            self.assertEqual(len(payload["surfaces"]), 6)
-            self.assertEqual(len(payload["skills"]["targets"]), 3)
+            self.assertEqual(len(payload["skills"]["adapters"]), 4)
+            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["skills"]["targets"]), 4)
             self.assertEqual(payload["inventory"], [])
             self.assertEqual(payload["skills"]["issues"], [])
 
@@ -2428,9 +2805,9 @@ class CliTests(unittest.TestCase):
                 [item["slug"] for item in payload["skills"]["records"]],
                 ["docx"],
             )
-            self.assertEqual(len(payload["skills"]["adapters"]), 3)
-            self.assertEqual(len(payload["surfaces"]), 6)
-            self.assertEqual(len(payload["skills"]["targets"]), 3)
+            self.assertEqual(len(payload["skills"]["adapters"]), 4)
+            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["skills"]["targets"]), 4)
             self.assertEqual(payload["skills"]["issues"], [])
             self.assertEqual(payload["changes"], [])
             self.assertEqual(payload["results"], [])
@@ -2531,10 +2908,53 @@ class CliTests(unittest.TestCase):
             payload = json.loads(output.getvalue())
             self.assertEqual(code, 0)
             self.assertEqual(payload["skills"]["records"][0]["slug"], "pdf")
-            self.assertEqual(len(payload["skills"]["adapters"]), 3)
-            self.assertEqual(len(payload["surfaces"]), 6)
-            self.assertEqual(len(payload["instructions"]["targets"]), 4)
+            self.assertEqual(len(payload["skills"]["adapters"]), 4)
+            self.assertEqual(len(payload["surfaces"]), 8)
+            self.assertEqual(len(payload["instructions"]["targets"]), 5)
             self.assertEqual(payload["skills"]["issues"], [])
+
+    def test_antigravity_cli_set_and_doctor_plugin_issue_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            apps = root / "Applications"
+            (apps / "Antigravity.app").mkdir(parents=True)
+
+            # Enable via CLI targeting antigravity
+            out_set = io.StringIO()
+            set_code = main(
+                ["skills", "set", "docx", "--tool", "antigravity", "--on", "--apply", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=out_set,
+                which=lambda _: None,
+                applications=apps,
+            )
+            set_payload = json.loads(out_set.getvalue())
+            self.assertEqual(set_code, 0)
+            self.assertTrue(set_payload["ok"])
+            link = home / ".gemini/config/skills/docx"
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(link.resolve(), (repo / "skills/docx").resolve())
+
+            # Corrupt Antigravity plugin manifest surfaces through doctor
+            bad_plugin = home / ".gemini/config/plugins/broken"
+            write_skill(bad_plugin, "x", "x")
+            (bad_plugin / "plugin.json").write_text("{bad\n", encoding="utf-8")
+            out_doctor = io.StringIO()
+            doctor_code = main(
+                ["doctor", "--json"],
+                home=home,
+                repo_root=repo,
+                stdout=out_doctor,
+                which=lambda _: None,
+                applications=apps,
+            )
+            doctor_payload = json.loads(out_doctor.getvalue())
+            self.assertEqual(doctor_code, 1)
+            self.assertFalse(doctor_payload["ok"])
+            self.assertEqual(doctor_payload["code"], "plugin-manifest-invalid")
 
     def test_batch_partial_failure_returns_one_with_per_item_results(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

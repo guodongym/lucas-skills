@@ -188,6 +188,7 @@ class InstructionCliContractTests(unittest.TestCase):
                 "claude": ["claude-desktop", "claude-cli"],
                 "codex": ["codex-desktop", "codex-cli"],
                 "copilot": ["copilot-cli"],
+                "antigravity": ["antigravity-desktop", "antigravity-cli"],
             },
         )
 
@@ -591,6 +592,7 @@ class InstructionPlanTests(unittest.TestCase):
             "claude": "foreign-link",
             "codex": "broken",
             "copilot": "directory",
+            "antigravity": "matching-copy",
         }
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -611,6 +613,7 @@ class InstructionPlanTests(unittest.TestCase):
                 "claude": "replace",
                 "codex": "replace",
                 "copilot": "unsupported-target",
+                "antigravity": "replace",
             },
         )
 
@@ -673,6 +676,7 @@ class InstructionPlanTests(unittest.TestCase):
                     "claude": "no-op",
                     "codex": "blocked",
                     "copilot": "no-op",
+                    "antigravity": "no-op",
                 },
             )
             self.assertIsNone(left.snapshot_path)
@@ -805,8 +809,7 @@ class InstructionApplyTests(unittest.TestCase):
                 scan_instructions(repo, home), ["codex"], False, root / "state"
             )
         elif action == "replace":
-            for key in ("shared", "claude", "copilot"):
-                create_instruction_shape(home, repo, key, "enabled")
+            enable_other_instruction_targets(home, repo, "codex")
             target = create_instruction_shape(home, repo, "codex", "conflict")
             plan = plan_instruction_adoption(
                 scan_instructions(repo, home), root / "state", replace_existing=True
@@ -1210,7 +1213,7 @@ class InstructionApplyTests(unittest.TestCase):
             self.assertEqual(restored.read_bytes(), original)
             self.assertEqual(stat.S_IMODE(restored.stat().st_mode), 0o640)
 
-    def test_four_target_adoption_preview_is_read_only_then_converges(self) -> None:
+    def test_five_target_adoption_preview_is_read_only_then_converges(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             repo, home = build_repository(root)
@@ -1218,7 +1221,7 @@ class InstructionApplyTests(unittest.TestCase):
             create_instruction_shape(home, repo, "shared", "enabled")
             create_instruction_shape(home, repo, "claude", "enabled")
             create_instruction_shape(home, repo, "codex", "conflict")
-            create_instruction_parents(home, "copilot")
+            create_instruction_parents(home, "copilot", "antigravity")
             before = filesystem_manifest(home)
 
             plan = plan_instruction_adoption(
@@ -1227,7 +1230,7 @@ class InstructionApplyTests(unittest.TestCase):
 
             self.assertEqual(filesystem_manifest(home), before)
             self.assertFalse(plan.snapshot_path.exists())
-            self.assertEqual(len(plan.changes), 4)
+            self.assertEqual(len(plan.changes), 5)
             result = apply_instruction_plan(
                 plan, home, expected_fingerprint=plan.fingerprint
             )
@@ -1440,8 +1443,7 @@ class InstructionApplyTests(unittest.TestCase):
             repo, home = build_repository(root)
             first = create_instruction_shape(home, repo, "shared", "conflict")
             create_instruction_shape(home, repo, "claude", "conflict")
-            for key in ("codex", "copilot"):
-                create_instruction_shape(home, repo, key, "enabled")
+            enable_other_instruction_targets(home, repo, "shared", "claude")
             plan = plan_instruction_adoption(
                 scan_instructions(repo, home), root / "state", replace_existing=True
             )
@@ -1553,8 +1555,7 @@ class InstructionApplyTests(unittest.TestCase):
             repo, home = build_repository(root)
             first = create_instruction_shape(home, repo, "shared", "conflict")
             create_instruction_shape(home, repo, "claude", "conflict")
-            for key in ("codex", "copilot"):
-                create_instruction_shape(home, repo, key, "enabled")
+            enable_other_instruction_targets(home, repo, "shared", "claude")
             original = first.read_bytes()
             plan = plan_instruction_adoption(
                 scan_instructions(repo, home), root / "state", replace_existing=True
@@ -1887,13 +1888,45 @@ class IncompleteTransactionTests(unittest.TestCase):
 
 
 class InstructionTargetTests(unittest.TestCase):
-    def test_builds_only_the_four_approved_targets_in_stable_order(self) -> None:
+    def test_builds_only_the_five_approved_targets_in_stable_order(self) -> None:
         home = Path("/tmp/agent-manager-home")
+        targets = build_instruction_targets(home)
 
         self.assertEqual(
-            [target.key for target in build_instruction_targets(home)],
-            ["shared", "claude", "codex", "copilot"],
+            [target.key for target in targets],
+            ["shared", "claude", "codex", "copilot", "antigravity"],
         )
+        antigravity = next(target for target in targets if target.key == "antigravity")
+        self.assertEqual(antigravity.path, home / ".gemini/GEMINI.md")
+        self.assertEqual(antigravity.surfaces, ("antigravity-desktop", "antigravity-cli"))
+
+    def test_antigravity_instruction_set_preview_apply_and_remove(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo, home = build_repository(root)
+            create_instruction_parents(home, "antigravity")
+
+            on_plan = plan_instruction_set(
+                scan_instructions(repo, home), ["antigravity"], True, root / "state"
+            )
+            self.assertEqual(len(on_plan.changes), 1)
+            self.assertEqual(on_plan.changes[0].action, "create")
+            self.assertEqual(on_plan.changes[0].target, home / ".gemini/GEMINI.md")
+            on_result = apply_instruction_plan(
+                on_plan, home, expected_fingerprint=on_plan.fingerprint
+            )
+            self.assertTrue(on_result.ok)
+            self.assertTrue(direct_link(home / ".gemini/GEMINI.md", repo / "AGENTS.md"))
+
+            off_plan = plan_instruction_set(
+                scan_instructions(repo, home), ["antigravity"], False, root / "state"
+            )
+            self.assertEqual(off_plan.changes[0].action, "remove")
+            off_result = apply_instruction_plan(
+                off_plan, home, expected_fingerprint=off_plan.fingerprint
+            )
+            self.assertTrue(off_result.ok)
+            self.assertFalse(os.path.lexists(home / ".gemini/GEMINI.md"))
 
     def test_reports_copilot_desktop_as_a_manual_surface(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

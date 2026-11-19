@@ -81,7 +81,7 @@ uv run upstream-sync sync --upstream anthropics-skills
 
 ## Agent Manager
 
-Agent Manager 以本仓库 `skills/` 和 `AGENTS.md` 为唯一受管源，统一管理 Claude、Codex、GitHub Copilot 三个工具族、六个检测表面。前置条件是本机已安装 `uv`：
+Agent Manager 以本仓库 `skills/` 和 `AGENTS.md` 为唯一受管源，统一管理 Claude、Codex、GitHub Copilot、Antigravity 四个工具族、八个检测表面。前置条件是本机已安装 `uv`：
 
 ```bash
 uv --version
@@ -112,24 +112,26 @@ Skills 常见状态为 `enabled`、`disabled`、`conflict` 和 `broken`。Instru
 
 ### 工具表面与受管路径
 
-Desktop 和 CLI 分别检测，共三个工具族、六个检测表面。Skills 共使用三个 Skill 根目录：
+Desktop 和 CLI 分别检测，共四个工具族、八个检测表面。Skills 共使用四个 Skill 根目录：
 
 | 工具 | Desktop 检测 | CLI 检测 | Skill 加载位置 |
 | --- | --- | --- | --- |
 | Claude | `Claude.app` 或 `Claude Code.app` | `claude` | `~/.claude/skills/<skill>` |
 | Codex | 优先 `ChatGPT.app`，兼容 `Codex.app` fallback | `codex` | `~/.codex/skills/<skill>` |
 | GitHub Copilot | `GitHub Copilot.app` | `copilot` | `~/.copilot/skills/<skill>` |
+| Antigravity | `Antigravity.app` | `agy` | `~/.gemini/config/skills/<skill>` |
 
-`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录，以及 Copilot Desktop 内置目录；这些库存来源不因此变为受管目标。
+`doctor` 还会只读扫描 `~/.agents/skills`、Codex 内置及已启用插件目录、Copilot Desktop 内置目录，以及 Antigravity Desktop/CLI 内置目录与已启用插件目录；这些库存来源不因此变为受管目标。
 
-Instructions 共使用四个 Instructions 文件入口，全部以仓库 `AGENTS.md` 为来源：
+Instructions 共使用五个 Instructions 文件入口，全部以仓库 `AGENTS.md` 为来源：
 
 | target | Instructions 目标路径 | 覆盖范围 |
 | --- | --- | --- |
-| `shared` | `~/.agents/AGENTS.md` | 通用 Agent 约束 |
+| `shared` | `~/.agents/AGENTS.md` | Claude、Codex 与 Copilot CLI 通用约束（不含 Antigravity） |
 | `claude` | `~/.claude/CLAUDE.md` | Claude CLI 与 Desktop Code session |
 | `codex` | `~/.codex/AGENTS.md` | Codex CLI 与 ChatGPT Desktop Codex mode |
 | `copilot` | `~/.copilot/copilot-instructions.md` | GitHub Copilot CLI |
+| `antigravity` | `~/.gemini/GEMINI.md` | Antigravity Desktop 与 `agy` CLI |
 
 Copilot Desktop 的全局 instructions 由应用 Settings 管理，是手工边界；管理器只显示 manual 状态、复制规则内容和操作说明，不写应用内部数据。
 

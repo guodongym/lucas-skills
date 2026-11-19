@@ -5,6 +5,7 @@
     { key: "claude", label: "Claude" },
     { key: "codex", label: "Codex" },
     { key: "copilot", label: "Copilot" },
+    { key: "antigravity", label: "Antigravity" },
   ];
   const ATTENTION_STATES = new Set(["conflict", "error", "broken", "legacy"]);
   const NAV_ICONS = {
@@ -1713,7 +1714,7 @@
     if (!filtered.length) {
       const row = node("tr");
       const cell = node("td", rows.length ? "没有符合筛选条件的 Skill。" : "仓库中没有可展示的 Skill。", "empty-cell");
-      cell.setAttribute("colspan", "4");
+      cell.setAttribute("colspan", "5");
       row.appendChild(cell);
       body.appendChild(row);
       syncWriteBusy();

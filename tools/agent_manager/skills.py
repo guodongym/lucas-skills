@@ -243,6 +243,13 @@ def build_adapters(home: Path) -> tuple[TargetAdapter, ...]:
         TargetAdapter("claude-shared", "claude", home, home / ".claude/skills", ("claude-desktop", "claude-cli")),
         TargetAdapter("codex-shared", "codex", home, home / ".codex/skills", ("codex-desktop", "codex-cli")),
         TargetAdapter("copilot-shared", "copilot", home, home / ".copilot/skills", ("copilot-desktop", "copilot-cli")),
+        TargetAdapter(
+            "antigravity-shared",
+            "antigravity",
+            home,
+            home / ".gemini/config/skills",
+            ("antigravity-desktop", "antigravity-cli"),
+        ),
     )
 
 
@@ -254,11 +261,13 @@ def detect_surfaces(
         "claude-desktop": (applications / "Claude.app", applications / "Claude Code.app"),
         "codex-desktop": (applications / "ChatGPT.app", applications / "Codex.app"),
         "copilot-desktop": (applications / "GitHub Copilot.app",),
+        "antigravity-desktop": (applications / "Antigravity.app",),
     }
     cli_commands = {
         "claude-cli": "claude",
         "codex-cli": "codex",
         "copilot-cli": "copilot",
+        "antigravity-cli": "agy",
     }
     result = {
         key: SurfaceStatus(key, any(path.exists() for path in paths), "application")
@@ -444,7 +453,248 @@ def _fixed_inventory_sources(home: Path) -> list[InventorySource]:
         InventorySource(home / ".copilot/skills", ("copilot",), ("copilot-desktop", "copilot-cli"), "user-root"),
         InventorySource(home / ".agents/skills", ("copilot",), ("copilot-desktop", "copilot-cli"), "shared-user-root"),
         InventorySource(home / "Library/Application Support/com.github.githubapp/app-skills", ("copilot",), ("copilot-desktop",), "built-in"),
+        InventorySource(home / ".gemini/config/skills", ("antigravity",), ("antigravity-desktop", "antigravity-cli"), "user-root"),
+        InventorySource(home / ".gemini/antigravity/builtin/skills", ("antigravity",), ("antigravity-desktop",), "built-in"),
+        InventorySource(home / ".gemini/antigravity-cli/builtin/skills", ("antigravity",), ("antigravity-cli",), "built-in"),
     ]
+
+
+def _strip_jsonc(text: str) -> str:
+    without_comments: list[str] = []
+    in_string = False
+    index = 0
+    length = len(text)
+    while index < length:
+        char = text[index]
+        if in_string:
+            without_comments.append(char)
+            if char == "\\" and index + 1 < length:
+                without_comments.append(text[index + 1])
+                index += 2
+                continue
+            if char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            without_comments.append(char)
+            index += 1
+            continue
+        if char == "/" and index + 1 < length and text[index + 1] == "/":
+            index += 2
+            while index < length and text[index] != "\n":
+                index += 1
+            continue
+        if char == "/" and index + 1 < length and text[index + 1] == "*":
+            end = text.find("*/", index + 2)
+            if end == -1:
+                raise ValueError("unterminated block comment")
+            without_comments.append(" ")
+            index = end + 2
+            continue
+        without_comments.append(char)
+        index += 1
+
+    cleaned = "".join(without_comments)
+    result: list[str] = []
+    in_string = False
+    last_non_ws: str | None = None
+    index = 0
+    length = len(cleaned)
+    while index < length:
+        char = cleaned[index]
+        if in_string:
+            result.append(char)
+            if char == "\\" and index + 1 < length:
+                result.append(cleaned[index + 1])
+                index += 2
+                continue
+            if char == '"':
+                in_string = False
+                last_non_ws = '"'
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            result.append(char)
+            index += 1
+            continue
+        if char == "," and last_non_ws is not None and last_non_ws not in "{[,":
+            lookahead = index + 1
+            while lookahead < length and cleaned[lookahead] in " \t\r\n":
+                lookahead += 1
+            if lookahead < length and cleaned[lookahead] in "}]":
+                index += 1
+                continue
+        result.append(char)
+        if char not in " \t\r\n":
+            last_non_ws = char
+        index += 1
+    return "".join(result)
+
+
+def _probe_antigravity_plugin_manifest(
+    plugin_dir: Path,
+) -> tuple[Path | None, ScanIssue | None]:
+    for relative in (
+        "plugin.json",
+        ".antigravity-plugin/plugin.json",
+        ".gemini-plugin/plugin.json",
+    ):
+        candidate = plugin_dir / relative
+        try:
+            os.lstat(candidate)
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+        except OSError as exc:
+            return None, ScanIssue(
+                "plugin-manifest-invalid",
+                candidate,
+                f"Antigravity plugin manifest cannot be inspected: {plugin_dir.name}: {exc}",
+            )
+        return candidate, None
+    return None, None
+
+
+def _enabled_antigravity_plugin_sources(
+    home: Path,
+) -> tuple[list[InventorySource], list[ScanIssue]]:
+    plugins_root = home / ".gemini/config/plugins"
+    if not plugins_root.is_dir():
+        return [], []
+    config_path = home / ".gemini/config/config.json"
+    config_plugins: dict[str, object] = {}
+    if _lexists(config_path):
+        try:
+            if not config_path.is_file():
+                raise ValueError("config is not a regular file")
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            if not isinstance(config, dict):
+                raise ValueError("config must be a JSON object")
+            raw_plugins = config.get("plugins")
+            if raw_plugins is None:
+                config_plugins = {}
+            elif isinstance(raw_plugins, dict):
+                config_plugins = raw_plugins
+            else:
+                raise ValueError("config plugins must be an object")
+        except (OSError, UnicodeError, ValueError) as exc:
+            return [], [
+                ScanIssue(
+                    "antigravity-config-invalid",
+                    config_path,
+                    f"Antigravity config cannot be parsed: {exc}",
+                )
+            ]
+
+    try:
+        plugin_entries = sorted(plugins_root.iterdir(), key=lambda path: path.name)
+    except OSError as exc:
+        return [], [
+            ScanIssue(
+                "antigravity-plugins-unreadable",
+                plugins_root,
+                f"Antigravity plugins directory cannot be read: {exc}",
+            )
+        ]
+
+    sources: list[InventorySource] = []
+    issues: list[ScanIssue] = []
+    for plugin_dir in plugin_entries:
+        if plugin_dir.name.startswith(".") or not plugin_dir.is_dir():
+            continue
+        override = config_plugins.get(plugin_dir.name)
+        config_enabled: bool | None = None
+        if override is not None:
+            if not isinstance(override, dict):
+                issues.append(
+                    ScanIssue(
+                        "antigravity-config-invalid",
+                        config_path,
+                        f"Antigravity plugin setting must be an object: {plugin_dir.name}",
+                    )
+                )
+                continue
+            if "enabled" in override:
+                if not isinstance(override["enabled"], bool):
+                    issues.append(
+                        ScanIssue(
+                            "antigravity-config-invalid",
+                            config_path,
+                            f"Antigravity plugin enabled flag must be boolean: {plugin_dir.name}",
+                        )
+                    )
+                    continue
+                config_enabled = override["enabled"]
+        if config_enabled is False:
+            continue
+
+        manifest_path, probe_issue = _probe_antigravity_plugin_manifest(plugin_dir)
+        if probe_issue is not None:
+            issues.append(probe_issue)
+            continue
+        if manifest_path is None:
+            continue
+
+        try:
+            resolved_plugin_root = plugin_dir.resolve(strict=True)
+            resolved_manifest = manifest_path.resolve(strict=True)
+            resolved_manifest.relative_to(resolved_plugin_root)
+            if not manifest_path.is_file():
+                raise ValueError("manifest is not a regular file")
+            manifest = json.loads(_strip_jsonc(manifest_path.read_text(encoding="utf-8")))
+            if not isinstance(manifest, dict):
+                raise ValueError("manifest must be an object")
+            if "disabled" in manifest and not isinstance(manifest["disabled"], bool):
+                raise ValueError("manifest disabled must be a boolean")
+        except (OSError, RuntimeError, UnicodeError, ValueError) as exc:
+            issues.append(
+                ScanIssue(
+                    "plugin-manifest-invalid",
+                    manifest_path,
+                    f"Antigravity plugin manifest cannot be parsed: {plugin_dir.name}: {exc}",
+                )
+            )
+            continue
+
+        if config_enabled is None and manifest.get("disabled") is True:
+            continue
+
+        skills_root = plugin_dir / "skills"
+        if not _lexists(skills_root):
+            continue
+        try:
+            resolved_skills_root = skills_root.resolve(strict=False)
+            resolved_skills_root.relative_to(resolved_plugin_root)
+            if not skills_root.is_dir():
+                raise ValueError("plugin skills entry is not a directory")
+        except (OSError, RuntimeError, ValueError) as exc:
+            issues.append(
+                ScanIssue(
+                    "plugin-skills-path-invalid",
+                    manifest_path,
+                    f"Antigravity plugin skills path is unsafe: {plugin_dir.name}: {exc}",
+                )
+            )
+            continue
+        sources.append(
+            InventorySource(
+                skills_root,
+                ("antigravity",),
+                ("antigravity-desktop", "antigravity-cli"),
+                "plugin",
+            )
+        )
+    return sources, issues
+
+
+def _enabled_plugin_sources(
+    home: Path,
+) -> tuple[list[InventorySource], list[ScanIssue]]:
+    codex_sources, codex_issues = _enabled_codex_plugin_sources(home)
+    antigravity_sources, antigravity_issues = _enabled_antigravity_plugin_sources(home)
+    return [*codex_sources, *antigravity_sources], [*codex_issues, *antigravity_issues]
 
 
 def _enabled_codex_plugin_sources(
@@ -627,11 +877,11 @@ def _scan_inventory_source(
 
 
 def scan_inventory(state: ManagedState, home: Path) -> tuple[InventoryRecord, ...]:
-    codex_sources, _issues = _enabled_codex_plugin_sources(home)
+    plugin_sources, _issues = _enabled_plugin_sources(home)
     managed_paths = {skill.path.resolve() for skill in state.repository.skills}
     records = [
         record
-        for source in [*_fixed_inventory_sources(home), *codex_sources]
+        for source in [*_fixed_inventory_sources(home), *plugin_sources]
         for record in _scan_inventory_source(source, managed_paths)
     ]
     duplicate_counts = Counter(

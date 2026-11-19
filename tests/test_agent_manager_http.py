@@ -150,7 +150,7 @@ class HttpServerTests(unittest.TestCase):
             root = Path(tmp).resolve()
             repo, home = root / "repo", root / "home"
             write_skill(repo, "docx", "docx")
-            for parent in (".agents", ".claude", ".codex", ".copilot"):
+            for parent in (".agents", ".claude", ".codex", ".copilot", ".gemini"):
                 (home / parent).mkdir(parents=True)
             occupied = home / ".codex/AGENTS.md"
             occupied.write_text("foreign instructions\n", encoding="utf-8")
@@ -932,7 +932,7 @@ class HttpServerTests(unittest.TestCase):
             root = Path(tmp).resolve()
             repo, home = root / "repo", root / "home"
             write_skill(repo, "docx", "docx")
-            for parent in (".agents", ".claude", ".codex", ".copilot"):
+            for parent in (".agents", ".claude", ".codex", ".copilot", ".gemini"):
                 (home / parent).mkdir(parents=True)
             (home / ".codex/AGENTS.md").write_text("foreign\n", encoding="utf-8")
             with running_http_server(repo, home, root / "Applications") as (
@@ -1022,6 +1022,7 @@ class HttpServerTests(unittest.TestCase):
                 "claude": home / ".claude/CLAUDE.md",
                 "codex": home / ".codex/AGENTS.md",
                 "copilot": home / ".copilot/copilot-instructions.md",
+                "antigravity": home / ".gemini/GEMINI.md",
             }
             for target in targets.values():
                 target.parent.mkdir(parents=True)
@@ -1076,6 +1077,7 @@ class HttpServerTests(unittest.TestCase):
                     ("claude", "permission-denied", str(targets["claude"])),
                     ("codex", "not-applied", str(targets["codex"])),
                     ("copilot", "not-applied", str(targets["copilot"])),
+                    ("antigravity", "not-applied", str(targets["antigravity"])),
                 ],
             )
             self.assertTrue(all(not target.exists() for target in targets.values()))
@@ -1093,6 +1095,7 @@ class HttpServerTests(unittest.TestCase):
                 "claude": home / ".claude/CLAUDE.md",
                 "codex": home / ".codex/AGENTS.md",
                 "copilot": home / ".copilot/copilot-instructions.md",
+                "antigravity": home / ".gemini/GEMINI.md",
             }
             for target in targets.values():
                 target.parent.mkdir(parents=True)
@@ -1169,10 +1172,11 @@ class HttpServerTests(unittest.TestCase):
                 "claude": home / ".claude/CLAUDE.md",
                 "codex": home / ".codex/AGENTS.md",
                 "copilot": home / ".copilot/copilot-instructions.md",
+                "antigravity": home / ".gemini/GEMINI.md",
             }
             for target in targets.values():
                 target.parent.mkdir(parents=True, exist_ok=True)
-            for key in ("claude", "copilot"):
+            for key in ("claude", "copilot", "antigravity"):
                 targets[key].symlink_to(source)
             targets["codex"].write_bytes(b"conflicting instructions\n")
             intent = {
@@ -1209,6 +1213,7 @@ class HttpServerTests(unittest.TestCase):
                         "claude": "no-op",
                         "codex": "blocked",
                         "copilot": "no-op",
+                        "antigravity": "no-op",
                     },
                 )
 
@@ -1267,7 +1272,7 @@ class HttpServerTests(unittest.TestCase):
                 self.assertTrue(all(not result["ok"] for result in payload["results"]))
             self.assertFalse(targets["shared"].exists())
             self.assertEqual(targets["codex"].read_bytes(), b"conflicting instructions\n")
-            for key in ("claude", "copilot"):
+            for key in ("claude", "copilot", "antigravity"):
                 self.assertTrue(targets[key].is_symlink())
                 self.assertEqual(targets[key].resolve(), source.resolve())
             self.assertFalse((home / ".local").exists())
@@ -1626,3 +1631,69 @@ class HttpServerTests(unittest.TestCase):
                 self.assertEqual(output.getvalue(), "http://127.0.0.1:43210/\n")
                 self.assertEqual(browser_open.called, open_browser)
                 create.assert_called_once()
+
+    def test_antigravity_http_skills_instructions_and_inventory_issues(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            repo, home = root / "repo", root / "home"
+            write_skill(repo, "docx", "docx")
+            (home / ".gemini").mkdir(parents=True)
+            apps = root / "Applications"
+            (apps / "Antigravity.app").mkdir(parents=True)
+
+            with running_http_server(repo, home, apps) as (_server, _thread, base_url):
+                skill_applied = json.loads(
+                    self._write_request(
+                        base_url,
+                        "/api/skills/set",
+                        {
+                            "skill": "docx",
+                            "all": False,
+                            "tool": "antigravity",
+                            "on": True,
+                            "apply": True,
+                        },
+                    ).read()
+                )
+                self.assertTrue(skill_applied["ok"])
+                self.assertTrue((home / ".gemini/config/skills/docx").is_symlink())
+
+                inst_preview = json.loads(
+                    self._write_request(
+                        base_url,
+                        "/api/instructions/set",
+                        {
+                            "target": "antigravity",
+                            "on": True,
+                            "apply": False,
+                            "expected_fingerprint": None,
+                        },
+                    ).read()
+                )
+                self.assertTrue(inst_preview["ok"])
+                inst_applied = json.loads(
+                    self._write_request(
+                        base_url,
+                        "/api/instructions/set",
+                        {
+                            "target": "antigravity",
+                            "on": True,
+                            "apply": True,
+                            "expected_fingerprint": inst_preview["fingerprint"],
+                        },
+                    ).read()
+                )
+                self.assertTrue(inst_applied["ok"])
+                self.assertTrue((home / ".gemini/GEMINI.md").is_symlink())
+
+                bad_plugin = home / ".gemini/config/plugins/broken"
+                write_skill(bad_plugin, "x", "x")
+                (bad_plugin / "plugin.json").write_text("{broken\n", encoding="utf-8")
+                inventory = json.loads(
+                    urllib.request.urlopen(f"{base_url}/api/inventory", timeout=2).read()
+                )
+                self.assertFalse(inventory["ok"])
+                self.assertEqual(
+                    [issue["code"] for issue in inventory["issues"]],
+                    ["plugin-manifest-invalid"],
+                )

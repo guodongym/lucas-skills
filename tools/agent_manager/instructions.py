@@ -160,6 +160,7 @@ _TARGETS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("claude", ".claude/CLAUDE.md", ("claude-desktop", "claude-cli")),
     ("codex", ".codex/AGENTS.md", ("codex-desktop", "codex-cli")),
     ("copilot", ".copilot/copilot-instructions.md", ("copilot-cli",)),
+    ("antigravity", ".gemini/GEMINI.md", ("antigravity-desktop", "antigravity-cli")),
 )
 
 
