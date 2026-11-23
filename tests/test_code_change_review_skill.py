@@ -64,49 +64,71 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         self.assertGreaterEqual(len(metadata["short_description"]), 25)
         self.assertLessEqual(len(metadata["short_description"]), 64)
 
-    def test_workflow_contains_scope_readonly_and_reasoning_contracts(self):
+    def test_entry_keeps_core_review_and_reporting_rules(self):
         _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
-        for phrase in (
-            "Input precedence",
-            "Deterministic snapshots",
-            "Read-only safety gate",
-            "First principles",
-            "Adversarial review",
-            "Evidence gate",
-            "Merge readiness",
+        for concept in (
+            "read-only", "pre-change", "nine surfaces", "user-visible ui",
+            "reachable path", "special attention", "ui coverage", "merge readiness",
+            "结论：未发现有代码证据支持的缺陷。",
         ):
-            self.assertIn(phrase, body)
-        self.assertIn("references/review-rubric.md", body)
-        self.assertIn("references/output-template.md", body)
+            self.assertIn(concept, body.lower())
+        for rule in (
+            r"UI coverage[^\n]*rules/reuse[^\n]*walkthrough",
+            r"Not ready[^.\n]*P0/P1[^.\n]*C",
+            r"Unable to determine[^.\n]*blocking Q",
+            r"Ready with non-blocking follow-ups[^.\n]*P2",
+            r"P0[^.\n]*severe[^.\n]*containment",
+            r"P1[^.\n]*material[^.\n]*before merge",
+            r"P2[^.\n]*narrow[^.\n]*reversible",
+        ):
+            self.assertRegex(body, rule)
 
-    def test_output_contract_separates_findings_questions_and_readiness(self):
+    def test_entry_routes_existing_local_references_by_condition(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        self.assertRegex(body.lower(), r"matching reference[^\n]*entry alone")
+        routes = {
+            link: condition.lower()
+            for condition, link in re.findall(
+                r"^\|([^|\n]+)\|[^|\n]*\]\((references/[^)\s]+\.md)\)",
+                body,
+                re.MULTILINE,
+            )
+        }
+        for filename, trigger in {
+            "output-template.md": r"c/p/q|report",
+            "pr-comments.md": r"comment|publication",
+            "rereview.md": r"findings|repairs|delta",
+            "review-rubric.md": r"risk|concurrency",
+            "review-scope.md": r"baseline|working tree|pr",
+            "ui-review.md": r"ui|renderer",
+            "validation-safety.md": r"executing|reproducer",
+        }.items():
+            relative = f"references/{filename}"
+            with self.subTest(reference=relative):
+                self.assertIn(relative, routes)
+                self.assertRegex(routes[relative], trigger)
+        for relative in re.findall(r"\]\((references/[^)\s]+\.md)\)", body):
+            reference = (SKILL_ROOT / relative).resolve()
+            self.assertTrue(reference.is_relative_to(SKILL_ROOT.resolve()), relative)
+            self.assertTrue(reference.is_file(), relative)
+
+    def test_output_template_preserves_distinct_evidence_entries(self):
         template = (SKILL_ROOT / "references" / "output-template.md").read_text(
             encoding="utf-8"
         )
-        for phrase in (
-            "Confirmed findings",
-            "P0-01",
-            "P1-01",
-            "P2-01",
-            "Questions",
-            "Q-01",
-            "blocking",
-            "non-blocking",
-            "Unable to determine",
-            "Ready with non-blocking follow-ups",
-            "未发现有代码证据支持的缺陷",
-            "UI coverage",
-        ):
+        for phrase in ("C-01", "P0-01", "P1-01", "P2-01", "Q-01", "non-blocking"):
             self.assertIn(phrase, template)
 
-    def test_rubric_screens_user_visible_ui_as_its_own_surface(self):
-        rubric = (SKILL_ROOT / "references" / "review-rubric.md").read_text(
+    def test_ui_reference_preserves_checks_and_walkthrough_boundary(self):
+        guidance = (SKILL_ROOT / "references" / "ui-review.md").read_text(
             encoding="utf-8"
-        )
-        self.assertIn("Screen all nine surfaces", rubric)
-        self.assertIn("| User-visible UI |", rubric)
-        self.assertIn("### User-visible UI", rubric)
-        self.assertIn("Runtime walkthrough", rubric)
+        ).lower()
+        for check in (
+            "permission-denied", "enum", "destructive", "cancel/submit", "overflow",
+            "reuse", "runtime walkthrough", "unverified",
+        ):
+            self.assertIn(check, guidance)
+        self.assertRegex(guidance, r"copy-only[^\n]*walkthrough[^\n]*(only if|unless)")
 
     def test_eval_manifest_has_fixed_case_matrix_and_valid_fixtures(self):
         manifest = json.loads(

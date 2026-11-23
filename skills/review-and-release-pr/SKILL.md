@@ -49,7 +49,7 @@ For Ezone, anchor HTTPS host/company/repoKey and current identity explicitly usi
 
 No permitted backend for the selected platform -> pause remote-dependent work. Continue any useful local review, label stale or missing remote evidence, and do not merge/release without the required fresh facts. Preserve original errors; do not log in, refresh credentials, or change GitHub App installation scope.
 
-Screen the anchored diff for the `code-change-review` rubric's Special attention triggers before Gate 1. This preliminary change inventory is not an independent correctness review; mark unchecked architecture, consumers and functions explicitly. Preserve observed changes in the attention report even if Gate 1 stops.
+Screen the anchored diff before Gate 1 using code-change-review’s [change screening](../code-change-review/SKILL.md#screen-the-change) and [Special attention rules](../code-change-review/SKILL.md#report-and-verdict). This preliminary change inventory is not an independent correctness review; mark unchecked architecture, consumers and functions explicitly. Preserve observed changes in the attention report even if Gate 1 stops.
 
 ## Gate 1: Review the requirement from first principles
 
