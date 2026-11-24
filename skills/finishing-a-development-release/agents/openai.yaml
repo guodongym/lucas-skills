@@ -1,4 +1,4 @@
 interface:
   display_name: "开发版本发布收尾"
-  short_description: "轻量编排 worktree 合并、版本发布与安全清理"
-  default_prompt: "Use $finishing-a-development-release to finish this worktree release safely and report the verified release state."
+  short_description: "轻量编排 worktree 合并、版本部署材料整理、发布与安全清理"
+  default_prompt: "Use $finishing-a-development-release to finish this release safely, prepare version deployment materials when applicable, and report the verified release state."
