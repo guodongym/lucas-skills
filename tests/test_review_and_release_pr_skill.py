@@ -87,6 +87,45 @@ class ReviewAndReleasePrSkillTests(unittest.TestCase):
                 self.assertTrue(fixture.is_relative_to(SKILL_ROOT.resolve()))
                 self.assertTrue(fixture.is_file())
 
+    def test_release_handoff_preserves_single_pr_vs_version_release_boundary(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        lowered = body.lower()
+        for phrase in (
+            "deployment package",
+            "release-prep pr",
+            "actual merge sha",
+            "single-pr merge",
+            "separate release-prep pr",
+            "executable deployment",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, lowered)
+
+        self.assertRegex(
+            body,
+            r"\.\s+Pass the concrete task worktree/local and remote branch identities,",
+        )
+        # P1-01: formal-release metadata (target version, explicit starting-baseline override,
+        # PR artifact leads, explicit deployment-package toggle) must apply to ALL formal releases,
+        # not be gated inside the protected-branch sentence.
+        self.assertRegex(
+            body,
+            r"Whenever authorized work enters a formal version release[^\n]*target version[^\n]*explicit starting-baseline override[^\n]*PR artifact leads[^\n]*explicit deployment-package toggle",
+        )
+
+        manifest = json.loads(
+            (SKILL_ROOT / "evals" / "evals.json").read_text(encoding="utf-8")
+        )
+        ids = {case["id"] for case in manifest["evals"]}
+        for required_id in (
+            "single-pr-merge-no-deploy-package",
+            "version-release-handoff-separate-pr",
+            "release-pr-custom-exec-requires-independent-review",
+            "unprotected-version-release-explicit-baseline",
+        ):
+            with self.subTest(case_id=required_id):
+                self.assertIn(required_id, ids)
+
 
 if __name__ == "__main__":
     unittest.main()
