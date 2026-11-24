@@ -60,7 +60,7 @@
   - 供 Task 2 `SKILL.md` 条件路由引用的相对路径 `references/deployment-package.md`（稳定章节锚点覆盖触发与基线、原料采集与反向核对、目录落地与幂等复用、`DEPLOY.md` 七章契约、脚本底线与本地校验、SQL 四类分类与五条阻断）；
   - 供 Task 2 与 Task 4 复用的 `skills/finishing-a-development-release/evals/evals.json` 清单格式（`skill_name`, `evals[]` 含 `id`, `kind`, `category`, `prompt`, `expected_output`, `files`, `assertions`）及 `tests/test_finishing_development_release_skill.py` 测试模块。
 
-- [ ] **Step 1: 建立脱敏行为与触发评测清单及夹具**
+- [x] **Step 1: 建立脱敏行为与触发评测清单及夹具**
 
 创建 `skills/finishing-a-development-release/evals/evals.json` 与 `skills/finishing-a-development-release/evals/fixtures/`，每个夹具只包含该场景自身素材（不泄露预期答案、对照项或私有项目敏感标识），固定包含以下 14 个场景（ID 唯一）：
 
@@ -81,21 +81,21 @@
 
 另在 `evals.json` 中补 2 个轻量内联触发/覆盖用例（`files: []`，不建额外夹具文件）：`fast-path-tool-repo-skip`（纯工具/Skill 仓库无部署信号跳过部署材料且不读重参考）与 `explicit-skip-overrides-repo-rule`（用户明确要求跳过部署材料时按 `AGENTS.md` 直接放行并在 `Deployment package` 与 `Residual risk` 记录覆盖）。前 14 个行为用例各自对应 `evals/fixtures/<id>.md`，总计 16 个用例、14 个夹具文件。
 
-- [ ] **Step 2: 编写 Task 1 对应的失败单元测试**
+- [x] **Step 2: 编写 Task 1 对应的失败单元测试**
 
 创建 `tests/test_finishing_development_release_skill.py`，编写先失败的测试方法：
 - `test_layout_allows_only_expected_entries`：断言顶层仅含 `{"SKILL.md", "agents", "references", "evals"}`，禁止出现 `{"scripts", "assets", "README.md"}`；
 - `test_deployment_package_reference_covers_core_contracts`：断言 `references/deployment-package.md` 存在且覆盖：首次发版完整文件树、四类 SQL 前置分类（空库初始化/存量升级/回滚/测试）、受管迁移含自有迁移链、五条 SQL 硬阻断（含第 4 条限定“已判定用于存量升级”与第 5 条用途不明）、`DEPLOY.md` 七大要点（含应用/DB 起始版本与现场核对、跨版原则、标签前后制品摘要边界）、同版本目录内容一致复用、单套参数化脚本与 `bash -n` 静态校验、不自动删除原 PR 过程产物、严禁明文密钥与远程执行；
 - `test_eval_manifest_is_complete_and_fixtures_exist`：断言 `evals/evals.json` 含 16 个唯一 ID 用例、所有必填键齐全、全部 `files` 路径落在 `skills/finishing-a-development-release/` 内且真实存在，且成对对照用例（`managed-bootstrap-ok` / `managed-bypass-ddl-blocked`、`repo-rule-with-ops-changes` / `repo-rule-no-ops-changes`）完整存在。
 
-- [ ] **Step 3: 运行单元测试与 RED 基线压力测试，确认预期失败**
+- [x] **Step 3: 运行单元测试与 RED 基线压力测试，确认预期失败**
 
 1. 运行单元测试确认 RED：
    Run: `uv run --frozen python -m unittest tests/test_finishing_development_release_skill.py -v`
    Expected: FAIL（缺失 `references/deployment-package.md`）
 2. 在尚未写入新规则前，做真正盲测的 RED 基线演练：旧版基线统一取设计提交 `5c28286` 中的 `skills/finishing-a-development-release/SKILL.md`，用独立只读子代理分别执行 3 个代表性用例（`bootstrap-and-incremental-sql`、`managed-custom-chain-and-skipped-prod`、`post-tag-immutable-digest-boundary`）；执行者只接收旧版 Skill、用户请求和**中性编号命名的原料**（不泄露 `evals.json`、`expected_output`、`assertions` 或含答案暗示的用例名），由评分侧另行对照断言记录旧版实际缺口，写入本计划末尾执行记录。
 
-- [ ] **Step 4: 编写 `skills/finishing-a-development-release/references/deployment-package.md`**
+- [x] **Step 4: 编写 `skills/finishing-a-development-release/references/deployment-package.md`**
 
 严格按设计 §5.1.2 与 §5.3（5.3.1–5.3.5）编写，做到清晰、无歧义、面向跨项目通用运维交付，并注意：
 - 明确写清“每版必出”仓规触发后仍须完整盘点实际变更（有运维动作交付完整文档与脚本，确认无运维动作才出简短记录）；
@@ -103,7 +103,7 @@
 - 要求对每条存量增量 SQL 标明适用执行前提与重复执行风险（例如仅在目标列缺失时执行、重复执行会报错时的前置核对方法），且允许彼此独立的 SQL 标明无先后耦合关系；
 - 保持精炼可执行，不复制 `ezone`、`neat-freak` 等其他 Skill 的内部命令。
 
-- [ ] **Step 5: 运行 Task 1 单元测试验证通过并提交**
+- [x] **Step 5: 运行 Task 1 单元测试验证通过并提交**
 
 Run: `uv run --frozen python -m unittest tests/test_finishing_development_release_skill.py -v && git diff --check`
 Expected: `Ran 3 tests ... OK`，`git diff --check` 退出 0。
@@ -140,7 +140,7 @@ EOF
   - 升级后的 `skills/finishing-a-development-release/SKILL.md`（供 Task 3 `review-and-release-pr` 在 release handoff 对接：接收合并后实际 `main` SHA、版本/显式起点基线线索、PR 过程产物线索、显式部署材料开关及独立发布 PR 授权）；
   - 统一后的四级 `Provider Result`（`Full Release`、`Portable Release` 含 `unavailable` / `skipped (not authorized)`、`Partial Release`、`Blocked`）、更新后的六项 `Cleanup Gate` 与含 `Deployment package` 字段的 `Final Report`。
 
-- [ ] **Step 1: 在 `tests/test_finishing_development_release_skill.py` 补充失败的入口编排与元数据测试**
+- [x] **Step 1: 在 `tests/test_finishing_development_release_skill.py` 补充失败的入口编排与元数据测试**
 
 新增以下测试方法：
 - `test_metadata_and_openai_yaml_are_valid`：断言 `SKILL.md` frontmatter 仅含 `name`、`description`，`name == "finishing-a-development-release"`，`description` 覆盖发布收尾与版本部署材料触发词且不含流程摘要；`agents/openai.yaml` 仅含 `interface` 三字段、`short_description` 长度在 25–64 之间、`default_prompt` 含 `$finishing-a-development-release`；
@@ -154,14 +154,14 @@ EOF
   - `Portable Release` 明确覆盖“平台无可用 Release 能力”与“未授权平台 Release”两种合法原因；
   - `Final Report` 包含 `Deployment package` 字段（`skipped` / `reused` / `generated` / `blocked`）。
 
-- [ ] **Step 2: 运行测试与 RED 基线演练确认预期失败**
+- [x] **Step 2: 运行测试与 RED 基线演练确认预期失败**
 
 1. 运行单元测试确认 RED：
    Run: `uv run --frozen python -m unittest tests/test_finishing_development_release_skill.py -v`
    Expected: FAIL（新增 3 个测试方法失败）
 2. 在修改 `SKILL.md` 前，按统一盲测口径（旧版基线取 `5c28286`，执行者只拿旧版 Skill、用户请求与中性编号原料，评分侧另看断言），用独立只读子代理跑 3 个编排级核心用例（`local-main-blocked-preserves-workspace`、`protected-release-pr-merge-sha-and-custom-exec`、`ezone-atomic-and-portable-auth-split`）的 RED 基线，记录旧版缺失行为。
 
-- [ ] **Step 3: 更新 `skills/finishing-a-development-release/SKILL.md` 与 `agents/openai.yaml`**
+- [x] **Step 3: 更新 `skills/finishing-a-development-release/SKILL.md` 与 `agents/openai.yaml`**
 
 按设计 §5.1.1、§5.2、§5.4、§5.6 精炼改写 `SKILL.md`，保持薄入口风格（控制在 ~110–145 行，不把 `references/deployment-package.md` 细则复制到主正文，不复制 `ezone` CLI 细节）：
 - Frontmatter `description` 简洁补充版本部署文档/脚本整理触发语（保持英文/中文混合触发风格，不摘要流程）；
@@ -174,7 +174,7 @@ EOF
 - `Final Report` 增加 `Deployment package`。
 - 同步微调 `agents/openai.yaml` 的 `short_description`（控制在 25–64 字符内，如确认原 27 字符或更新后满足范围）。
 
-- [ ] **Step 4: 验证 Task 2 测试与 `quick_validate.py` 通过并提交**
+- [x] **Step 4: 验证 Task 2 测试与 `quick_validate.py` 通过并提交**
 
 Run:
 ```bash
@@ -215,7 +215,7 @@ EOF
 - Consumes: Task 2 `finishing-a-development-release/SKILL.md` 的保护分支发布 handoff 入口契约（接收实际合并 SHA、版本/显式起点基线、PR 过程产物线索、显式部署材料开关与独立发布 PR 授权）。
 - Produces: 更新后的 `skills/review-and-release-pr/SKILL.md` 及 3 个新增离线 handoff 评测用例（总计 13 个用例）。
 
-- [ ] **Step 1: 补充 `review-and-release-pr` 的失败单元测试并跑 RED 基线**
+- [x] **Step 1: 补充 `review-and-release-pr` 的失败单元测试并跑 RED 基线**
 
 1. 在 `tests/test_review_and_release_pr_skill.py` 新增测试方法 `test_release_handoff_preserves_single_pr_vs_version_release_boundary`：
    - 断言 `SKILL.md` Phase 0 独立记录 `merge`、`tag/Release`、`deployment package`、`release-prep PR` 授权；
@@ -227,14 +227,14 @@ EOF
    Expected: FAIL（新增断言与 3 个用例尚未落地）
 3. 按统一盲测口径（旧版基线取 `5c28286`，执行者只拿旧版 `review-and-release-pr/SKILL.md`、用户请求与中性编号原料，评分侧另看断言），用独立只读子代理跑 `version-release-handoff-separate-pr` 与 `release-pr-custom-exec-requires-independent-review` 的 RED 基线并记录缺口。
 
-- [ ] **Step 2: 实施 `review-and-release-pr/SKILL.md` 最小修改与 3 个新评测用例**
+- [x] **Step 2: 实施 `review-and-release-pr/SKILL.md` 最小修改与 3 个新评测用例**
 
 按设计 §5.5 精准更新 `skills/review-and-release-pr/SKILL.md`（不修改 frontmatter，不新增 `references/` 目录，不复制部署或 SQL 整理规则）：
 - `Phase 0`（第 44 行附近）：扩展独立记录的授权动作，区分单 PR 合并、正式切版本发版（tag/Release）、部署材料准备及创建/合入独立发布准备 PR；
 - `Final verification and release handoff`（第 102 行附近）：明确单 PR 合入不触发跨版本部署材料；进入正式切版本发版 handoff 给 `finishing-a-development-release` 时，受保护分支先按授权合入已 `PASS` 功能 PR 并传递平台返回的实际合并 SHA，不把跨版本 `CHANGELOG` 或部署材料塞回原功能 PR，同时透传已知版本/显式起点基线、PR 过程产物线索及显式部署材料开关；若独立发布 PR 含任意路径新增/修改的可执行部署内容，仍遵守本 Skill 的独立审查门禁。
 - 在 `skills/review-and-release-pr/evals/evals.json` 追加上述 3 个离线状态交接用例（遵循原有离线评估风格，无真实远端写入）。
 
-- [ ] **Step 3: 验证 Task 3 测试与 `quick_validate.py` 通过并提交**
+- [x] **Step 3: 验证 Task 3 测试与 `quick_validate.py` 通过并提交**
 
 Run:
 ```bash
@@ -274,7 +274,7 @@ EOF
 - Consumes: Task 1–3 产出的两个 Skill、参考规范、16 + 3 个新增离线评测用例与自动化测试。
 - Produces: 完整的 RED/GREEN 逐条断言核验结果、脱敏/只读回放检验记录与全量回归证据。
 
-- [ ] **Step 1: 新鲜上下文真正盲测全部 19 个新增用例 + 一次性 Git 仓库实操演练（GREEN 验证）**
+- [x] **Step 1: 新鲜上下文真正盲测全部 19 个新增用例 + 一次性 Git 仓库实操演练（GREEN 验证）**
 
 1. **真正盲测 19 个用例**：新版统一取当前任务工作树中的 Skill 内容；盲测执行子代理**仅接收**对应新版 Skill、用户请求和**中性编号命名的原料**（不提供 `evals.json`、`expected_output`、`assertions` 或含 `blocked`/`ok` 等答案暗示的用例名/文件名），成对对照用例拆分在不同独立上下文中执行；评分侧另行对照 `evals.json` 全部 `assertions` 逐条判分：
    - `skills/finishing-a-development-release/evals/evals.json` 全部 16 个用例（特别逐条核验 5 项 Review Focus）；
@@ -284,7 +284,7 @@ EOF
    - 主工作区用户原有未提交文件内容逐字节不变，无新增/残留半成品文件；
    - 独立准备 worktree 及其分支上的本地准备现场与提交原样保留（未被阻断流程擅自撤除）。
 
-- [ ] **Step 2: 实仓边界只读回放验证（1 个空库初始化 + 4 个存量增量 SQL 共存场景）**
+- [x] **Step 2: 实仓边界只读回放验证（1 个空库初始化 + 4 个存量增量 SQL 共存场景）**
 
 在不向任何目标业务仓库写入文件或远端的前提下，由独立盲测上下文加载新版 `finishing-a-development-release` + `references/deployment-package.md`，对本地只读可访问的“1 个空库初始化文件 + 4 个新增独立 SQL”真实多文件版本差异（或当本地无目标仓库时使用等价多文件仿真 git 仓库；具体回放对象留在本地，不写入公开仓库文档）做一次只读部署材料草稿回放，按**执行条件与依赖关系**逐项评分：
 - 列全全部 4 个存量增量 SQL 的准确原路径（沿用项目归档规范，不重复拷贝）；
@@ -293,11 +293,11 @@ EOF
 - 将空库初始化脚本明确排除出存量升级清单，仅列于空库新装说明；
 - 输出无任何真实密钥值；公开仓库的执行记录只保留脱敏结论，不写入私有仓库名称、版本号组合、凭据、内网地址或内部对象标识。
 
-- [ ] **Step 3: REFACTOR 收敛漏洞（若 Step 1 或 Step 2 暴露任何规则歧义）**
+- [x] **Step 3: REFACTOR 收敛漏洞（若 Step 1 或 Step 2 暴露任何规则歧义）**
 
 如发现任一断言未通过或合理化绕过，先定位对应规则缺口，做最小精准修正，再由新鲜盲测上下文重跑受影响用例直到全部断言通过，并单独提交修正 commit。
 
-- [ ] **Step 4: 执行最终全量验证、隔离 HOME 预览与整分支独立复核**
+- [x] **Step 4: 执行最终全量验证、隔离 HOME 预览与整分支独立复核**
 
 1. 在最终待交付树上运行完整验证命令（`verification-before-completion`）：
 ```bash
@@ -316,6 +316,48 @@ Expected:
 - `git diff --check <实施基线>...HEAD` 覆盖整条分支全部提交且退出 0。
 2. **最终整分支独立复核**：由新鲜只读独立复审子代理审阅从 `<实施基线>` 到最终 `HEAD` 的完整差异、本计划 `Review Focus` 及执行记录，明确检验两个 Skill 的端到端配合，并在交付结论中单列 Ezone 的离线验证边界（尚未执行真实平台写入与 `ez release edit` 实测）。如有 Critical/Important 发现，按 `executing-plans` 执行唯一一轮 TDD 修复并重跑全量验证。
 
-- [ ] **Step 5: 记录执行结果并提交收口文档**
+- [x] **Step 5: 记录执行结果并提交收口文档**
 
 将实测盲测 RED/GREEN 逐轮结果、一次性 Git 仓库防脏演练证据、脱敏只读回放评分、最终全量验证数字、整分支独立复核结论及剩余限制（单列 Ezone 离线验证边界）追加到本计划文末并提交；保留 `feature/release-deployment-package` 分支等待用户决定后续合并与生效方式。
+
+
+---
+
+## 执行与验收记录（2026-11-24）
+
+- **实施基线与分支**：以 `main` 计划提交 `ca439ba`（设计基线 `5c28286`）创建隔离任务工作树 `.worktrees/release-deployment-package`（分支 `feature/release-deployment-package`）；实施与收口均未推送远端、未合并 `main`、未对真实 HOME 执行 `agent-manager --apply`。
+- **盲测 RED 基线（基于旧版 `5c28286`，执行者仅拿旧版 Skill 与中性编号原料）**：
+  - `finishing-a-development-release` 部署规范类 3 场景：旧版触发 `neat-freak` 清理/删改原 PR 笔记（违背只读保护），缺少 `Deployment package` 字段与七章 `DEPLOY.md` 契约，并将等待打 tag 后 CI 镜像摘要误归为 `Partial Release`。
+  - `finishing-a-development-release` 编排与 Ezone 类 3 场景：旧版在 Ezone 全量发版沿用 GitHub 两步模型（先 `git push tag` 再调用 `ezone` 创建，实际会与 `POST /tags` 冲突），且在“Ezone 可用但用户仅授权 Git tag”时因 `Portable Release` 定义过窄而陷入无法归类并阻断清理。
+  - `review-and-release-pr` 交接类 2 场景：旧版 Phase 0 未独立区分单 PR 合并、部署材料准备与发布准备 PR 授权，且未明确传递功能 PR 实际合并 SHA、显式起点基线与部署材料开关给 `finishing-a-development-release`。
+- **盲测 GREEN 验收（19/19 一次通过）**：
+  - 将 19 个用例（`finishing-a-development-release` 16 个 + `review-and-release-pr` 3 个）拆为 4 个严格盲测批次（成对反例 `managed-bootstrap-ok` / `managed-bypass-ddl-blocked`、`repo-rule-with-ops-changes` / `repo-rule-no-ops-changes` 跨独立上下文隔离，执行者不接触 `evals.json`、用例 ID、预期输出或断言）。
+  - 逐条人工核对全部断言：**19/19 通过**，五项 Review Focus 全部命中，未出现规则绕过或漏检。
+- **一次性临时 Git 仓库防脏实操演练**：
+  - 在 `/tmp` 新建一次性 Git 仓库（`main` 基线 `4b162300`，含主工作区用户未提交改动 `notes/scratch-idea.md`），按路径 B 在独立准备 worktree 写入并故意构造脚本语法错误（`bash -n` 退出码 `2` 阻断）。
+  - 阻断后实测：`main` HEAD SHA 保持 `4b162300` 不变；`notes/scratch-idea.md` SHA-256 与主工作区 `git status --porcelain`（仅 `M notes/scratch-idea.md`）逐字节不变；独立准备 worktree 与准备分支中间提交完好保留。
+- **脱敏只读实仓 SQL 回放评分（1 个空库初始化 + 4 个存量增量 SQL 共存场景）**：
+  - 独立只读子代理加载新版 Skill 与 `references/deployment-package.md`，全程只读未触碰 `.env` 且零明文密钥泄露。
+  - 按四项执行口径评分全部达标：（1）列全 4 个存量增量 SQL 原始归档路径、未重复拷贝至兜底 `sql/`；（2）明确标出非幂等 `ALTER` 仅在目标列缺失时执行及前置 `information_schema.columns` 核对方法与重跑报错风险；（3）拆分两条彼此独立轨道并给出有依据的先后依赖关系，允许独立步骤采用不同合法顺序；（4）明确将空库初始化脚本排除出存量升级清单、仅列于空库新装说明。
+- **整分支独立复核与唯一一轮 TDD 修复**：
+  - 新鲜独立复审子代理审阅 `ca439ba..eb0d827` 整分支差异与五项 Review Focus，确认 Critical 0、Important 1（`SKILL.md` 条件路由表需自包含信号简注）、Minor 2（其中 `review-and-release-pr/SKILL.md` 通用 handoff 句法被并入保护分支条件句按实际行为影响升级为 Important 纳入修复；`test_finishing_development_release_skill.py` 补两项短语断言记为 Deferred Minor）。
+  - 对 2 项 Important 均先补失败单元测试确认 RED，再精准修复并验证 11/11 定向测试通过。
+- **最终全量验证证据（修复提交后重跑）**：
+  - 全量 `uv run --frozen python -m unittest discover -s tests -p 'test_*.py' -q`：377/377 通过（相对基线 370 项净增 7 项测试）。
+  - `skills/skill-creator/scripts/quick_validate.py`：`finishing-a-development-release` 与 `review-and-release-pr` 均输出 `Skill is valid!`。
+  - 临时 `HOME` 隔离预览 `agent-manager skills set finishing-a-development-release --tool codex --on --json`：退出码 `0`，`conflicts: 0`，`issues: 0`，`source` 指向当前任务工作树，未修改真实 HOME。
+  - 整分支格式检查 `git diff --check ca439ba...HEAD`：退出码 `0`。
+- **离线验证边界与剩余限制（单列 Ezone）**：
+  - **Ezone 平台真实写入未实测**：`ez release create --commit <main_sha> --no-notify` 与本发布流程（含 `ez release view` + `git ls-remote` 双回读、平台返回标签对象形态核验）仅对照仓库 `skills/ezone/scripts/ezone_release.py` 源码及离线行为用例验证，尚未在真实 Ezone 实例完成端到端实测。
+  - **Ezone 历史 tag 补建说明（`ez release edit` / `PUT /tags/{name}`）未实测**：尚未在真实 Ezone 隔离测试标签上实证该接口不会改写既有 annotated tag 对象或其 peeled target，规范保持保守 `Blocked` 门禁直至实测确认。
+  - 行为评测与实仓 SQL 回放均为离线/只读演练，未对任何外部业务仓库、测试环境或生产环境执行写入操作。
+
+
+### 二轮复审 3 项 P1 修复与补验（2026-11-24）
+
+- **P1-01（普通分支正式发版保留升级起点与部署开关）**：拆分 `skills/review-and-release-pr/SKILL.md` 交接句，使所有正式版本发布（无论非保护还是保护分支）一律向 `finishing-a-development-release` 传递目标版本、显式起始基线覆盖、PR 过程产物线索与显式部署材料开关；受保护分支另行追加先合功能 PR、平台返回实际合并 SHA 及独立发布准备 PR 授权。新增离线用例 `unprotected-version-release-explicit-baseline`（总计 14 个）与定向单元测试。
+- **P1-02（敏感配置防在文档前泄露进工具输出）**：更新 `skills/finishing-a-development-release/references/deployment-package.md` §2，改为先盘点路径与变更状态（`git diff --name-status` / `git ls-tree`），禁止对可能含真实值的版本化或本地配置文件（如 `.env*` 等）直接运行原始全文 `git diff` 或打印原文，改为本地脚本比对并仅向工具输出与 Agent 上下文返回键名、变更类型与非敏感元数据。新增用例 `sensitive-config-diff-redaction` 并在一次性临时 Git 仓库以合成标记值实测：工具输出与最终 `DEPLOY.md` 均零旧值/新值泄露（`SECRET_LEAK_IN_TOOL_OR_DOC=False`）。
+- **P1-03（上游改写已发布历史受管迁移防漏检）**：更新 `references/deployment-package.md` §6.2 轨道 1 与 §6.3（升级为六条硬阻断），要求比对基线与候选的完整受管迁移 `A/M/D/R` 清单（绝不只筛新增 `A`）；已发布历史迁移发生 `M`/`D`/`R` 且无法按项目迁移机制证明与已运行环境历史兼容时，命中第 6 条硬阻断（`Blocked`）。新增用例 `managed-history-migration-mutated-blocked`（`finishing-a-development-release` 总计 18 用例 / 16 夹具），并在临时 Git 仓库验证 `--diff-filter=A` 为空而完整 `A/M/D/R` 准确捕获 `M`。
+- **补验结果**：3 个新增用例均先观察单元测试 RED，修复后通过定向单测 11/11、3/3 独立新鲜上下文盲测 GREEN（累计 22/22 盲测通过）、全量 `unittest` 377/377、两个 Skill `quick_validate.py`、临时 `HOME` 隔离预览及整分支 `git diff --check ca439ba...HEAD`。Ezone 真实平台写入与 `ez release edit` 仍属离线边界，未执行实网写入。
+
+- **三轮复审补丁（RC 首次发布后被改写的受管迁移多起点核对）**：保留上一稳定版作为生产基线，同时在 `references/deployment-package.md` §1.2、§6.2 轨道 1 与 §6.3 第 6 条明确对部署文档支持的其他升级起点（含区间内已发布 RC/测试 tag）分别核对受管迁移 `A/M/D/R`，相对任一起点发生 `M`/`D`/`R` 且无法证明历史兼容性时沿用第 6 条硬阻断。新增回归用例 `managed-rc-migration-mutated-blocked`（`finishing-a-development-release` 合计 19 用例 / 17 夹具），经先红后绿定向单测 11/11、临时仓库多起点实演（稳定版 `A` / RC `M`）与新鲜盲测 1/1（累计 23/23 盲测通过）验证，全量 `unittest` 377/377 通过。
