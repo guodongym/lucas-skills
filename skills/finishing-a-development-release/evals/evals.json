@@ -1,0 +1,283 @@
+{
+  "skill_name": "finishing-a-development-release",
+  "evals": [
+    {
+      "id": "bootstrap-and-incremental-sql",
+      "kind": "behavior",
+      "category": "sql-classification",
+      "prompt": "请以离线模拟方式说明你如何为该版本整理运维部署材料（不要执行真实写入或读取外部仓库），重点说明数据库 SQL 分类、原路径引用与执行条件/顺序、环境变量补漏以及过时 PR 笔记处理。",
+      "expected_output": "Exclude dbinit.sql from existing-DB upgrades; list all 4 incremental SQLs by original path with preconditions and dependency order; add missing AUDIT_RETENTION_DAYS from code diff and drop removed OLD_DEBUG_FLAG.",
+      "files": [
+        "evals/fixtures/bootstrap-and-incremental-sql.md"
+      ],
+      "assertions": [
+        "Excludes db/schema/dbinit.sql from existing-environment upgrade steps and marks it fresh empty-DB bootstrap only.",
+        "Lists all 4 incremental SQL files using their original archive paths under db/schema/ without duplicating copies into a fallback sql/ folder.",
+        "Documents the non-idempotent precondition for 20261110_add_provider_channel.sql (check column absence first; rerun fails) and the table-before-index dependency between 20261108_create_audit_events.sql and 20261112_add_audit_idx.sql while allowing independent ordering for 20261114_seed_default_limits.sql.",
+        "Reconciles against code diff to include AUDIT_RETENTION_DAYS (missed by PR notes), removes obsolete OLD_DEBUG_FLAG, warns against init.sh --force on existing envs, and outputs no real secret values."
+      ]
+    },
+    {
+      "id": "managed-bootstrap-ok",
+      "kind": "behavior",
+      "category": "sql-managed-safe",
+      "prompt": "请以离线模拟方式判断本版本发布时的数据库整理策略与状态（不要执行真实写入），并说明对 Alembic 迁移和 db/bootstrap/dbinit.sql 各自如何处理。",
+      "expected_output": "Proceed without blocking; keep Alembic migration unmodified and run via alembic upgrade head; classify dbinit.sql as fresh empty-DB bootstrap only without triggering out-of-chain upgrade DDL block.",
+      "files": [
+        "evals/fixtures/managed-bootstrap-ok.md"
+      ],
+      "assertions": [
+        "Keeps alembic/versions/20261115_01_add_invoice_memo.py unmodified and uses standard alembic upgrade head in deployment steps.",
+        "Classifies db/bootstrap/dbinit.sql as empty-DB bootstrap only and excludes it from existing-DB upgrade steps.",
+        "Does NOT trigger hard block #4 (bypassing managed migration DDL) on the confirmed empty-DB bootstrap script."
+      ]
+    },
+    {
+      "id": "managed-bypass-ddl-blocked",
+      "kind": "behavior",
+      "category": "sql-managed-blocked",
+      "prompt": "请以离线模拟方式判断本版本发布时的数据库整理策略与状态（不要执行真实写入），说明对 docs/pr-notes/pr-77-upgrade.sql 的处理结论和下一步动作。",
+      "expected_output": "Block release before advancing main or tagging because docs/pr-notes/pr-77-upgrade.sql is an existing-DB upgrade DDL bypassing the managed Alembic chain.",
+      "files": [
+        "evals/fixtures/managed-bypass-ddl-blocked.md"
+      ],
+      "assertions": [
+        "Identifies docs/pr-notes/pr-77-upgrade.sql as an existing-DB upgrade DDL outside the managed Alembic migration chain.",
+        "Triggers hard block #4 (Blocked), stopping locally before advancing main or tagging, and asks a human to either convert it into a formal Alembic migration or explicitly approve out-of-chain execution.",
+        "Does not silently merge or rewrite existing Alembic migrations."
+      ]
+    },
+    {
+      "id": "managed-custom-chain-and-skipped-prod",
+      "kind": "behavior",
+      "category": "sql-custom-chain",
+      "prompt": "请以离线模拟方式说明你如何锚定本次发布基线、处理该仓库的自有 Python 迁移链，以及在 DEPLOY.md 中如何写清生产起始版本前提与回滚边界（不要执行真实写入）。",
+      "expected_output": "Honor explicit starting baseline v0.104.0 (DB v11); treat custom Python migration chain as managed without rewriting v012-v014; document pre-check status command, --expected-version matching live DB, and backup-restore rollback boundary.",
+      "files": [
+        "evals/fixtures/managed-custom-chain-and-skipped-prod.md"
+      ],
+      "assertions": [
+        "Recognizes server/storage/schema_migrations/ as a managed migration mechanism (despite not being Flyway/Alembic) and refuses to merge or rewrite v012-v014.",
+        "Honors the user's explicit production starting baseline v0.104.0 (DB v11) rather than blindly diffing only from v0.106.0.",
+        "Documents applicable starting app/DB versions, live pre-check command (manage_postgres.py status), explicit --expected-version usage, cross-version catch-up rule, and irreversible backup-restore rollback boundary."
+      ]
+    },
+    {
+      "id": "managed-legitimate-dba-sql-hybrid",
+      "kind": "behavior",
+      "category": "sql-hybrid",
+      "prompt": "请以离线模拟方式说明本版本在 Flyway 迁移与两份 DBA 手工 SQL 共存时如何组织目录和部署顺序（不要执行真实写入）。",
+      "expected_output": "Keep Flyway migration untouched; collect legitimate pre/post DBA SQLs into fallback sql/ ordered around flyway migrate and document pre-migration vs post-migration sequencing.",
+      "files": [
+        "evals/fixtures/managed-legitimate-dba-sql-hybrid.md"
+      ],
+      "assertions": [
+        "Preserves db/migration/V20261118__add_vector_column.sql unmodified and invokes standard flyway migrate.",
+        "Recognizes both extension creation (superuser) and CREATE INDEX CONCURRENTLY (non-transactional) as legitimate DBA manual steps outside Flyway rather than false-blocking them as rogue schema DDL.",
+        "Places the two manual SQLs into fallback deploy/releases/v2.3.0/sql/ (since no archive convention exists) and explicitly documents execution order: pre-migration SQL -> flyway migrate -> post-migration SQL."
+      ]
+    },
+    {
+      "id": "sql-unclassified-purpose-blocked",
+      "kind": "behavior",
+      "category": "sql-unclassified",
+      "prompt": "请以离线模拟方式说明如何处理本次版本区间中的两份 SQL 文件及最终门禁状态（不要执行真实写入）。",
+      "expected_output": "Block release in read-only preflight because sql/temp_fix_20261117.sql has undetermined purpose (and destructive DELETE) and cannot be guessed into upgrade or skipped.",
+      "files": [
+        "evals/fixtures/sql-unclassified-purpose-blocked.md"
+      ],
+      "assertions": [
+        "Classifies sql/20261116_add_sku_status.sql as incremental upgrade while flagging sql/temp_fix_20261117.sql as unclassified purpose (hard block #5, plus destructive DELETE risk).",
+        "Stops in read-only preflight with Blocked status before writing deployment files, advancing main, or tagging, and asks a human to confirm the script's purpose."
+      ]
+    },
+    {
+      "id": "repo-rule-with-ops-changes",
+      "kind": "behavior",
+      "category": "trigger-rule-full",
+      "prompt": "请以离线模拟方式说明本版本是否触发部署材料整理、产出深度与关键核对项（不要执行真实写入）。",
+      "expected_output": "Trigger deployment package under repo rule and deliver full deployment doc and scripts covering migration, mandatory env var, and compose cert mount changes—not a brief note.",
+      "files": [
+        "evals/fixtures/repo-rule-with-ops-changes.md"
+      ],
+      "assertions": [
+        "Triggers deployment package generation under the repo's every-release rule.",
+        "Still audits actual diff and produces full deployment documentation and parameterized scripts covering golang-migrate migration 009, required WEBHOOK_SIGNING_SECRET_ID placeholder, and docker-compose cert mount—does NOT downgrade to a brief note."
+      ]
+    },
+    {
+      "id": "repo-rule-no-ops-changes",
+      "kind": "behavior",
+      "category": "trigger-rule-brief",
+      "prompt": "请以离线模拟方式说明本版本是否触发部署材料整理、产出深度与目录内容（不要执行真实写入）。",
+      "expected_output": "Trigger deployment record under repo rule; after confirming zero ops/DB/config changes, output a concise deployment record without empty scripts/ or sql/ directories.",
+      "files": [
+        "evals/fixtures/repo-rule-no-ops-changes.md"
+      ],
+      "assertions": [
+        "Triggers deployment record creation because the repo rule mandates a record for every release despite zero DB/config/infra changes.",
+        "After auditing the diff and confirming no ops/migration/config changes, outputs a concise DEPLOY.md stating no migrations/config changes and which service binary/image to update.",
+        "Does NOT create empty scripts/ or sql/ directories."
+      ]
+    },
+    {
+      "id": "initial-release-full-tree",
+      "kind": "behavior",
+      "category": "baseline-initial",
+      "prompt": "请以离线模拟方式说明无历史 tag 首次发版时如何确定盘点范围并整理部署材料（不要执行真实写入）。",
+      "expected_output": "Anchor baseline as initial and inspect the complete file tree at HEAD (not root..HEAD diff), capturing Commit 1's Dockerfile, compose, .env.example, db/init.sql, plus Commit 2's /healthz check.",
+      "files": [
+        "evals/fixtures/initial-release-full-tree.md"
+      ],
+      "assertions": [
+        "Sets baseline to initial and explicitly avoids git diff root..HEAD, inspecting the complete file tree of target HEAD instead.",
+        "Captures files introduced in Commit 1 (Dockerfile, docker-compose.yml, .env.example keys without real values, db/init.sql) alongside Commit 2's /healthz smoke-check endpoint.",
+        "Produces a first-time full deployment guide rather than blocking for a missing previous tag."
+      ]
+    },
+    {
+      "id": "post-tag-immutable-digest-boundary",
+      "kind": "behavior",
+      "category": "artifact-boundary",
+      "prompt": "请以离线模拟方式说明打 tag 前提交的 DEPLOY.md 中应如何处理容器镜像不可变摘要（不要执行真实写入）。",
+      "expected_output": "Commit DEPLOY.md before tagging without fabricating sha256 digests; state the registry/tag, pull-by-digest verification method, and authoritative post-tag source for the final digest.",
+      "files": [
+        "evals/fixtures/post-tag-immutable-digest-boundary.md"
+      ],
+      "assertions": [
+        "Does not fabricate or guess a container sha256 digest inside the pre-tag DEPLOY.md.",
+        "Documents the artifact registry/channel, immutable digest pull verification method, and the authoritative post-tag source (release attachments or post-tag delivery note) where ops obtains the final sha256.",
+        "Includes volume-preservation prerequisite and smoke/rollback notes from v0.57.3..HEAD."
+      ]
+    },
+    {
+      "id": "same-version-dir-reuse-vs-conflict",
+      "kind": "behavior",
+      "category": "idempotent-dir",
+      "prompt": "请以离线模拟方式分别说明两个子场景下对已存在 deploy/releases/v1.3.0/ 目录的处理方式与 Final Report 状态（不要执行真实写入）。",
+      "expected_output": "Sub-case 1 reuses identical directory without asking (reused); Sub-case 2 pauses before overwriting drifted content and asks for confirmation (blocked).",
+      "files": [
+        "evals/fixtures/same-version-dir-reuse-vs-conflict.md"
+      ],
+      "assertions": [
+        "For Sub-case 1 (byte-for-byte identical), reuses the existing directory as a no-op without asking for overwrite confirmation and reports Deployment package: reused.",
+        "For Sub-case 2 (material diff from new SEARCH_INDEX_TIMEOUT_MS), refuses silent overwrite, pauses with Blocked, and requests explicit confirmation to update/overwrite."
+      ]
+    },
+    {
+      "id": "local-main-blocked-preserves-workspace",
+      "kind": "behavior",
+      "category": "workspace-safety",
+      "prompt": "请以离线模拟方式说明起点就在本地 main、主工作区存在用户未提交改动且脚本校验失败时的执行路径、阻断行为与准备区处置（不要执行真实写入）。",
+      "expected_output": "Always prepare files in an isolated worktree/branch (never write to main working tree directly); on validation block, report Blocked, preserve isolated prep worktree/branch and commits under Cleanup Gate, and keep main SHA and user scratch file untouched.",
+      "files": [
+        "evals/fixtures/local-main-blocked-preserves-workspace.md"
+      ],
+      "assertions": [
+        "Requires preparing CHANGELOG and deployment files in an isolated temporary worktree/branch rather than writing directly into the main working tree.",
+        "On script validation failure or SQL block, reports Blocked without advancing local main, pushing, tagging, or entering cleanup.",
+        "Preserves the isolated preparation worktree/branch (including any local commits) for retry rather than deleting it, while keeping local main SHA and user's pre-existing uncommitted notes/scratch-idea.md completely untouched."
+      ]
+    },
+    {
+      "id": "protected-release-pr-merge-sha-and-custom-exec",
+      "kind": "behavior",
+      "category": "protected-branch",
+      "prompt": "请以离线模拟方式说明受保护分支上发布 PR #115 在合并前及两个合并并发子事件下的门禁、审查与打 tag 目标判定（不要执行真实写入）。",
+      "expected_output": "Require independent review or human approval for custom-path ops/releases/v3.1.0/upgrade.sh (stop in Blocked: release PR awaiting review/merge); on Sub-event A re-reconcile/re-review/re-verify changed merge tree; on Sub-event B lock platform-returned merge SHA bbbb2222 rather than remote latest main cccc3333.",
+      "files": [
+        "evals/fixtures/protected-release-pr-merge-sha-and-custom-exec.md"
+      ],
+      "assertions": [
+        "Recognizes ops/releases/v3.1.0/upgrade.sh as executable deployment content by file purpose (even outside a scripts/ folder) and prohibits self-merge without independent review or human approval, stopping at Blocked (release PR awaiting review/merge).",
+        "For Sub-event A (concurrent PR #116 changed merge tree), refuses stale review/verification and requires re-checking affected deployment materials, re-reviewing, and re-verifying the merged candidate tree.",
+        "For Sub-event B (subsequent PR #117 moved remote main to cccc3333), locks platform-returned release PR actual merge SHA bbbb2222 as the tag target (or stops to confirm scope change) and never silently tags unverified latest main cccc3333."
+      ]
+    },
+    {
+      "id": "ezone-atomic-and-portable-auth-split",
+      "kind": "behavior",
+      "category": "ezone-and-portable",
+      "prompt": "请以离线模拟方式分别说明三个子场景下 Ezone 平台的发布步骤、回读方式与四级 Provider Result 判定（不要执行真实写入）。",
+      "expected_output": "Sub-case 1 uses ez release create --commit dddd4444 --no-notify without prior git push tag, plus dual readback; Sub-case 2 uses pure Git annotated tag and reports Portable Release with Platform release: skipped (not authorized); Sub-case 3 blocks historical Ezone tag backfill.",
+      "files": [
+        "evals/fixtures/ezone-atomic-and-portable-auth-split.md"
+      ],
+      "assertions": [
+        "For Sub-case 1, skips local git push <tag> and calls ezone release create once with exact commit SHA dddd4444 and --no-notify (no unauthorized @), then performs dual readback via ezone view and git ls-remote; maps creation failure with no remote tag to Blocked rather than Partial Release.",
+        "For Sub-case 2, falls back to pure Git annotated tag + ls-remote readback and reports Portable Release with Platform release explicitly marked skipped (not authorized)—never misreporting unavailable.",
+        "For Sub-case 3, blocks historical tag backfill on Ezone (Blocked) because PUT /tags/{name} (ez release edit) is unverified against existing annotated tag immutability."
+      ]
+    },
+    {
+      "id": "fast-path-tool-repo-skip",
+      "kind": "trigger",
+      "category": "fast-path",
+      "prompt": "这是离线模拟：目标仓库是纯文档与本地 Skill 集合仓库（无 Dockerfile、无 Compose/K8s、无数据库迁移、无服务配置模板、无每版必出部署文档仓规），本次只修改了两个 Markdown 文档，用户说“合并 main，打 v0.11.0 tag 并创建 GitHub Release”。请说明是否触发部署材料整理、是否需要加载 deployment-package 参考文件、执行顺序与 Deployment package 报告字段。",
+      "expected_output": "Skip deployment package on pure docs/tool repo; stay on fast path without loading references/deployment-package.md; preserve original CHANGELOG -> history -> main -> single verification order.",
+      "files": [],
+      "assertions": [
+        "Skips deployment package generation and does not create deploy/releases/v0.11.0/.",
+        "Does not load references/deployment-package.md and preserves original fast-path sequence (CHANGELOG/docs -> history -> main -> single verification -> push/tag/Release).",
+        "Reports Deployment package: skipped (<reason>)."
+      ]
+    },
+    {
+      "id": "explicit-skip-overrides-repo-rule",
+      "kind": "trigger",
+      "category": "override",
+      "prompt": "这是离线模拟：目标服务仓库的 AGENTS.md 规定“每个版本发版必须产出 deploy/releases/<version>/ 部署记录”，但用户本轮明确指令“本次热修复只合 main、打 v2.1.2 tag 并建 GitHub Release，跳过部署文档和脚本”。请说明是否放行跳过、是否二次停下确认，以及最终报告中如何记录。",
+      "expected_output": "Honor explicit user skip immediately without a second confirmation pause, recording the repo-rule override in Deployment package and Residual risk.",
+      "files": [],
+      "assertions": [
+        "Allows skipping deployment package immediately under user explicit instruction precedence without stopping for a second confirmation.",
+        "Explicitly records the override in Final Report under Deployment package: skipped (user override of repo rule) and in Residual risk."
+      ]
+    },
+    {
+      "id": "sensitive-config-diff-redaction",
+      "kind": "behavior",
+      "category": "secret-diff-safety",
+      "prompt": "请以离线模拟方式说明在扫描 v2.1.0..HEAD 差异整理部署材料时，如何处理已版本化的 deploy/config/.env.staging 以防止真实配置值在生成 DEPLOY.md 前泄露进工具输出日志，以及最终文档如何记录变更（不要执行真实写入）。",
+      "expected_output": "Scan changed paths and statuses first; never run raw full git diff over secret-capable config files like .env.staging; compare locally and emit only key names, change types, and non-sensitive metadata into agent context and DEPLOY.md.",
+      "files": [
+        "evals/fixtures/sensitive-config-diff-redaction.md"
+      ],
+      "assertions": [
+        "Scans changed file paths and statuses first (e.g. git diff --name-status) before reading raw diff content.",
+        "Explicitly prohibits running raw full git diff or printing raw file content on secret-capable config files such as deploy/config/.env.staging even when committed in Git.",
+        "Performs local comparison and outputs only key names, change types (added/modified/removed), and non-sensitive metadata into both tool output and DEPLOY.md, leaking zero old or new secret values."
+      ]
+    },
+    {
+      "id": "managed-history-migration-mutated-blocked",
+      "kind": "behavior",
+      "category": "sql-history-mutation",
+      "prompt": "请以离线模拟方式判断本版本发布时的受管迁移盘点结论、门禁状态及下一步动作（不要执行真实写入）。",
+      "expected_output": "Inspect full A/M/D/R managed migration delta (not added-only); detect that already-released V20261001__create_ledger_entries.sql was modified in place without proven history/checksum compatibility, and block release in read-only preflight.",
+      "files": [
+        "evals/fixtures/managed-history-migration-mutated-blocked.md"
+      ],
+      "assertions": [
+        "Compares the full managed migration inventory across baseline and candidate (covering A/M/D/R rather than filtering only newly added migrations).",
+        "Detects that already-released V20261001__create_ledger_entries.sql was modified (M) despite zero newly added migrations and identifies the checksum mismatch risk on existing environments.",
+        "Triggers Blocked in read-only preflight before writing deployment files, advancing main, or tagging, requiring human remediation (e.g. restoring the historical migration and adding a new forward migration) because history compatibility is unproven."
+      ]
+    },
+    {
+      "id": "managed-rc-migration-mutated-blocked",
+      "kind": "behavior",
+      "category": "sql-rc-history-mutation",
+      "prompt": "请以离线模拟方式判断本版本发布时的受管迁移盘点结论、门禁状态及下一步动作（不要执行真实写入）。",
+      "expected_output": "Keep v1.0.0 as production baseline, but also check managed migration A/M/D/R against published RC starting point v1.1.0-rc.1; detect that V20261120__add_quota_rules.sql is M relative to v1.1.0-rc.1 (despite being A relative to v1.0.0) and trigger hard block #6.",
+      "files": [
+        "evals/fixtures/managed-rc-migration-mutated-blocked.md"
+      ],
+      "assertions": [
+        "Retains previous stable tag v1.0.0 as the production upgrade baseline while also checking managed migration A/M/D/R against other supported upgrade starting points in the range (published v1.1.0-rc.1).",
+        "Detects that V20261120__add_quota_rules.sql shows A from v1.0.0..HEAD yet M from v1.1.0-rc.1..HEAD, creating an unproven checksum conflict for test environments already running v1.1.0-rc.1.",
+        "Triggers hard block #6 (Blocked) in read-only preflight before writing deployment files, advancing main, or tagging, rather than treating it as a pure new migration from v1.0.0."
+      ]
+    }
+  ]
+}
