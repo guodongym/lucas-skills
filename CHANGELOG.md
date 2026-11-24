@@ -10,6 +10,37 @@
 
 ---
 
+## [v0.12.0] - 2026-11-24
+
+**定位**：扩展 `finishing-a-development-release` 支持按需整理面向测试与生产运维的版本部署文档、参数化脚本与数据库增量 SQL，最小化衔接 `review-and-release-pr`，并对齐 `ezone` 一次创建代码标签与版本说明的平台能力。
+
+### 版本发布与运维部署材料
+
+* `finishing-a-development-release` 保持薄入口，新增按条件加载的 `references/deployment-package.md`：按显式指令优先、“每版必出”仓规按实际变更定深浅、一般项目双信号（可部署信号与版本变更信号）自动判定是否整理部署材料；纯文档/Skill/本地工具仓库继续走常规快速路径零回归。
+* 增量发布采用路径状态先行（`git diff --name-status`）与敏感配置本地脱敏比对，禁止对 `.env*` 等可能含真实值的配置文件输出原始全文 diff；首次全量发版直接盘点目标提交完整文件树。
+* 数据库 SQL 先按项目实际入口划分为空库初始化、存量增量升级、回滚/恢复、测试/夹具四类，覆盖第三方框架与项目自建顺序迁移链；受管迁移核对主基线及已发布 RC 等全部受支持升级起点的完整 `A/M/D/R` 清单并设置六条硬阻断，支持合法框架外 DBA 手工 SQL（`pre-migration` / `post-migration`）共存。
+* 部署材料入库随 tag 固化（规范目录优先、兜底 `deploy/releases/<version>/` 且不建空目录、同版本目录内容一致直接复用），`DEPLOY.md` 覆盖七章运维契约（含应用/数据库起始版本核对、跨版本补齐原则与打 tag 后不可变制品摘要边界）；本地 `main` 起点强制在独立临时 worktree 准备并在阻断时保留现场。
+* 受保护分支与 `review-and-release-pr` 链路明确分离单 PR 合并与正式切版本发版：所有正式版本发布一律透传目标版本、显式起始基线覆盖、PR 过程产物线索与显式部署材料开关；受保护分支先合入已通过独立审查的功能 PR 并锁定平台返回实际合并 SHA，由独立发布准备 PR 承载跨版本部署材料并对任意路径可执行部署内容执行独立审查或人工审批门禁。
+* 对齐 `ezone` 随包 CLI 的 `POST /tags` 一次写入模型（跳过本地 `git push <tag>`、默认 `--no-notify`、执行 `ezone` 与 `git ls-remote` 双回读），Ezone 历史 tag 补建（`ez release edit`）在实测验证不改写 tag 对象前保持硬阻断；统一 `Portable Release` 谓词以明确区分“平台无可用 Release 能力（`unavailable`）”与“仅授权 Git 发布、未授权平台 Release（`skipped (not authorized)`）”。
+
+### 本版本包含的既有主分支改动
+
+* 包含自 `v0.11.0` 以来的上游 Skill 同步（`#32`：`hv-analysis`、`khazix-writer`、`neat-freak`、`storage-analyzer`）。
+
+### 验证
+
+* 仓库全量测试 `uv run --frozen python -m unittest discover -s tests -p 'test_*.py' -q` 377/377 通过（新增 `finishing-a-development-release` 6 项测试与 `review-and-release-pr` 1 项回归测试）。
+* `finishing-a-development-release`（19 用例 / 17 夹具）与 `review-and-release-pr`（新增 4 交接用例，合计 14 用例）均通过 `quick_validate.py` 与 `git diff --check`；累计 23/23 个脱敏盲测用例、一次性 Git 仓库防脏/脱敏/RC 多起点实演及实仓边界只读 SQL 回放全部通过。
+* 离线边界：Ezone 真实平台端到端写入及 `ez release edit` 历史 tag 不可变性尚未在真实实例实测，相关历史补建路径维持保守阻断。
+
+### 关联文档
+
+* [设计文档](docs/superpowers/specs/2026-11-24-release-deployment-package-design.md)
+* [实施计划与验收记录](docs/superpowers/plans/2026-11-24-release-deployment-package.md)
+* [部署材料整理参考规范](skills/finishing-a-development-release/references/deployment-package.md)
+
+---
+
 ## [v0.10.0] - 2026-11-13
 
 **定位**：新增可独立分发的 Ezone Skill 与随包 CLI，覆盖 PR 到代码标签／制品发布的操作入口，并完成团队项目上下文和个人认证配置。
