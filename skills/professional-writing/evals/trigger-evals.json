@@ -79,6 +79,13 @@
       "reason": "正式变更总结本身是主要交付物。"
     },
     {
+      "id": "positive-internal-retro-meeting",
+      "query": "根据这两周的 PR 和部署数据，整理一份给项目组今晚复盘会现场过并投屏的复盘与改进稿。",
+      "should_trigger": true,
+      "route": "professional-writing",
+      "reason": "面向团队内部沟通和复盘会投屏的完整文稿是本 Skill 覆盖的主要交付物。"
+    },
+    {
       "id": "mixed-superpowers-draft-professional-writing-verify",
       "query": "请先用 Superpowers 起草方案，再由 professional-writing 验证并润色成正式 design doc。",
       "should_trigger": true,
