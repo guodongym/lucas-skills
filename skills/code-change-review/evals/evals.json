@@ -824,6 +824,132 @@
         "Confirms the shared Button/HelpTip remain in use without inventing reuse findings.",
         "Includes the exact no-defect sentence and returns Ready."
       ]
+    },
+    {
+      "id": "behavior-briefing-small-change",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review the supplied commit range: what does it do, does it have bugs and can it merge? Return the review in Chinese.",
+      "expected_output": "Three-line briefing, no diagram, PR fit suitable; Ready.",
+      "files": ["evals/fixtures/low-risk-refactor.md"],
+      "assertions": [
+        "Opens with a one-line verdict before the briefing.",
+        "The briefing is at most three lines covering what it solves, how, and PR fit, with the purpose labelled inferred or not stated rather than invented.",
+        "Draws no diagram.",
+        "Judges PR fit suitable and does not suggest combining it with other work because it is small.",
+        "Includes the exact no-defect sentence and returns Ready."
+      ]
+    },
+    {
+      "id": "behavior-briefing-mixed-noise",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Groups feature vs formatting/rename/tooling; advisory split; not blocked by the split.",
+      "files": ["evals/fixtures/briefing-mixed-noise.md"],
+      "assertions": [
+        "The briefing separates the channel-filter feature from the Prettier reformatting, the fmtDate rename and the tooling/lockfile change, with hand-written line counts per group.",
+        "Recommends moving the reformatting/rename/tooling into a separate PR because they can ship alone and bury the small core change, and says separating does no harm.",
+        "Treats the split as advisory: merge readiness is not Not ready or Unable to determine because of the split.",
+        "Labels the business problem as claimed from issue #398 and checks it against the diff."
+      ]
+    },
+    {
+      "id": "behavior-briefing-atomic-large",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Large but one unit; no split for size or time.",
+      "files": ["evals/fixtures/briefing-atomic-large.md"],
+      "assertions": [
+        "Judges PR fit suitable and explains that splitting migration, read switch and write validation would leave diverging data or a write path without validation.",
+        "Does not recommend a split because of line count, the author's 3 days or the week-old branch, and does not adopt the teammate's size-based split suggestion.",
+        "Recognizes that the description already states the non-split reason required by docs/contributing.md:30.",
+        "Describes the before/after data ownership (old column → invoice_titles) in the briefing; any diagram marks new/modified nodes."
+      ]
+    },
+    {
+      "id": "behavior-briefing-repo-split-rule",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "C-01 for mandatory split rule; Not ready.",
+      "files": ["evals/fixtures/briefing-repo-split-rule.md"],
+      "assertions": [
+        "The briefing shows two groups (deactivation/auth and refund/billing) that can each ship alone.",
+        "Reports the AGENTS.md:22 violation as C, not P, and returns Not ready.",
+        "Recommends two sequential PRs and does not invent code defects to justify the verdict."
+      ]
+    },
+    {
+      "id": "behavior-briefing-description-mismatch",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Undeclared timeout change flagged; purpose not stated; not Ready.",
+      "files": ["evals/fixtures/briefing-description-mismatch.md"],
+      "assertions": [
+        "The briefing labels the typo fix as claimed by the description and the session timeout change 30→480 as undeclared, with its purpose not stated.",
+        "Does not invent a rationale for the timeout change.",
+        "Names the timeout default change in Special attention and ties it to docs/security.md:12.",
+        "Does not return Ready or Ready with non-blocking follow-ups."
+      ]
+    },
+    {
+      "id": "behavior-briefing-async-flow",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Briefing with a diagram of the new async path; notify edge unverified.",
+      "files": ["evals/fixtures/briefing-async-flow.md"],
+      "assertions": [
+        "The briefing states the business problem (duplicate payment callbacks from slow synchronous invoicing) and the sync→async architecture change.",
+        "Includes at least one Mermaid diagram of callback → outbox → relay → queue → worker → InvoiceService, marking new and modified nodes.",
+        "Draws the notify_invoice_ready call as dashed or labelled unverified.",
+        "Uses at most two diagrams, each with no more than about 12 nodes."
+      ]
+    },
+    {
+      "id": "behavior-briefing-comment-diagram-fallback",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR from the supplied offline artifacts and draft, but do not publish, the review comment for the team's Ezone PR. You cannot check whether Ezone renders Mermaid. Do not access external systems. Return in Chinese.",
+      "expected_output": "Comment draft uses text arrows instead of Mermaid; nothing published.",
+      "files": ["evals/fixtures/briefing-async-flow.md"],
+      "assertions": [
+        "The comment draft includes the change briefing.",
+        "The comment draft expresses the flow with indented text arrows rather than a Mermaid block.",
+        "Does not publish or claim publication."
+      ]
+    },
+    {
+      "id": "behavior-briefing-unconfirmed-concepts",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: what problem does it solve, how and with what architecture, is anything over-designed, does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "New concepts listed and challenged; permission tightening conflicts with docs/decisions.md → C; Not ready.",
+      "files": ["evals/fixtures/briefing-unconfirmed-concepts.md"],
+      "assertions": [
+        "The briefing lists the new concepts: the two progress tables and derived status, the double revision lock, the 需求跟进人 permission role, the 登记开工/补充说明/免审交稿 terms and dialog flow, the 100-stage plan and the shared StrictRoleLookup change.",
+        "Treats docs/requirements/task-progress.md as a claim added by the PR, not as approved scope.",
+        "Reports the assignee/follower/admin restrictions as C against docs/decisions.md:12 and returns Not ready.",
+        "Questions the bookkeeping flow against the existing 开始制作 / 提交成果 actions and recommends letting those real actions drive status, labelled as reviewer judgment.",
+        "Questions at least two of: the revision lock on notes, the shared-service change versus a local helper, the invented UI terms, the 100 stages with mandatory reasons."
+      ]
+    },
+    {
+      "id": "behavior-briefing-justified-concepts",
+      "kind": "behavior",
+      "category": "control",
+      "prompt": "Use $code-change-review to review this PR in the supplied full offline artifacts: what problem does it solve, how and with what architecture, is anything over-designed, does it have bugs and can it merge? Do not access external systems or other scenarios. Return the review in Chinese.",
+      "expected_output": "Concepts traced to issue #139; no invented conflict; not blocked by missing product docs.",
+      "files": ["evals/fixtures/briefing-justified-concepts.md"],
+      "assertions": [
+        "The briefing lists the new concepts (attempts/next_attempt_at, retrying status, backoff schedule, 重试中 label) and traces each to issue #139 or existing behavior.",
+        "Does not report C or a blocking Q because product or design documents are absent.",
+        "Does not recommend removing or simplifying any concept without a concrete user-task reason.",
+        "Returns Ready or Ready with non-blocking follow-ups."
+      ]
     }
   ]
 }

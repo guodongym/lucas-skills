@@ -15,6 +15,8 @@ Select and anchor the PR platform using [Review scope](review-scope.md#remote-ev
 The comment must be understandable without the chat:
 
 ```text
+结论：<one-line merge readiness and blocking count>
+改动导读：<business problem with source label, main path, architecture change, change groups, new concepts (when added) and PR fit; text arrows instead of Mermaid unless rendering is confirmed>
 特别提醒：<concrete behavior/API/schema/architecture changes, when present>
 PR / base / head: <verified URL and immutable SHAs>
 Need: <approved goal/value and observed problem; unverified baseline explicit>

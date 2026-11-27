@@ -83,6 +83,131 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         ):
             self.assertRegex(body, rule)
 
+    def test_entry_sets_zero_trust_stance_with_evidence_gated_verdicts(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        self.assertIn("## Stance", body)
+        self.assertLess(body.index("## Stance"), body.index("## Anchor the review"))
+        stance = body.split("## Stance", 1)[1].split("\n## ", 1)[0]
+        for rule in (
+            r"zero trust",
+            r"requirement[^\n]*design[^\n]*green test",
+            r"unproved",
+            r"unnecessary until",
+            r"polite filler",
+            r"block[^\n]*P0[^\n]*P1[^\n]*C[^\n]*Q",
+            r"advisory reviewer judgment",
+        ):
+            self.assertRegex(stance.lower(), rule.lower())
+
+    def test_report_deduplicates_sections_while_keeping_briefing_detailed(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        report = body.split("## Report and verdict", 1)[1]
+        self.assertRegex(report, r"Explain each fact or issue once[^\n]*reference[^\n]*ID")
+        template = (SKILL_ROOT / "references" / "output-template.md").read_text(
+            encoding="utf-8"
+        )
+        for rule in (
+            r"detailed and self-contained",
+            r"one line per item",
+            r"2–3 sentences",
+            r"C/P/Q IDs",
+            r"Do not repeat",
+        ):
+            self.assertRegex(template, rule)
+
+    def test_entry_briefs_the_change_before_judgment(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        self.assertLess(
+            body.index("## Anchor the review"), body.index("## Brief the change")
+        )
+        self.assertLess(
+            body.index("## Brief the change"), body.index("## Screen the change")
+        )
+        briefing = body.split("## Brief the change", 1)[1].split("\n## ", 1)[0]
+        for rule in (
+            r"[Bb]usiness problem",
+            r"`claimed`[^\n]*`inferred`[^\n]*`not stated`",
+            r"[Nn]ever invent",
+            r"3–5 steps",
+            r"before/after",
+            r"[Cc]hange groups[^\n]*hand-written lines",
+            r"single-group[^\n]*three lines",
+            r"[Dd]iagram only when",
+        ):
+            self.assertRegex(briefing, rule)
+
+    def test_entry_judges_pr_fit_by_independent_units(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        section = body.split("## Does the whole change need to go together?", 1)[1]
+        section = section.split("\n## ", 1)[0]
+        for rule in (
+            r"\*\*PR fit\*\*",
+            r"Can it ship alone\?",
+            r"Should it\?",
+            r"Would separating hurt\?",
+            r"[Rr]ecommend a split only when",
+            r"[Aa]uthor effort, elapsed time and smallness are never reasons",
+            r"size alone",
+            r"[Rr]epository splitting rules prevail[^\n]*mandatory one is C",
+            r"advisory",
+        ):
+            self.assertRegex(section, rule)
+
+    def test_report_opens_with_verdict_line_then_briefing(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        self.assertRegex(
+            body, r"one-line verdict[^\n]*change briefing[^\n]*\*\*Special attention\*\*"
+        )
+        self.assertRegex(body, r"five questions[^\n]*citing the briefing")
+
+    def test_output_template_defines_briefing_and_diagram_limits(self):
+        template = (SKILL_ROOT / "references" / "output-template.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("## Change briefing", template)
+        self.assertRegex(template, r"新概念[^\n]*角色/权限[^\n]*界面用词[^\n]*\| 类别 \|")
+        for rule in (
+            r"verdict line[^\n]*briefing[^\n]*attention",
+            r"[Vv]erified facts",
+            r"dashed[^\n]*unverified",
+            r"new, modified or removed",
+            r"12 nodes",
+            r"at most two",
+            r"Mermaid[^\n]*text arrows",
+        ):
+            self.assertRegex(template, rule)
+
+    def test_entry_challenges_each_new_concept(self):
+        _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
+        briefing = body.split("## Brief the change", 1)[1].split("\n## ", 1)[0]
+        self.assertRegex(
+            briefing,
+            r"[Nn]ew concepts[^\n]*states?[^\n]*mechanisms?[^\n]*roles?[^\n]*"
+            r"flow steps?[^\n]*(user-facing|visible) terms[^\n]*shared dependenc",
+        )
+        section = body.split("## Does the whole change need to go together?", 1)[1]
+        section = section.split("\n## ", 1)[0]
+        for rule in (
+            r"\*\*Challenge new concepts\*\*",
+            r"every touched category",
+            r"per action",
+            r"[Ww]here does it come from\?",
+            r"[Ww]hat user task fails without it\?",
+            r"[Ii]s there a simpler way\?",
+            r"[Dd]ocuments the change (adds|brings)[^\n]*(claims|cannot justify)",
+            r"[Cc]onfirmed source[^\n]*C",
+            r"reviewer judgment",
+            r"simplify or remove[^\n]*advisory",
+        ):
+            self.assertRegex(section, rule)
+
+    def test_pr_comment_template_carries_verdict_and_briefing(self):
+        comments = (SKILL_ROOT / "references" / "pr-comments.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertRegex(comments, r"结论：[^\n]*\n改动导读：[^\n]*PR fit[^\n]*\n特别提醒：")
+        self.assertRegex(comments, r"改动导读：[^\n]*text arrows")
+
     def test_entry_routes_existing_local_references_by_condition(self):
         _, body = load_frontmatter(SKILL_ROOT / "SKILL.md")
         self.assertRegex(body.lower(), r"matching reference[^\n]*entry alone")
@@ -107,10 +232,20 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
             with self.subTest(reference=relative):
                 self.assertIn(relative, routes)
                 self.assertRegex(routes[relative], trigger)
-        for relative in re.findall(r"\]\((references/[^)\s]+\.md)\)", body):
+        for relative, anchor in re.findall(
+            r"\]\((references/[^)#\s]+\.md)(?:#([^)\s]+))?\)", body
+        ):
             reference = (SKILL_ROOT / relative).resolve()
             self.assertTrue(reference.is_relative_to(SKILL_ROOT.resolve()), relative)
             self.assertTrue(reference.is_file(), relative)
+            if anchor:
+                headings = {
+                    re.sub(r"[^a-z0-9\- ]", "", h.lower()).strip().replace(" ", "-")
+                    for h in re.findall(
+                        r"^#+\s+(.+)$", reference.read_text(encoding="utf-8"), re.MULTILINE
+                    )
+                }
+                self.assertIn(anchor, headings, f"{relative}#{anchor}")
 
     def test_output_template_preserves_distinct_evidence_entries(self):
         template = (SKILL_ROOT / "references" / "output-template.md").read_text(
@@ -136,8 +271,8 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         )
         self.assertEqual(manifest["skill_name"], "code-change-review")
         evals = manifest["evals"]
-        self.assertEqual(len(evals), 58)
-        self.assertEqual(len({case["id"] for case in evals}), 58)
+        self.assertEqual(len(evals), 67)
+        self.assertEqual(len({case["id"] for case in evals}), 67)
 
         required = {
             "id",
@@ -161,7 +296,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         triggers = [case for case in evals if case["kind"] == "trigger"]
         behavior = [case for case in evals if case["kind"] == "behavior"]
         self.assertEqual(len(triggers), 13)
-        self.assertEqual(len(behavior), 45)
+        self.assertEqual(len(behavior), 54)
         self.assertEqual(
             {case["route"] for case in triggers},
             {"code-change-review", "other-skill", "mixed"},
@@ -177,7 +312,7 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
         categories = [case["category"] for case in behavior]
         self.assertEqual(categories.count("bug"), 4)
         self.assertEqual(categories.count("safe"), 9)
-        self.assertEqual(categories.count("control"), 27)
+        self.assertEqual(categories.count("control"), 36)
         self.assertEqual(categories.count("constraint"), 5)
         bug_ids = {
             case["id"] for case in behavior
@@ -189,6 +324,19 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
             if case["category"] == "safe"
         }
         self.assertEqual(safe_controls, bug_ids)
+
+        briefing_ids = {
+            "behavior-briefing-small-change",
+            "behavior-briefing-mixed-noise",
+            "behavior-briefing-atomic-large",
+            "behavior-briefing-repo-split-rule",
+            "behavior-briefing-description-mismatch",
+            "behavior-briefing-async-flow",
+            "behavior-briefing-comment-diagram-fallback",
+            "behavior-briefing-unconfirmed-concepts",
+            "behavior-briefing-justified-concepts",
+        }
+        self.assertTrue(briefing_ids.issubset({case["id"] for case in behavior}))
 
 
 if __name__ == "__main__":
