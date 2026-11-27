@@ -247,6 +247,21 @@ class CodeChangeReviewSkillTests(unittest.TestCase):
                 }
                 self.assertIn(anchor, headings, f"{relative}#{anchor}")
 
+    def test_skill_markdown_links_stay_inside_skill_package(self):
+        skill_root = SKILL_ROOT.resolve()
+        for md in sorted(skill_root.rglob("*.md")):
+            text = md.read_text(encoding="utf-8")
+            for target in re.findall(r"\]\(([^)#\s]+)(?:#[^)\s]+)?\)", text):
+                if target.startswith(("http://", "https://", "mailto:", "file://")):
+                    continue
+                resolved = (md.parent / target).resolve()
+                with self.subTest(source=str(md.relative_to(skill_root)), target=target):
+                    self.assertTrue(
+                        resolved.is_relative_to(skill_root),
+                        f"relative link escapes distributable skill directory: {target}",
+                    )
+                    self.assertTrue(resolved.is_file(), target)
+
     def test_output_template_preserves_distinct_evidence_entries(self):
         template = (SKILL_ROOT / "references" / "output-template.md").read_text(
             encoding="utf-8"
