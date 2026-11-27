@@ -10,6 +10,37 @@
 
 ---
 
+## [v0.13.0] - 2026-11-27
+
+**定位**：为 `code-change-review` 增加事实导向的改动导读、PR 适配判断、六类新概念盘点质疑与零信任对抗审查立场并消除报告跨节复述；同时纳入 `professional-writing` 极简为 16 行零写法教学纯底线卡的重构。
+
+### 代码变更审查（`code-change-review`）
+
+* **零信任立场与证据定级护栏**：在 `SKILL.md` 前置 `Stance`，确立“零信任调查、证据门槛定级”——需求、PR 描述、PR 自带的新增/改写文档、方案抽象、既有设计与绿灯测试均先视为未证实假设，默认新增概念不必要直至用户任务证明必要，禁止无证据的礼貌性肯定；同时维持严格的阻塞证据门槛，未证实的合理性或过度设计质疑直接写透但标明为非阻塞评审判断。
+* **改动导读与必要图示**：报告顺序调整为一行结论 → 详细纯事实导读 → 单行特别关注 → 精简五问判断 → 详细发现与九面覆盖。导读说明业务问题（标明 `claimed` / `inferred` / `not stated` 来源、不编造）、3–5 步实现主路径、架构前后对比、按目的拆分的改动分组与手写行数，以及六类新概念事实清单；单分组小改动收为三行。仅在跨多模块/进程、架构变化、异步重试、状态流转或部署顺序依赖时配 Mermaid 图（只画核实事实、未追到调用画虚线标未核实、标注增删改节点）；向未确认支持 Mermaid 的平台起草或发布 PR 评论时自动降级为缩进文字箭头，并在 `references/pr-comments.md` 同步结论行与导读行。
+* **PR 适配判断与新概念质疑**：在“是否需要一起交付”中将 PR 拆分收敛为三个结构问题（能否单独交付、值不值得拆、拆开是否有害），不以作者耗时或体量本身作为拆分依据，仓库强制规则优先（违反记 `C`），其余为非阻塞建议；并要求覆盖变动涉及的全部六类新概念（数据/状态、机制、角色/权限、流程/入口、界面用词、共享依赖），按具体动作追问来源、去掉后哪项用户任务做不成及有无更简方案。
+* **消除跨节复述**：不新增参考文件、不改动既有锚点与下游 `review-and-release-pr` 链接；规定一条事实或问题只展开一次、别处按节名或 `C/P/Q` 编号引用，将特别关注压为单行清单、五问压为每问 2–3 句纯判断（新概念质疑与保留/简化/拆分/移除集中写入“方案”）、九面已改动面只标无异常或对应问题编号。常规分支审查总读取量 27,171 字节（仍较按需加载重构前的 44,947 字节减少 39.5%）。
+
+### 专业写作（`professional-writing`）
+
+* 收敛自 `v0.12.0` 以来已合入 `main` 的极简重构（`9b16e1a`、`22acedd`）：移除旧版 318 行流程、原子事实验证协议及 3 份独立 `references/` 文档，精简为 16 行单文件自包含底线卡（-95%），保留结构去重、术语语境、事实不编造且零防御性括号标签、不脑补空话职责、教程验证闭环与单遍轻量重写 6 条高杠杆底线；新增内部研发复盘评测夹具、触发路由正例与单元测试。
+
+### 验证
+
+* 仓库全量测试 `uv run --frozen python -m unittest discover -s tests -p 'test_*.py' -q` 387/387 通过（`test_code_change_review_skill` 15/15 含相对链接与 `#anchor` 校验、`test_review_and_release_pr_skill` 5/5、`test_professional_writing_skill` 含新增底线测试）。
+* `quick_validate.py` 校验 `skills/code-change-review` 与 `skills/professional-writing` 均通过；`git diff --check` 与公开仓库脱敏核验通过。
+* `code-change-review` 保留原有 58 条用例零改动并追加 9 条离线行为用例，完成三轮独立上下文隔离盲测与独立评分（第三轮 `unconfirmed-concepts` 5/5、`justified-concepts` 无产品文档反例 3/4 + 1 部分且零误杀、`small-change` 5/5；历史 PR `#258` 首轮 5/5；真实 55 文件跨端大 PR 脱敏回放由旧版 `Conforms / Unable to determine` 转为 `Not ready / Violates`，三轮评分由 2/8 升至 5/8 通过、2 部分、1 失败，报告篇幅降 16.0% 且特别关注与九面分别压减 56.2% 与 35.2%）。
+* `professional-writing` 独立新鲜上下文全量内容评测 `eval1`–`eval7` 34/34 断言全通过。
+* 离线边界：宿主自动加载、原有 45 条历史用例与新增 9 条用例中的其余 6 条及 `#258` 在第三轮最终入口上的复跑、以及 Ezone 实际渲染效果未实测。
+
+### 关联文档
+
+* [代码变更审查：改动导读、PR 适配、新概念质疑与零信任立场设计](docs/superpowers/specs/2026-11-26-code-change-review-change-briefing-design.md)
+* [代码变更审查校准记录](skills/code-change-review/evals/2026-11-26-change-briefing.md)
+* [专业写作极简底线版设计与实测验收](docs/superpowers/specs/2026-11-26-professional-writing-structure-first-design.md)
+
+---
+
 ## [v0.12.0] - 2026-11-24
 
 **定位**：扩展 `finishing-a-development-release` 支持按需整理面向测试与生产运维的版本部署文档、参数化脚本与数据库增量 SQL，最小化衔接 `review-and-release-pr`，并对齐 `ezone` 一次创建代码标签与版本说明的平台能力。
