@@ -10,6 +10,21 @@
 
 ---
 
+## [v0.13.1] - 2026-11-27
+
+**定位**：修复 `code-change-review` 校准文档中越出 Skill 分发目录的相对链接，确保独立分发到下游仓库时本地文档路径校验零断链。
+
+### 修复
+
+* 移除 `skills/code-change-review/evals/2026-11-26-change-briefing.md` 指向仓库根目录 `docs/superpowers/specs/` 的相对 Markdown 链接（改为纯路径文本引用），并在 `tests/test_code_change_review_skill.py` 新增回归测试，禁止 `skills/code-change-review/**/*.md` 中出现越出 Skill 目录的相对链接。
+
+### 验证
+
+* 仓库全量测试 `uv run --frozen python -m unittest discover -s tests -p 'test_*.py' -q` 388/388 通过（新增 `test_skill_markdown_links_stay_inside_skill_package` 回归测试，先红后绿）。
+* `quick_validate.py` 校验 `skills/code-change-review` 与 `git diff --check` 通过。
+
+---
+
 ## [v0.13.0] - 2026-11-27
 
 **定位**：为 `code-change-review` 增加事实导向的改动导读、PR 适配判断、六类新概念盘点质疑与零信任对抗审查立场并消除报告跨节复述；同时纳入 `professional-writing` 极简为 16 行零写法教学纯底线卡的重构。
